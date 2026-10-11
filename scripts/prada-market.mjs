@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
+import {guardedRest} from '../crawler/common/guarded-rest.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const country=process.argv[2]??'kr';
 if(!/^[a-z]{2}$/.test(country))throw new Error('invalid country');
@@ -10,10 +11,8 @@ const state=path.join(root,'crawler','prada-progress',country);
 fs.mkdirSync(state,{recursive:true});
 const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
 if(!key)throw new Error('server credential required');
-const headers={apikey:key,Authorization:`Bearer ${key}`,'Cache-Control':'no-cache'};
 async function query(endpoint,method='GET',body){
- const response=await fetch(`https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/${endpoint}`,{method,headers:{...headers,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});
- if(!response.ok())throw new Error('database verification failed');return response.json();
+ return guardedRest(endpoint,method,body,key);
 }
 async function references(){
  const rows=[];for(let offset=0;;offset+=500){const batch=await query(`rpc/crawler_korean_references?limit=500&offset=${offset}`,'POST',{p_brand:'prada'});rows.push(...batch);if(batch.length<500)break;}

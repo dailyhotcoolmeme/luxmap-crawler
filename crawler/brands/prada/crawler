@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { chromium, request } from 'playwright-core';
+import { request } from 'playwright-core';
 import { productLinks, parsePradaProduct, pradaSupplement } from '../../common/prada-product.js';
 import { downloadAndOptimizeImage } from '../../common/image-processor.js';
 import { normalizeProductCode } from '../../common/product-normalizer.js';
@@ -16,7 +16,6 @@ const run=process.env.CRAWL_RUN_DIR,artifact=path.join(run,'artifacts');
 await fs.mkdir(artifact,{recursive:true});
 const context=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:config.navigationTimeoutMs});
 const rows=[],summaries=[];
-let browser;
 let stage='BOOT';
 let pages=0,lastRequest=0;
 const fail=code=>Object.assign(new Error(code),{failureCode:code});
@@ -34,7 +33,7 @@ async function get(url) {
   }
   throw fail('REDIRECT_LIMIT');
 }
-function summarize(row,status=row.priceStatus){return {brand:'prada',country:config.country,parentModel:row.parentModel??'KR reference',variantCode:row.normalizedCode,price:row.price,currency:config.currency,status,officialUrl:row.officialUrl};}
+function summarize(row,status=row.priceStatus){return {brand:'prada',country:config.country,parentModel:(row.parentModel??'KR reference').slice(0,120),variantCode:row.normalizedCode,price:row.price,currency:config.currency,status,officialUrl:row.officialUrl.length<=500?row.officialUrl:config.listingUrls[0]};}
 async function saveSummary(){for(let offset=0;offset<Math.max(summaries.length,1);offset+=25)await fs.writeFile(path.join(run,offset===0?'summary.json':`summary-${offset/25}.json`),JSON.stringify(summaries.slice(offset,offset+25)));}
 try{
   if(args.includes('--discover')){
@@ -86,32 +85,6 @@ try{
         if(args.includes('--expand-variants'))for(const childCode of extra.codes){const target=new URL(url);target.pathname=target.pathname.replace(/[^/]+$/,childCode);if(!seen.has(normalizeProductCode(childCode))&&!queue.includes(target.href))queue.push(target.href);}
         if(args.includes('--inspect-metadata'))for(const [field,label]of [['colorDisplay','COLOR'],['materialDisplay','MATERIAL'],['widthMm','WIDTH'],['heightMm','HEIGHT'],['depthMm','DEPTH']])summaries.push({...summarize(row),price:null,status:`${label}_${row[field]==null?'MISSING':'CONFIRMED'}`});
       }
-      if(args.includes('--inspect-options')){
-        const model=await get(`${url}.model.json`),modelText=await model.text();await fs.writeFile(path.join(run,'raw',`${code}-store-model.json`),modelText);
-        const ids=new Set();const find=value=>{if(typeof value==='string'&&/^[\[{]/.test(value)){try{find(JSON.parse(value));}catch{}return;}if(!value||typeof value!=='object')return;for(const [key,child]of Object.entries(value)){if(key.toLowerCase()==='storeid'&&/^[0-9]+$/.test(String(child)))ids.add(String(child));if(child&&['object','string'].includes(typeof child))find(child);}};
-        try{find(JSON.parse(modelText));}catch{}
-        summaries.push({...summarize(row),price:null,status:`STORE_IDS_${ids.size}`});
-        const target=new URL('https://api.prada.com/anon/approductfilteringprd/PRD_04_07_GetGroupedProducts');target.search=new URLSearchParams({product:row.originalCode,functionalities:'eoSizeSelector',locale:'ko_KR',lang:'ko_KR'});
-        const api=ids.size===1?await context.get(target.href,{headers:{storeId:[...ids][0]},maxRedirects:0}):await get(target.href),body=await api.text();await fs.writeFile(path.join(run,'raw',`${code}-options.json`),body);
-        summaries.push({...summarize(row),price:null,status:`OPTIONS_HTTP_${api.status()}`});
-        if(!api.ok()){for(const word of ['brand','header','parameter','locale','language','country','authorization','missing','product'])if(new RegExp(word,'i').test(body))summaries.push({...summarize(row),price:null,status:`OPTIONS_ERROR_${word.toUpperCase()}`});try{const text=JSON.stringify(JSON.parse(body)).replace(/\\"/g,'"');const header=text.match(/header\s*[:=-]?\s*['"]?([A-Za-z][A-Za-z0-9_-]{1,40})/i)?.[1];if(header)summaries.push({...summarize(row),price:null,status:`REQUIRED_${header.toUpperCase()}`.slice(0,40)});}catch{}}
-        if(api.ok())try{let n=0;const fields=new Set();const visit=value=>{if(!value||typeof value!=='object')return;if(Object.values(value).some(v=>typeof v==='string'&&/^\d[A-Z]{2}\d{3}_/.test(v))&&n++<4)for(const field of Object.keys(value))fields.add(field);for(const child of Object.values(value))if(child&&typeof child==='object')visit(child);};const data=JSON.parse(body);visit(data);for(const field of [...Object.keys(data),...fields].slice(0,55))summaries.push({...summarize(row),price:null,status:`OPT_${field.replace(/[^a-zA-Z]/g,'').toUpperCase()}`.slice(0,40)});summaries.push({...summarize(row),price:null,status:`OPTION_PRODUCTS_${n}`});}catch{}
-      }
-      if(args.includes('--inspect-browser')){
-        stage='BROWSER_CONNECT';
-        browser??=await chromium.connectOverCDP(process.env.CRAWL_CDP_URL);const tab=await browser.contexts()[0].newPage();const apis=new Set();
-        tab.on('request',req=>{const target=new URL(req.url());if(target.hostname==='api.prada.com'&&target.pathname.includes('GetGroupedProducts')){for(const header of Object.keys(req.headers()))summaries.push({...summarize(row),price:null,status:`HDR_${header.replace(/[^a-zA-Z]/g,'').toUpperCase()}`.slice(0,40)});summaries.push({...summarize(row),price:null,status:`METHOD_${req.method()}`});}if(['xhr','fetch'].includes(req.resourceType())&&target.href.length<=500&&!/key|token|auth/i.test(target.search))apis.add(target.href);});
-        const pending=[];
-        tab.on('response',response=>{if(response.url().includes('GetGroupedProducts'))pending.push((async()=>{const raw=await response.text();await fs.writeFile(path.join(run,'raw',`${code}-browser-options.json`),raw);summaries.push({...summarize(row),price:null,status:`BROWSER_OPTIONS_${response.status()}`});try{const value=JSON.parse(raw),fields=new Set(Object.keys(value));const visit=obj=>{if(!obj||typeof obj!=='object')return;for(const [key,v]of Object.entries(obj)){if(/product|color|colour|material|size|part|dimension|height|width|depth|sku/i.test(key))fields.add(key);if(v&&typeof v==='object')visit(v);}};visit(value);for(const field of [...fields].slice(0,45))summaries.push({...summarize(row),price:null,status:`OPT_${field.replace(/[^a-zA-Z]/g,'').toUpperCase()}`.slice(0,40)});}catch{}})().catch(()=>{}));});
-        await tab.route('**/*',route=>{const req=route.request(),target=new URL(req.url());return !config.allowedHosts.includes(target.hostname)||(target.hostname==='api.prada.com'&&!target.pathname.includes('GetGroupedProducts'))||['image','font','media'].includes(req.resourceType())?route.abort():route.continue();});
-        stage='BROWSER_NAVIGATE';await tab.goto(url,{waitUntil:'domcontentloaded',timeout:30000});await tab.waitForTimeout(2500);
-        await Promise.all(pending);for(const api of apis)summaries.push({...summarize(row),price:null,status:'OBSERVED_PRODUCT_API',officialUrl:api});await tab.close();
-      }
-      if(args.includes('--inspect-model')){
-        const api=await get(`${url}.model.json`),body=await api.text();await fs.writeFile(path.join(run,'raw',`${code}-model.json`),body);
-        summaries.push({...summarize(row),price:null,status:`MODEL_HTTP_${api.status()}`});
-        if(api.ok())try{const fields=new Set();const visit=value=>{if(typeof value==='string'&&/^[\[{]/.test(value)){try{visit(JSON.parse(value));}catch{}return;}if(!value||typeof value!=='object')return;for(const [field,child] of Object.entries(value)){if(/color|colour|material|dimension|size|height|width|depth|variant|product|partnumber/i.test(field))fields.add(field);if(child&&(['object','string'].includes(typeof child)))visit(child);}};visit(JSON.parse(body));for(const field of [...fields].slice(0,75))summaries.push({...summarize(row),price:null,status:`FIELD_${field.replace(/[^a-zA-Z]/g,'').toUpperCase()}`.slice(0,40)});}catch{}
-      }
       if(config.country==='KR'){
         Object.assign(row,await downloadAndOptimizeImage({request:context},row.sourceImageUrl,artifact));
         if(args.includes('--expand-variants'))for(const [childCode,childUrl] of productLinks(html,url,'kr'))if(childCode.startsWith(row.styleCode)&&!seen.has(childCode)&&!queue.includes(childUrl))queue.push(childUrl);
@@ -126,4 +99,4 @@ try{
   const code=error.failureCode??(network?`${stage}_${network}`:/Timeout|timeout/i.test(error.message)?`${stage}_TIMEOUT`:`${stage}_${String(error.name??'ERROR').toUpperCase()}`);
   summaries.push({brand:'prada',country:config.country,parentModel:'run',variantCode:'FAILED',price:null,currency:config.currency,status:code,officialUrl:config.listingUrls[0]});
   await fs.writeFile(path.join(run,'failure.json'),JSON.stringify({failureCode:code}));process.exitCode=1;
-}finally{await saveSummary();await context.dispose();if(browser)await browser.close();}
+}finally{await saveSummary();await context.dispose();}
