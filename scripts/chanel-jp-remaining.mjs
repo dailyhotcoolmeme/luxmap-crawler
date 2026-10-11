@@ -35,14 +35,14 @@ async function catalog(final=false){
  const rows=[];
  for(let offset=0;;offset+=500){
   const response=await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/rpc/crawler_korean_references?limit=500&offset=${offset}`,{method:'POST',headers:{...headers,'Content-Type':'application/json','Cache-Control':'no-cache'},body:JSON.stringify({p_brand:'chanel'}),cache:'no-store',signal:AbortSignal.timeout(30000)});
-  if(!response.ok)throw new Error('catalog query failed');
+  if(!response.ok){const error=new Error('catalog query failed');error.failureCode=`REFERENCE_HTTP_${response.status}`;throw error;}
   const batch=await response.json();rows.push(...batch);if(batch.length<500)break;
  }
  const freshness=new Date(Date.now()%86400000).toISOString();
  const markets=[];
  for(let offset=0;;offset+=500){
  const marketResponse=await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/market_products?select=variant_id,official_product_code,country_code,current_price,currency_code,official_url&last_seen_at=gte.${encodeURIComponent(freshness)}&order=id.${final?'desc':'asc'}&limit=500&offset=${offset}`,{headers:{...headers,'Cache-Control':'no-cache'},cache:'no-store',signal:AbortSignal.timeout(30000)});
- if(!marketResponse.ok)throw new Error('market verification query failed');
+ if(!marketResponse.ok){const error=new Error('market verification query failed');error.failureCode=`MARKET_HTTP_${marketResponse.status}`;throw error;}
  const batch=await marketResponse.json();markets.push(...batch);if(batch.length<500)break;
  }
  for(const row of rows)row.market_products=markets.filter(m=>m.variant_id===row.id);
@@ -89,7 +89,7 @@ for(let i=0;i<pending.length;i+=1){
   const file=last?path.join(runs,last,'failure.json'):null;
   const code=file&&fs.existsSync(file)?JSON.parse(fs.readFileSync(file)).failureCode:'PIPELINE_FAILED';
   const summaryCode=String(code).replace(/^INCOMPLETE_/, '');
-  for(const row of batch)failures.set(row.normalized_code,/^[A-Z_]{1,40}$/.test(summaryCode)?summaryCode:'PIPELINE_FAILED');
+  for(const row of batch)failures.set(row.normalized_code,/^[A-Z0-9_]{1,40}$/.test(summaryCode)?summaryCode:'PIPELINE_FAILED');
   accessBlocked=String(code).includes('ACCESS_BLOCKED');
   await reportCrawlFailure({brand:'chanel',country:countryCode,status:code,variantCode:batch[0].normalized_code});
  }
@@ -119,7 +119,7 @@ process.exitCode=policyBlocked?78:failed===0&&processed===pending.length&&(limit
 }
 main().catch(error=>{
  const known={'catalog query failed':'REFERENCE_QUERY_FAILED','market verification query failed':'MARKET_QUERY_FAILED','Korean reference integrity failed':'REFERENCE_INTEGRITY_FAILED','administrator alert queue limit':'ALERT_QUEUE_LIMIT'};
- const status=known[error.message]??'ADAPTER_FAILED';
+ const status=/^[A-Z0-9_]{1,40}$/.test(error.failureCode??'')?error.failureCode:known[error.message]??(error.name==='TypeError'?'ADAPTER_TRANSPORT_FAILED':'ADAPTER_FAILED');
  const out=path.join(dir,'execution');fs.mkdirSync(out,{recursive:true});
  const file=path.join(out,'summary.json');
  fs.writeFileSync(file,JSON.stringify([{brand:'chanel',country:countryCode,parentModel:'execution',variantCode:'unknown',price:null,currency,status,officialUrl:config.listingUrls[0]}]));
