@@ -1,0 +1,16 @@
+{
+  "name": "luxury-price-crawler",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "crawler:run": "node scripts/crawler-service.mjs run",
+    "crawler:status": "node scripts/crawler-service.mjs status",
+    "crawler:install": "node scripts/crawler-service.mjs install",
+    "pipeline:chanel:kr": "scripts/run-brand-country-pipeline.sh chanel kr",
+    "token-safety:check": "scripts/token-safety-gate.sh"
+  },
+  "dependencies": {
+    "playwright-core": "1.63.0",
+    "sharp": "0.35.4"
+  }
+}

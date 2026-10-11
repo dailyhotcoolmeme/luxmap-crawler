@@ -1,0 +1,268 @@
+#!/usr/bin/env node
+import fs from "node:fs/promises";
+import path from "node:path";
+import { chromium, request } from "playwright-core";
+import { downloadAndOptimizeImage } from "../../common/image-processor.js";
+import { normalizeProductCode, originalCodeFromText, parseDimensions } from "../../common/product-normalizer.js";
+
+const args = process.argv.slice(2);
+if (process.env.LUXURY_NETWORK_ISOLATED !== 'enabled' || !process.env.LUXURY_NETWORK_PROXY) throw new Error('kernel network isolation required');
+const configIndex = args.indexOf("--country-config");
+const maxIndex = args.indexOf("--max-products");
+const prefixIndex = args.indexOf("--model-code-prefix");
+const seedIndex = args.indexOf("--seed-url");
+const urlsIndex = args.indexOf("--urls-file");
+const fixedUrls = urlsIndex >= 0 ? JSON.parse(await fs.readFile(args[urlsIndex + 1], 'utf8')) : null;
+if (configIndex < 0 || !args[configIndex + 1]) throw new Error("country config required");
+const config = JSON.parse(await fs.readFile(args[configIndex + 1], "utf8"));
+const parentModelMap = JSON.parse(await fs.readFile(new URL("./parent-model-map.json", import.meta.url), "utf8"));
+const runDir = process.env.CRAWL_RUN_DIR;
+const summaryFile = process.env.CRAWL_SUMMARY_FILE;
+const requestedMax = maxIndex >= 0 ? Number(args[maxIndex + 1]) : config.maxProductsPerRun;
+const maxProducts = Math.min(requestedMax || config.maxProductsPerRun, config.maxProductsPerRun);
+const modelCodePrefix = prefixIndex >= 0 ? String(args[prefixIndex + 1] || "").toUpperCase() : null;
+const seedUrl = seedIndex >= 0 ? String(args[seedIndex + 1] || "") : null;
+if (!runDir || !summaryFile || process.env.CRAWL_MODE !== "deterministic-only") throw new Error("guarded runner required");
+if (process.env.LUXURY_PIPELINE_GUARD !== "enabled") throw new Error("central pipeline required");
+if (!process.env.CRAWL_CDP_URL) throw new Error("guarded browser required");
+
+const rawDir = path.join(runDir, "raw");
+const artifactDir = path.join(runDir, "artifacts");
+await fs.mkdir(rawDir, { recursive: true });
+await fs.mkdir(artifactDir, { recursive: true });
+const failures = [];
+const records = [];
+let browser;
+let runStage = 'BOOT';
+let lastNavigationAt = 0;
+
+function classifyFailure(error, stage) {
+  if (error && typeof error === "object" && "failureCode" in error) return String(error.failureCode);
+  const message = error instanceof Error ? error.message : "unknown";
+  if (message === 'invalid fixed URLs') return 'INVALID_FIXED_URLS';
+  if (message === 'no product URLs discovered') return 'NO_PRODUCT_URLS';
+  if (message === 'product structured data missing') return 'STRUCTURED_DATA_MISSING';
+  if (message === 'product name missing') return 'PRODUCT_NAME_MISSING';
+  if (error?.name === 'ReferenceError') return 'REFERENCE_ERROR';
+  if (error?.name === 'TypeError') return 'TYPE_ERROR';
+  const networkCode = message.match(/net::(ERR_[A-Z_]+)/)?.[1];
+  if (networkCode) return `${stage}_${networkCode}`;
+  if (/product limit exceeded/i.test(message)) return "PRODUCT_LIMIT_EXCEEDED";
+  if (/incomplete product crawl/i.test(message)) return "INCOMPLETE_PRODUCT_CRAWL";
+  if (/access blocked|access denied|permission/i.test(message)) return "ACCESS_BLOCKED";
+  if (/has been closed|target closed/i.test(message)) return `${stage}_BROWSER_CLOSED`;
+  if (/timeout .*exceeded|timed out/i.test(message)) return `${stage}_TIMEOUT`;
+  if (/price/i.test(message)) return "PRICE_UNAVAILABLE";
+  if (/image/i.test(message)) return "IMAGE_FAILED";
+  if (/product code/i.test(message)) return "PRODUCT_CODE_MISSING";
+  return `${stage}_FAILED`;
+}
+
+function styleCodeOf(normalizedCode) {
+  return normalizedCode.match(/^[A-Z]+[0-9]+/)?.[0] || null;
+}
+
+function parentModelName(productName, normalizedCode) {
+  const styleCode = styleCodeOf(normalizedCode);
+  return parentModelMap[styleCode]?.name || `${productName} · ${styleCode}`;
+}
+
+function parentModelKey(productName, normalizedCode) {
+  const styleCode = styleCodeOf(normalizedCode);
+  return parentModelMap[styleCode]?.key || `unreviewed-${styleCode.toLowerCase()}`;
+}
+
+async function navigate(page, url) {
+  let lastError;
+  for (let attempt = 0; attempt <= config.maxRetriesPerUrl; attempt += 1) {
+    try {
+      const remaining = (config.minNavigationIntervalMs || 0) - (Date.now() - lastNavigationAt);
+      if (remaining > 0) await page.waitForTimeout(remaining);
+      lastNavigationAt = Date.now();
+      const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: config.navigationTimeoutMs });
+      if (response && [403, 429].includes(response.status())) {
+        const error = new Error('official site access blocked');
+        error.failureCode = 'ACCESS_BLOCKED';
+        throw error;
+      }
+      await page.waitForTimeout(config.detailWaitMs);
+      return;
+    } catch (error) {
+      if (error?.failureCode === 'ACCESS_BLOCKED') throw error;
+      lastError = error;
+      if (attempt < config.maxRetriesPerUrl) await page.waitForTimeout(config.retryDelayMs);
+    }
+  }
+  throw lastError;
+}
+
+try {
+  browser = await chromium.connectOverCDP(process.env.CRAWL_CDP_URL, { timeout: 10000 }).catch(() => { const error = new Error('CDP connection failed'); error.failureCode = 'CDP_CONNECTION_FAILED'; throw error; });
+  runStage = 'IMAGE_CONTEXT';
+  const context = browser.contexts()[0];
+  const imageRequest = await request.newContext({ proxy: { server: process.env.LUXURY_NETWORK_PROXY } });
+  const allowedHosts = new Set(config.allowedHosts);
+  runStage = 'ROUTE_SETUP';
+  await context.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (["data:", "blob:"].includes(url.protocol) || allowedHosts.has(url.hostname)) await route.continue();
+    else await route.abort("blockedbyclient");
+  });
+  const page = context.pages()[0] || await context.newPage();
+  runStage = 'LISTING';
+  const productUrls = new Set();
+
+  for (const listingUrl of (fixedUrls || (seedUrl && modelCodePrefix) ? [] : config.listingUrls)) {
+    await navigate(page, listingUrl);
+    let previousCount = -1;
+    let stableRounds = 0;
+    for (let round = 0; round < config.maxDiscoveryScrolls && stableRounds < config.discoveryStableRounds; round += 1) {
+      const discovered = await page.evaluate((pattern) => {
+        const matcher = new RegExp(pattern);
+        return [...new Set([...document.querySelectorAll("a[href]")]
+          .map((anchor) => new URL(anchor.href, location.href).href.split("#")[0])
+          .filter((url) => matcher.test(new URL(url).pathname)))];
+      }, config.detailPathPattern);
+      discovered.forEach((url) => productUrls.add(url));
+      stableRounds = productUrls.size === previousCount ? stableRounds + 1 : 0;
+      previousCount = productUrls.size;
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(config.discoveryWaitMs);
+    }
+  }
+
+  if (fixedUrls) {
+    if (!Array.isArray(fixedUrls) || !fixedUrls.length || fixedUrls.some(url => {const u=new URL(url);return u.origin!=='https://www.chanel.com'||!new RegExp(config.detailPathPattern).test(u.pathname);})) throw new Error('invalid fixed URLs');
+    fixedUrls.forEach(url => productUrls.add(url));
+  }
+  if (!fixedUrls && seedUrl && modelCodePrefix) {
+    runStage = 'SEED';
+    await navigate(page, seedUrl);
+    const linkedVariants = await page.evaluate((prefix) => [...new Set([...document.querySelectorAll('a[href*="/fashion/p/"]')]
+      .map((anchor) => new URL(anchor.href, location.href).href.split("#")[0])
+      .filter((url) => new URL(url).pathname.match(/\/fashion\/p\/([^/]+)\//)?.[1]?.toUpperCase().startsWith(prefix)))], modelCodePrefix);
+    linkedVariants.forEach((url) => productUrls.add(url));
+  }
+
+  const urls = [...productUrls]
+    .filter((url) => !modelCodePrefix || new URL(url).pathname.match(/\/fashion\/p\/([^/]+)\//)?.[1]?.toUpperCase().startsWith(modelCodePrefix))
+    .sort();
+  if (urls.length === 0) throw new Error("no product URLs discovered");
+  if (urls.length > maxProducts) throw new Error("discovered product limit exceeded");
+
+  const queuedUrls = new Set(urls);
+  for (let index = 0; index < urls.length; index += 1) {
+    const officialUrl = urls[index];
+    let stage = "DETAIL";
+    try {
+      await navigate(page, officialUrl);
+      const detailButton = page.getByRole("button", { name: config.detailButtonLabel });
+      if (await detailButton.count()) await detailButton.first().click().catch(() => {});
+      await page.waitForTimeout(300);
+      const extracted = await page.evaluate(() => {
+        const text = document.body?.innerText || "";
+        const html = document.documentElement?.outerHTML || "";
+        const products = [];
+        for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+          try {
+            const root = JSON.parse(script.textContent || "null");
+            const walk = (value) => {
+              if (!value || typeof value !== "object") return;
+              if (value["@type"] === "Product") products.push(value);
+              for (const child of Object.values(value)) walk(child);
+            };
+            walk(root);
+          } catch {}
+        }
+        const largeDetailImages = Array.from(document.images)
+          .filter((image) => /(모습|view)\s*1.*(라지|large)/i.test(image.alt || ""))
+          .map((image) => {
+            const candidates = (image.srcset || "").split(",").map((part) => {
+              const match = part.trim().match(/^(\S+)\s+(\d+)w$/);
+              return match ? { url: match[1], width: Number(match[2]) } : null;
+            }).filter(Boolean).filter((candidate) => candidate.width <= 1600).sort((a, b) => b.width - a.width);
+            return candidates[0]?.url || image.currentSrc || image.src;
+          });
+        const imageCandidates = [
+          ...largeDetailImages,
+          ...products.flatMap((product) => Array.isArray(product.image) ? product.image : [product.image]),
+          ...Array.from(document.querySelectorAll('meta[property="og:image"]')).map((node) => node.content)
+        ].filter(Boolean).map((value) => typeof value === "string" ? value : value.url).filter(Boolean);
+        const productLinks = [...new Set([...document.querySelectorAll('a[href*="/fashion/p/"]')]
+          .map((anchor) => new URL(anchor.href, location.href).href.split("#")[0]))];
+        return { text, html, title: document.title, products, imageCandidates: [...new Set(imageCandidates)], productLinks };
+      });
+
+      await fs.writeFile(path.join(rawDir, `${String(index + 1).padStart(3, "0")}.html`), extracted.html, "utf8");
+      if (/access denied|you don't have permission|접근이 거부/i.test(extracted.text + extracted.title)) throw new Error("official page access blocked");
+      const product = extracted.products.find((item) => item.sku) || extracted.products[0];
+      if (!product) throw new Error("product structured data missing");
+      const normalizedCode = normalizeProductCode(product.sku || officialUrl.match(/\/p\/([^/]+)/)?.[1]);
+      if (!normalizedCode) throw new Error("product code missing");
+      if(fixedUrls&&normalizedCode!==normalizeProductCode(new URL(officialUrl).pathname.match(/\/p\/([^/]+)/)?.[1]))throw new Error('product code mismatch');
+      const styleCode = styleCodeOf(normalizedCode);
+      if (!styleCode) throw new Error("style code missing");
+      for (const linkedUrl of (fixedUrls ? [] : extracted.productLinks)) {
+        let linkedCode;
+        try { linkedCode = normalizeProductCode(new URL(linkedUrl).pathname.match(/\/fashion\/p\/([^/]+)\//)?.[1]); } catch { continue; }
+        if (!linkedCode || styleCodeOf(linkedCode) !== styleCode || queuedUrls.has(linkedUrl)) continue;
+        if (urls.length >= maxProducts) throw new Error("expanded product limit exceeded");
+        queuedUrls.add(linkedUrl);
+        urls.push(linkedUrl);
+      }
+      const originalCode = originalCodeFromText(extracted.text, normalizedCode);
+      const productName = String(product.name || "").trim();
+      if (!productName) throw new Error("product name missing");
+      const offer = Array.isArray(product.offers) ? product.offers[0] : product.offers;
+      const currency = offer?.priceCurrency || config.currency;
+      const price = offer?.price == null ? null : (typeof offer.price==='number'?offer.price:Number(String(offer.price).replace(/\s/g,'').replace(/,(?=\d{3}(?:\D|$))/g,'').replace(',', '.')));
+      if (price !== null && (!Number.isFinite(price) || price <= 0)) throw new Error("invalid price");
+      if (currency !== config.currency) throw new Error("unexpected currency");
+      const dimensions = parseDimensions(extracted.text.match(new RegExp(config.dimensionPattern, "i"))?.[0] || null);
+      const imageUrl = extracted.imageCandidates.find((url) => {
+        try { return allowedHosts.has(new URL(url).hostname) && !/(logo|icon|sprite)/i.test(url); } catch { return false; }
+      });
+      if (!imageUrl) throw new Error("official product image not found");
+
+      stage = "IMAGE";
+      const image = await downloadAndOptimizeImage({ request: imageRequest }, imageUrl, artifactDir);
+      const checkedAt = new Date().toISOString();
+      const material = typeof product.material === "string" ? product.material.trim() : null;
+      const color = typeof product.color === "string" ? product.color.trim() : null;
+      const parentModel = parentModelName(productName, normalizedCode);
+      records.push({
+        brand: "chanel", country: config.country, currency, taxIncluded: config.taxIncluded, category: "bag",
+        parentModel, modelKey: parentModelKey(productName, normalizedCode),
+        modelMatchBasis: parentModelMap[styleCode] ? "reviewed_brand_map" : "style_code_unreviewed",
+        productName, originalCode, normalizedCode,
+        styleCode,
+        materialOriginal: material, materialDisplay: material, colorOriginal: color, colorDisplay: color,
+        dimensionsOriginal: dimensions.original, widthMm: dimensions.widthMm, heightMm: dimensions.heightMm, depthMm: dimensions.depthMm,
+        price, priceStatus: price === null ? "price_unavailable" : "confirmed", officialUrl, sourceImageUrl: imageUrl,
+        ...image, checkedAt
+      });
+    } catch (error) {
+      if (/product limit exceeded/i.test(error instanceof Error ? error.message : "")) throw error;
+      failures.push({ officialUrl, failureCode: classifyFailure(error, stage) });
+    }
+  }
+
+  if (failures.length > 0) {
+    const failureTypes = [...new Set(failures.map((failure) => failure.failureCode))].sort().join("_");
+    const incompleteError = new Error("incomplete product crawl");
+    incompleteError.failureCode = `INCOMPLETE_${failureTypes}`;
+    throw incompleteError;
+  }
+  if (records.length === 0) throw new Error("no valid product records");
+  await fs.writeFile(path.join(artifactDir, "records.json"), JSON.stringify(records), "utf8");
+  await fs.writeFile(path.join(runDir, "failures.json"), JSON.stringify(failures), "utf8");
+  await fs.writeFile(summaryFile, JSON.stringify(records.map((record) => ({
+    brand: record.brand, country: record.country, parentModel: record.parentModel, variantCode: record.normalizedCode,
+    price: record.price, currency: record.currency, status: record.priceStatus, officialUrl: record.officialUrl
+  }))), "utf8");
+} catch (error) {
+  await fs.writeFile(path.join(runDir, "failure.json"), JSON.stringify({ failureCode: classifyFailure(error, runStage) }), "utf8");
+  throw error;
+} finally {
+  await browser?.close().catch(() => {});
+}

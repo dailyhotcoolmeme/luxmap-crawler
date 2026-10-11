@@ -1,0 +1,28 @@
+{
+  "mode": "deterministic-only",
+  "allowModelApis": false,
+  "allowWebSearchAsCrawler": false,
+  "failClosed": true,
+  "requireCentralPipeline": true,
+  "allowedRuntimeDependencies": ["playwright-core", "sharp"],
+  "requireBrandCountryIsolation": true,
+  "limits": {
+    "maxPagesPerBrandCountryRun": 250,
+    "maxConcurrentRequests": 2,
+    "maxRetriesPerUrl": 2,
+    "maxImagesPerProduct": 1,
+    "maxSummaryBytesPerRun": 32768,
+    "maxSummaryRecordsPerRun": 500,
+    "maxCapturedLogBytesPerRun": 1048576
+  },
+  "requiredSummaryFields": [
+    "brand",
+    "country",
+    "parentModel",
+    "variantCode",
+    "price",
+    "currency",
+    "status",
+    "officialUrl"
+  ]
+}

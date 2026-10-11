@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hour": 9,
+  "minute": 0,
+  "scope": "existing_korean_reference_price_refresh",
+  "jobs": [
+    {"brand":"chanel","country":"kr","adapter":"scripts/chanel-jp-remaining.mjs","evidence":"crawler/runs/chanel/kr/20260924T004511Z-27163/summary.json"},
+    {"brand":"chanel","country":"jp","adapter":"scripts/chanel-jp-remaining.mjs","evidence":"crawler/jp-remaining/summary.json"},
+    {"brand":"chanel","country":"fr","adapter":"scripts/chanel-jp-remaining.mjs","evidence":"crawler/fr-remaining/summary.json"},
+    {"brand":"chanel","country":"it","adapter":"scripts/chanel-jp-remaining.mjs","evidence":"crawler/it-remaining/summary.json"}
+  ]
+}

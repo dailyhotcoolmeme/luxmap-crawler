@@ -1,0 +1,9 @@
+node_modules/
+app/
+crawler/runs/
+crawler/service/
+crawler/*-remaining/
+*.log
+.env*
+*.key
+*.pem

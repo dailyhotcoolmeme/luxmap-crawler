@@ -1,0 +1,52 @@
+name: Luxmap crawler
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Run scope
+        required: true
+        default: smoke
+        type: choice
+        options: [smoke, full]
+permissions:
+  contents: read
+concurrency:
+  group: luxmap-crawler
+  cancel-in-progress: false
+jobs:
+  crawl:
+    runs-on: macos-14
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '25.8.0'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci --no-audit --no-fund > /dev/null 2>&1
+      - name: Check platform and token safeguards
+        run: |
+          scripts/token-safety-gate.sh > /dev/null
+          test -x '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+          /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)' /usr/bin/true
+          mkdir -p app crawler/service
+      - name: Collect and ingest through unified registry
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://nxgnbrdxxmlhtcnymqsl.supabase.co
+          EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          LUXURY_BROWSER_MAINTENANCE_SINK: '1'
+          LUXURY_SERVICE_GUARD: enabled
+          LUXURY_SERVICE_STATE_DIR: ${{ github.workspace }}/crawler/service
+          RUN_MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$RUN_MODE" = smoke ]; then
+            node scripts/crawler-daily.mjs --smoke > /dev/null 2>&1
+          else
+            node scripts/crawler-daily.mjs > /dev/null 2>&1
+          fi
+      - name: Close owned browser processes
+        if: always()
+        run: node scripts/close-finished-crawl-browsers.mjs > /dev/null 2>&1
