@@ -9,6 +9,7 @@ if(!key)throw new Error('server credential required');
 const source=process.env.GITHUB_ACTIONS==='true'?'github':'local';
 const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const owner=`${source}:${randomUUID()}`;
+const partial=process.argv.includes('--smoke')||process.argv.includes('--countries');
 const rpc=async(name,args)=>{
  const response=await fetch(`https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw new Error('coordination request failed');
@@ -24,10 +25,10 @@ try{
  for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{heartbeatFailed=true;stop();});
  const code=await new Promise(resolve=>{child.once('error',()=>{finished=true;resolve(1);});child.once('exit',code=>{finished=true;resolve(code??1);});});
  clearInterval(timer);
- const completed=code===0&&!heartbeatFailed&&!process.argv.includes('--smoke');
- if(!await rpc('release_crawler_execution',{p_owner:owner,p_day:day,p_complete:completed,p_failed:!process.argv.includes('--smoke')&&!completed}))throw new Error('release failed');
+ const completed=code===0&&!heartbeatFailed&&!partial;
+ if(!await rpc('release_crawler_execution',{p_owner:owner,p_day:day,p_complete:completed,p_failed:!partial&&!completed}))throw new Error('release failed');
  process.exitCode=heartbeatFailed?78:code;
 }catch{
  stop();process.exitCode=1;
- try{await rpc('release_crawler_execution',{p_owner:owner,p_day:day,p_complete:false,p_failed:!process.argv.includes('--smoke')});}catch{}
+ try{await rpc('release_crawler_execution',{p_owner:owner,p_day:day,p_complete:false,p_failed:!partial});}catch{}
 }finally{clearInterval(timer);clearTimeout(killTimer);}

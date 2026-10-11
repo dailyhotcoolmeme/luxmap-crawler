@@ -55,6 +55,7 @@ const pending=reference.filter(r=>r.normalized_code!==excludedCode&&(refresh||!r
 fs.writeFileSync(path.join(dir,'reference.json'),JSON.stringify(reference.map(r=>r.normalized_code)));
 let processed=0,failed=0;
 const failures=new Map();
+let accessBlocked=false;
 for(let i=0;i<pending.length;i+=1){
  const batch=pending.slice(i,i+1);
  const urls=batch.map(r=>countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url));
@@ -80,9 +81,10 @@ for(let i=0;i<pending.length;i+=1){
   const file=last?path.join(runs,last,'failure.json'):null;
   const code=file&&fs.existsSync(file)?JSON.parse(fs.readFileSync(file)).failureCode:'PIPELINE_FAILED';
   for(const row of batch)failures.set(row.normalized_code,/^[A-Z_]{1,40}$/.test(code)?code:'PIPELINE_FAILED');
+  accessBlocked=String(code).includes('ACCESS_BLOCKED');
  }
  // Stop the country immediately on token/network policy violations.
- if(run.status===78)break;
+ if(run.status===78||accessBlocked)break;
 }
 const after=await catalog(true);
 const matched=after.filter(r=>r.market_products.some(m=>m.country_code===countryCode));
