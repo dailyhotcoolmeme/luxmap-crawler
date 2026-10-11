@@ -5,5 +5,6 @@ const reference={normalized_code:'TEST123'};
 const row={country_code:'ES',currency_code:'EUR',official_product_code:'TEST123',current_price:10000,official_url:'https://www.chanel.com/es/moda/p/TEST123/bag/'};
 assert.equal(validCountryMarket(row,reference,config),true);
 assert.equal(validCountryMarket({...row,current_price:null},reference,config),true);
+assert.equal(validCountryMarket({...row,official_url:'https://www.chanel.com/es/moda/p/OTHER123/bag/'},reference,config),false);
 for(const patch of [{country_code:'US'},{currency_code:'USD'},{official_product_code:'OTHER'},{current_price:0},{current_price:-1},{current_price:'NaN'},{official_url:'https://www.chanel.com/kr/fashion/p/TEST123/bag/'},{official_url:'https://example.com/es/moda/p/TEST123/bag/'}])assert.equal(validCountryMarket({...row,...patch},reference,config),false);
 console.log('PASS: country coverage requires exact Korean SKU, currency, official URL and valid price.');
