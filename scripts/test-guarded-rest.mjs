@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {sanitizedRestError} from '../crawler/common/guarded-rest.js';
+const raw={stdout:'PRIVATE_RESPONSE_BODY',stderr:'BLOCKED: LOG_LIMIT; PRIVATE_ERROR_BODY',output:['PRIVATE'],cmd:'PRIVATE_COMMAND',message:'PRIVATE_MESSAGE'};
+const error=sanitizedRestError(raw);
+assert.equal(error.failureCode,'DATABASE_LOG_LIMIT');
+assert.equal(error.stdout,undefined);assert.equal(error.stderr,undefined);assert.equal(error.cause,undefined);
+assert(!JSON.stringify(error).includes('PRIVATE'));assert(!error.stack.includes('PRIVATE'));
+assert.equal(sanitizedRestError(new SyntaxError('PRIVATE_JSON')).message,'DATABASE_REQUEST_FAILED');
+assert.equal(sanitizedRestError({code:'ETIMEDOUT'}).message,'DATABASE_TIMEOUT');
+console.log('PASS: bounded REST failures never expose child output, credentials, command arguments or parser response excerpts');
