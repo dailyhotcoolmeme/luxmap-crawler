@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {storePradaMarkets} from '../crawler/common/prada-market-store.js';
+const config={country:'JP',currency:'JPY',referenceDetailPrefix:'/jp/ja/p/',detailPathPattern:'^/jp/ja/p/[^/]+/[A-Za-z0-9_]+$'};
+const row={normalizedCode:'1BA896NZVF0002VOOO',country:'JP',currency:'JPY',officialUrl:'https://www.prada.com/jp/ja/p/test/1BA896_NZV_F0002_V_OOO',price:600000,priceStatus:'confirmed',checkedAt:'2026-10-11T13:00:00Z',productName:'Test'};
+const variant={id:'v1',normalized_code:row.normalizedCode,name_original:'한국 기준',brands:{name_original:'PRADA'}};
+let existing=[],saved=[],history=[],inserted=[],calls=0;
+const query=async(endpoint,method='GET',body)=>{calls++;if(endpoint.startsWith('product_variants?'))return [variant];if(endpoint.includes('country_code=eq.KR'))return [{variant_id:'v1',official_product_code:variant.normalized_code}];if(endpoint.startsWith('market_products?on_conflict=')){saved=body.map(item=>({...item,id:'m1'}));return saved;}if(endpoint.includes('price_history.order='))return saved.map(item=>({id:item.id,price_history:history}));if(endpoint==='price_history'){inserted=body;return body;}if(endpoint.includes('country_code=eq.JP'))return saved.length?saved:existing;throw new Error('unreviewed endpoint');};
+assert.equal(await storePradaMarkets([row],config,query),1);assert.equal(inserted.length,1);assert.equal(calls,7);
+existing=saved;saved=[];history=[{amount:600000}];inserted=[];calls=0;
+await storePradaMarkets([row],config,query);assert.equal(inserted.length,0);assert.equal(calls,6);
+existing=saved;saved=[];inserted=[];
+await storePradaMarkets([{...row,price:null,priceStatus:'page_not_found',productName:null}],config,query);assert.equal(saved[0].current_price,600000);assert.equal(saved[0].price_status,'confirmed');assert.equal(inserted.length,0);
+await assert.rejects(storePradaMarkets([{...row,currency:'KRW'}],config,query),/invalid country record/);
+await assert.rejects(storePradaMarkets([row,row],config,query),/invalid country record/);
+console.log('PASS: Prada bulk exact matching, preserved confirmed price, changed-only history and readback verification');
