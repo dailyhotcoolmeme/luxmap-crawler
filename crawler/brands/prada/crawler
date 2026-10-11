@@ -8,9 +8,10 @@ import { normalizeProductCode } from '../../common/product-normalizer.js';
 
 if (process.env.CRAWL_MODE !== 'deterministic-only' || process.env.LUXURY_PIPELINE_GUARD !== 'enabled' || process.env.LUXURY_NETWORK_ISOLATED !== 'enabled') throw new Error('guarded isolated pipeline required');
 const args=process.argv.slice(2),arg=name=>args[args.indexOf(name)+1];
-const allowedArguments=new Set(['--country-config','--discover','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only']);
+const allowedArguments=new Set(['--country-config','--discover','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index']);
 if(args.some(value=>value.startsWith('--')&&!allowedArguments.has(value)))throw new Error('unreviewed diagnostic mode is disabled');
 const config=JSON.parse(await fs.readFile(arg('--country-config'),'utf8'));
+config.maxDiscoveryPages??=30;
 const map=JSON.parse(await fs.readFile(new URL('./parent-model-map.json',import.meta.url),'utf8'));
 const run=process.env.CRAWL_RUN_DIR,artifact=path.join(run,'artifacts');
 await fs.mkdir(artifact,{recursive:true});
@@ -20,6 +21,7 @@ let stage='BOOT';
 let pages=0,lastRequest=0;
 const fail=code=>Object.assign(new Error(code),{failureCode:code});
 async function get(url) {
+  let retries=0;
   for(let hop=0;hop<4;hop++){
     const destination=new URL(url);
     if(destination.protocol!=='https:'||!config.allowedHosts.includes(destination.hostname))throw fail('UNAUTHORIZED_URL');
@@ -28,6 +30,7 @@ async function get(url) {
     const slot=Math.max(Date.now(),lastRequest+300);lastRequest=slot;const delay=slot-Date.now();if(delay>0)await new Promise(resolve=>setTimeout(resolve,delay));
     const response=await context.get(url,{maxRedirects:0});
     if([403,429].includes(response.status()))throw fail('ACCESS_BLOCKED');
+    if([502,503,504].includes(response.status())&&retries<config.maxRetriesPerUrl){retries++;hop--;await new Promise(resolve=>setTimeout(resolve,1000*retries));continue;}
     if(![301,302,303,307,308].includes(response.status()))return response;
     url=new URL(response.headers().location,url).href;
   }
@@ -36,7 +39,15 @@ async function get(url) {
 function summarize(row,status=row.priceStatus){return {brand:'prada',country:config.country,parentModel:(row.parentModel??'KR reference').slice(0,120),variantCode:row.normalizedCode,price:row.price,currency:config.currency,status,officialUrl:row.officialUrl.length<=500?row.officialUrl:config.listingUrls[0]};}
 async function saveSummary(){for(let offset=0;offset<Math.max(summaries.length,1);offset+=25)await fs.writeFile(path.join(run,offset===0?'summary.json':`summary-${offset/25}.json`),JSON.stringify(summaries.slice(offset,offset+25)));}
 try{
-  if(args.includes('--discover')){
+  if(args.includes('--build-price-index')){
+    if(config.country==='KR')throw fail('FOREIGN_INDEX_ONLY');
+    const home=`https://www.prada.com${config.referenceDetailPrefix.replace(/\/p\/$/,'.html')}`;
+    const response=await get(home),html=await response.text();if(!response.ok())throw fail('HOME_HTTP_FAILED');await fs.writeFile(path.join(run,'raw','home.html'),html);
+    const categories=new Map();for(const match of html.matchAll(/href=["']([^"']+)["']/gi)){try{const url=new URL(match[1].replaceAll('&amp;','&'),home),id=url.pathname.match(/\/c\/(10062|10143)[A-Z]{2}$/)?.[1];if(id&&url.origin==='https://www.prada.com'&&url.pathname.startsWith(`/${config.country.toLowerCase()}/`))categories.set(id,url.href);}catch{}}
+    if(categories.size!==2)throw fail('CATEGORY_PATH_MISSING');
+    const links=new Map();for(const category of categories.values()){let exhausted=false;for(let page=1;page<=config.maxDiscoveryPages;page++){const url=page===1?category:`${category}/page/${page}`,response=await get(url),html=await response.text();await fs.writeFile(path.join(run,'raw',`category-${categories.get('10062')===category?'women':'men'}-${page}.html`),html);if(response.status()===404&&page>1){exhausted=true;break;}if(!response.ok())throw fail('LISTING_HTTP_FAILED');const found=productLinks(html,response.url(),config.country.toLowerCase()),fresh=[...found].filter(([code])=>!links.has(code));if(page===1&&!found.size)throw fail('EMPTY_LISTING');if(page>1&&!fresh.length){exhausted=true;break;}for(const [code,url]of found)links.set(code,url);}if(!exhausted)throw fail('DISCOVERY_LIMIT');}
+    await fs.writeFile(path.join(artifact,'price-url-index.json'),JSON.stringify([...links]));summaries.push({brand:'prada',country:config.country,parentModel:'한국 기준 가격 URL 대조용',variantCode:'INDEX',price:null,currency:config.currency,status:`INDEXED_${links.size}`,officialUrl:home});
+  }else if(args.includes('--discover')){
     if(config.country!=='KR')throw fail('FOREIGN_DISCOVERY_PROHIBITED');
     const links=new Map();
     for(const listing of config.listingUrls){
@@ -69,7 +80,7 @@ try{
           if(!new URL(url).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');
           const response=await get(url),html=await response.text();await fs.writeFile(path.join(run,'raw',`${code}.html`),html);
           if(response.status()===404&&config.country!=='KR'){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'page_not_found',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
-          if(!response.ok())throw fail('DETAIL_HTTP_FAILED');if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix)){
+          if(!response.ok())throw fail(`DETAIL_HTTP_${response.status()}`);if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix)){
             if(config.country!=='KR'&&new URL(response.url()).origin==='https://www.prada.com'&&new URL(response.url()).pathname.startsWith(`/${config.country.toLowerCase()}/`)){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
             throw fail('WRONG_COUNTRY_REDIRECT');
           }
