@@ -6,6 +6,7 @@ import { downloadAndOptimizeImage } from "../../common/image-processor.js";
 import { normalizeProductCode, originalCodeFromText, parseDimensions } from "../../common/product-normalizer.js";
 
 const args = process.argv.slice(2);
+const probeOnly=args.includes('--probe-page');
 if (process.env.LUXURY_NETWORK_ISOLATED !== 'enabled' || !process.env.LUXURY_NETWORK_PROXY) throw new Error('kernel network isolation required');
 const configIndex = args.indexOf("--country-config");
 const maxIndex = args.indexOf("--max-products");
@@ -35,9 +36,11 @@ await fs.mkdir(rawDir, { recursive: true });
 await fs.mkdir(artifactDir, { recursive: true });
 const failures = [];
 const records = [];
+const probes=[];
 let browser;
 let runStage = 'BOOT';
 let lastNavigationAt = 0;
+let lastNavigationStatus=0;
 
 function classifyFailure(error, stage) {
   if (error && typeof error === "object" && "failureCode" in error) return String(error.failureCode);
@@ -83,6 +86,7 @@ async function navigate(page, url) {
       if (remaining > 0) await page.waitForTimeout(remaining);
       lastNavigationAt = Date.now();
       const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: config.navigationTimeoutMs });
+      lastNavigationStatus=response?.status()??0;
       if (response && [403, 429].includes(response.status())) {
         const error = new Error('official site access blocked');
         error.failureCode = 'ACCESS_BLOCKED';
@@ -159,6 +163,34 @@ try {
     let stage = "DETAIL";
     try {
       await navigate(page, officialUrl);
+      // A fixed sleep is not a readiness signal: regional pages hydrate at different speeds.
+      const expectedCode=normalizeProductCode(new URL(officialUrl).pathname.match(/\/p\/([^/]+)/)?.[1]);
+      if(lastNavigationStatus===404){const error=new Error('official detail not found');error.failureCode='DETAIL_HTTP_404';throw error;}
+      await page.waitForFunction(expected=>{
+        const normalize=value=>String(value??'').replace(/[^a-z0-9]/gi,'').toUpperCase();
+        let ready=false;
+        const visit=value=>{
+          if(!value||typeof value!=='object')return;
+          if([value['@type']].flat().includes('Product')&&normalize(value.sku)===expected)ready=true;
+          Object.values(value).forEach(visit);
+        };
+        for(const script of document.querySelectorAll('script[type="application/ld+json"]')){try{visit(JSON.parse(script.textContent||'null'));}catch{}}
+        return ready;
+      },expectedCode,{timeout:Math.min(config.navigationTimeoutMs,15000)}).catch(()=>{
+        const error=new Error('product structured data missing');error.failureCode='STRUCTURED_DATA_MISSING';throw error;
+      });
+      if(probeOnly){
+        const code=normalizeProductCode(new URL(officialUrl).pathname.match(/\/p\/([^/]+)/)?.[1]);
+        const probe=await page.evaluate(code=>{
+          const scripts=[...document.querySelectorAll('script[type="application/ld+json"]')];
+          let products=0;
+          const visit=value=>{if(!value||typeof value!=='object')return;if([value['@type']].flat().includes('Product'))products++;Object.values(value).forEach(visit);};
+          for(const script of scripts){try{visit(JSON.parse(script.textContent||'null'));}catch{}}
+          return {url:location.href,scripts:scripts.length,products,codeInDom:(document.body?.innerText??'').replace(/[\s-]/g,'').toUpperCase().includes(code)};
+        },code);
+        for(const status of [`HTTP_${lastNavigationStatus}`,`LD_SCRIPTS_${probe.scripts}`,`LD_PRODUCTS_${probe.products}`,`CODE_IN_DOM_${Number(probe.codeInDom)}`])probes.push({brand:'chanel',country:config.country,parentModel:'page_probe',variantCode:code,price:null,currency:config.currency,status,officialUrl:probe.url});
+        continue;
+      }
       const detailButton = page.getByRole("button", { name: config.detailButtonLabel });
       if (await detailButton.count()) await detailButton.first().click().catch(() => {});
       await page.waitForTimeout(300);
@@ -171,7 +203,7 @@ try {
             const root = JSON.parse(script.textContent || "null");
             const walk = (value) => {
               if (!value || typeof value !== "object") return;
-              if (value["@type"] === "Product") products.push(value);
+              if ([value["@type"]].flat().includes("Product")) products.push(value);
               for (const child of Object.values(value)) walk(child);
             };
             walk(root);
@@ -198,7 +230,7 @@ try {
 
       await fs.writeFile(path.join(rawDir, `${String(index + 1).padStart(3, "0")}.html`), extracted.html, "utf8");
       if (/access denied|you don't have permission|접근이 거부/i.test(extracted.text + extracted.title)) throw new Error("official page access blocked");
-      const product = extracted.products.find((item) => item.sku) || extracted.products[0];
+      const product = extracted.products.find((item) => normalizeProductCode(item.sku)===expectedCode);
       if (!product) throw new Error("product structured data missing");
       const normalizedCode = normalizeProductCode(product.sku || officialUrl.match(/\/p\/([^/]+)/)?.[1]);
       if (!normalizedCode) throw new Error("product code missing");
@@ -256,10 +288,10 @@ try {
     incompleteError.failureCode = `INCOMPLETE_${failureTypes}`;
     throw incompleteError;
   }
-  if (records.length === 0) throw new Error("no valid product records");
+  if (records.length === 0&&!probeOnly) throw new Error("no valid product records");
   await fs.writeFile(path.join(artifactDir, "records.json"), JSON.stringify(records), "utf8");
   await fs.writeFile(path.join(runDir, "failures.json"), JSON.stringify(failures), "utf8");
-  await fs.writeFile(summaryFile, JSON.stringify(records.map((record) => ({
+  await fs.writeFile(summaryFile, JSON.stringify(probeOnly?probes:records.map((record) => ({
     brand: record.brand, country: record.country, parentModel: record.parentModel, variantCode: record.normalizedCode,
     price: record.price, currency: record.currency, status: record.priceStatus, officialUrl: record.officialUrl
   }))), "utf8");

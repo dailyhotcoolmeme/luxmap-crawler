@@ -97,4 +97,4 @@ for(let offset=0;offset<summary.length;offset+=25){
 const guard=spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[path.join(dir,'summary.json')],{stdio:'ignore'});
 if(guard.status!==0)throw new Error('summary blocked');
 console.log(JSON.stringify({total:reference.length,newlyProcessed:processed,failed,matched:matched.length,priced:priced.length,unprocessed:reference.length-matched.length}));
-process.exitCode=failed===0&&processed===pending.length&&reference.length===matched.length?0:1;
+process.exitCode=failed===0&&processed===pending.length&&(limitIndex>=0||reference.length===matched.length)?0:1;

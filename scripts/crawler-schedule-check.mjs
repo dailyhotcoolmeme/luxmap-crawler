@@ -10,7 +10,7 @@ for(const job of schedule.jobs){
  if(!fs.existsSync(path.join(root,job.adapter)))throw new Error('adapter missing');
  const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',job.brand,'countries',job.country)));
  if(config.country!==job.country.toUpperCase()||!Array.isArray(config.allowedHosts)||!config.allowedHosts.length||!Array.isArray(config.listingUrls)||!config.listingUrls.length)throw new Error('invalid country configuration');
- if(job.brand==='chanel'&&(!/^\/[a-z]{2}\/[a-z]+\/p\/$/.test(config.referenceDetailPrefix)||!new RegExp(config.detailPathPattern).test(`${config.referenceDetailPrefix}A01112/`)))throw new Error('invalid Korean reference mapping');
+ if(job.brand==='chanel'&&(!/^\/[a-z]{2}(?:-[a-z]{2})?\/[a-z]+\/p\/$/.test(config.referenceDetailPrefix)||!new RegExp(config.detailPathPattern).test(`${config.referenceDetailPrefix}A01112/`)))throw new Error('invalid Korean reference mapping');
 }
 // Foreign coverage is an execution result, never a prerequisite for registering a country.
 console.log('PASS: unified Korean-reference schedule validated.');

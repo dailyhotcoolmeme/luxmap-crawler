@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 if(process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled')throw new Error('guard required');
 const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
 if(!key)throw new Error('missing credential');
 const rows=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
-const country=process.argv[3]||'JP';
-const currency={JP:'JPY',FR:'EUR',IT:'EUR'}[country];
-if(!currency)throw new Error('unreviewed country');
+const country=(process.argv[3]||'JP').toUpperCase();
+if(!/^[A-Z]{2}$/.test(country)||country==='KR')throw new Error('invalid foreign country');
+const config=JSON.parse(fs.readFileSync(new URL(`../crawler/brands/chanel/countries/${country.toLowerCase()}`,import.meta.url)));
+const currency=config.currency;
+if(config.country!==country||!currency||!config.referenceDetailPrefix)throw new Error('country configuration required');
 const query=(endpoint,method='GET',body)=>{
  const args=['-fsS','--max-time','30','-X',method,'-H',`apikey: ${key}`,'-H',`Authorization: Bearer ${key}`,'-H','Content-Type: application/json','-H','Prefer: return=representation'];
  if(body)args.push('--data',JSON.stringify(body));
@@ -16,7 +19,8 @@ const query=(endpoint,method='GET',body)=>{
 };
 // Prevalidate the entire batch before writes; never create unmatched variants.
 const matched=rows.map(row=>{
- if(row.country!==country||row.currency!==currency||!row.officialUrl.startsWith(`https://www.chanel.com/${country.toLowerCase()}/`))throw new Error('invalid country record');
+ const url=new URL(row.officialUrl);
+ if(row.country!==country||row.currency!==currency||url.origin!=='https://www.chanel.com'||!url.pathname.startsWith(config.referenceDetailPrefix)||!new RegExp(config.detailPathPattern).test(url.pathname))throw new Error('invalid country record');
  const variants=query(`product_variants?normalized_code=eq.${encodeURIComponent(row.normalizedCode)}&brands.name_original=eq.CHANEL&select=id,brands!inner(name_original)&limit=2`);
  if(variants.length!==1||String(variants[0].brands?.name_original).toLowerCase()!=='chanel')throw new Error('unmatched product code');
  const variant=variants[0].id;

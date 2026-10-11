@@ -11,6 +11,10 @@
     {"brand":"chanel","country":"kr","adapter":"scripts/chanel-jp-remaining.mjs"},
     {"brand":"chanel","country":"jp","adapter":"scripts/chanel-jp-remaining.mjs"},
     {"brand":"chanel","country":"fr","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"it","adapter":"scripts/chanel-jp-remaining.mjs"}
+    {"brand":"chanel","country":"it","adapter":"scripts/chanel-jp-remaining.mjs"},
+    {"brand":"chanel","country":"es","adapter":"scripts/chanel-jp-remaining.mjs"},
+    {"brand":"chanel","country":"us","adapter":"scripts/chanel-jp-remaining.mjs"},
+    {"brand":"chanel","country":"sg","adapter":"scripts/chanel-jp-remaining.mjs"},
+    {"brand":"chanel","country":"hk","adapter":"scripts/chanel-jp-remaining.mjs"}
   ]
 }

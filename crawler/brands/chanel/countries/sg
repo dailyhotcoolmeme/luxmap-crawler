@@ -1,0 +1,7 @@
+{
+ "country":"SG","currency":"SGD","referenceDetailPrefix":"/sg/fashion/p/","locale":"en-SG",
+ "listingUrls":["https://www.chanel.com/sg/fashion/handbags/c/1x1x1/"],"detailPathPattern":"^/sg/fashion/p/[A-Za-z0-9]+/","detailButtonLabel":"View details",
+ "dimensionPattern":"[0-9]+(?:\\.[0-9]+)?\\s*[x×]\\s*[0-9]+(?:\\.[0-9]+)?\\s*[x×]\\s*[0-9]+(?:\\.[0-9]+)?\\s*cm(?:in)?","taxIncluded":true,
+ "maxProductsPerRun":250,"maxDiscoveryScrolls":20,"discoveryStableRounds":3,"discoveryWaitMs":1200,"detailWaitMs":2500,"navigationTimeoutMs":30000,"minNavigationIntervalMs":6000,"maxRetriesPerUrl":2,"retryDelayMs":1000,"browserMode":"headed-cdp",
+ "allowedHosts":["www.chanel.com","fonts.chanel.com","puls-img.chanel.com","cdn.cookielaw.org","esm.sh"],"browserExecutable":"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+}
