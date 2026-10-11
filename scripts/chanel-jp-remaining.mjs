@@ -29,7 +29,7 @@ const headers={apikey:process.env.EXPO_PUBLIC_SUPABASE_KEY,Authorization:`Bearer
 async function catalog(final=false){
  const rows=[];
  for(let offset=0;;offset+=500){
-  const response=await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/product_variants?select=id,normalized_code,brands(name_original),market_products(country_code,current_price,currency_code,official_url)&order=normalized_code,id&limit=500&offset=${offset}`,{headers,signal:AbortSignal.timeout(30000)});
+  const response=await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/product_variants?select=id,normalized_code,brands(name_original),market_products(country_code,current_price,currency_code,official_url)&order=normalized_code,id&limit=500&offset=${offset}&last_seen_at=gte.${encodeURIComponent(new Date(Date.now()%86400000).toISOString())}`,{headers:{...headers,'Cache-Control':'no-cache'},cache:'no-store',signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw new Error('catalog query failed');
   const batch=await response.json();rows.push(...batch);if(batch.length<500)break;
  }
