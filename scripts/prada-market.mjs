@@ -69,13 +69,13 @@ try{
   const resolveOnly=process.argv.includes('--resolve-unavailable');if(resolveOnly&&country==='kr')throw new Error('foreign resolution only');
   if(process.argv.includes('--remaining')){const markets=[];for(let offset=0;;offset+=500){const page=await query(`market_products?country_code=eq.${config.country}&select=variant_id,official_product_code,current_price,currency_code,official_url&limit=500&offset=${offset}&order=id`);markets.push(...page);if(page.length<500)break;}rows=rows.filter(row=>!markets.some(m=>m.variant_id===row.id&&m.official_product_code===row.normalized_code&&m.currency_code===config.currency&&m.current_price!=null&&m.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`)));}
   const limitIndex=process.argv.indexOf('--limit');let selected=limitIndex>=0?rows.slice(0,Number(process.argv[limitIndex+1])):rows;
-  let index=new Map();if(country!=='kr'&&selected.length){writeSummary([{normalized_code:'INDEX',official_url:config.listingUrls[0]}],'BUILDING_PRICE_INDEX');const run=pipeline(['--crawl-only','--build-price-index']);index=new Map(JSON.parse(fs.readFileSync(path.join(run,'artifacts/price-url-index.json'))));
+  let index=new Map(),familyByStyle=new Map();if(country!=='kr'&&selected.length){writeSummary([{normalized_code:'INDEX',official_url:config.listingUrls[0]}],'BUILDING_PRICE_INDEX');const run=pipeline(['--crawl-only','--build-price-index']);index=new Map(JSON.parse(fs.readFileSync(path.join(run,'artifacts/price-url-index.json'))));
    const cached=process.argv.includes('--cached-options');if(cached){const file=path.join(state,'cached-option-index.json');if(!fs.existsSync(file))throw new Error('cached option index missing');for(const[code,url]of JSON.parse(fs.readFileSync(file))){const target=new URL(url);if(target.origin!=='https://www.prada.com'||!target.pathname.startsWith(config.referenceDetailPrefix)||decodeURIComponent(target.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()!==code)throw new Error('cached exact URL invalid');index.set(code,url);}}
    const missing=selected.filter(row=>!index.has(row.normalized_code)),styles=new Set(missing.map(row=>row.normalized_code.slice(0,6)));
-   if(missing.length&&process.argv.includes('--family-options')){
+   if(missing.length){
     const profiles=[];for(let offset=0;;offset+=500){const page=await query(`product_variants?brands.slug=eq.prada&active=eq.true&select=normalized_code,style_code,brands!inner(slug),product_models(model_key)&order=normalized_code&limit=500&offset=${offset}`);profiles.push(...page);if(page.length<500)break;}
     const wanted=new Set(missing.map(row=>row.normalized_code)),families=new Set(profiles.filter(row=>wanted.has(row.normalized_code)&&row.product_models?.model_key&&!row.product_models.model_key.startsWith('unreviewed-')).map(row=>row.product_models.model_key));
-    for(const profile of profiles)if(families.has(profile.product_models?.model_key))styles.add(profile.style_code);
+    for(const profile of profiles){if(profile.product_models?.model_key&&!profile.product_models.model_key.startsWith('unreviewed-'))familyByStyle.set(profile.style_code,profile.product_models.model_key);if(process.argv.includes('--family-options')&&families.has(profile.product_models?.model_key))styles.add(profile.style_code);}
    }
    const sources=missing.length&&!cached?[...new Set([...index].filter(([code])=>process.argv.includes('--deep-options')||(!process.argv.includes('--limit')&&codesIndex<0)||styles.has(code.slice(0,6))).map(([,url])=>url))]:[];
    const targets=path.join(state,'option-targets.json');fs.writeFileSync(targets,JSON.stringify(missing.map(row=>row.normalized_code)));
@@ -84,7 +84,25 @@ try{
    const folder=path.join(state,'resolution');fs.mkdirSync(folder,{recursive:true});for(let i=0;i<resolution.length;i+=25){const file=path.join(folder,i===0?'summary.json':`summary-${i/25}.json`);fs.writeFileSync(file,JSON.stringify(resolution.slice(i,i+25)));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status)throw new Error('resolution summary blocked');}
    if(resolveOnly)selected=selected.filter(row=>index.has(row.normalized_code));
   }
-  for(let i=0;i<selected.length;i+=20){const batch=selected.slice(i,i+20);const file=path.join(state,'batch-urls.json');fs.writeFileSync(file,JSON.stringify(batch.map(row=>{const source=new URL(row.official_url);if(source.origin!=='https://www.prada.com'||!source.pathname.startsWith('/kr/ko/p/'))throw new Error('invalid Korean source');if(index.has(row.normalized_code))return index.get(row.normalized_code);const style=[...index].find(([code])=>code.slice(0,6)===row.normalized_code.slice(0,6));if(style){const target=new URL(style[1]);target.pathname=target.pathname.replace(/[^/]+$/,source.pathname.split('/').at(-1));return target.href;}source.pathname=source.pathname.replace('/kr/ko/p/',config.referenceDetailPrefix);return source.href;})));writeSummary(batch,`PROCESSING_${i}_OF_${selected.length}`);pipeline(['--urls-file',file,...(process.argv.includes('--prices-only')?['--prices-only']:[])]);}
+  for(let i=0;i<selected.length;i+=20){
+   const batch=selected.slice(i,i+20),file=path.join(state,'batch-urls.json');
+   fs.writeFileSync(file,JSON.stringify(batch.map(row=>{
+    const source=new URL(row.official_url);
+    if(source.origin!=='https://www.prada.com'||!source.pathname.startsWith('/kr/ko/p/'))throw new Error('invalid Korean source');
+    if(country==='kr')return source.href;
+    if(index.has(row.normalized_code))return index.get(row.normalized_code);
+    const family=familyByStyle.get(row.normalized_code.slice(0,6));
+    const native=[...index].find(([code])=>code.slice(0,6)===row.normalized_code.slice(0,6))??(family?[...index].find(([code])=>familyByStyle.get(code.slice(0,6))===family):undefined);
+    if(native){const target=new URL(native[1]);target.pathname=target.pathname.replace(/[^/]+$/,source.pathname.split('/').at(-1));return target.href;}
+    // Do not transplant a Korean Unicode SEO slug into a foreign locale.
+    // Prada routes by the exact SKU; the parser still requires that SKU and
+    // the country's official currency before accepting any price.
+    source.pathname=`${config.referenceDetailPrefix}prada/${source.pathname.split('/').at(-1)}`;
+    return source.href;
+   })));
+   writeSummary(batch,`PROCESSING_${i}_OF_${selected.length}`);
+   pipeline(['--urls-file',file,...(process.argv.includes('--prices-only')?['--prices-only']:[])]);
+  }
  }
  await verify();
 }catch(error){writeSummary([{normalized_code:'FAILED',official_url:config.listingUrls[0]}],error.failureCode??'FAILED');process.exitCode??=1;}
