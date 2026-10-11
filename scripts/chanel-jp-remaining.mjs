@@ -9,6 +9,7 @@ const countryCode=country.toUpperCase();
 const currency={kr:'KRW',jp:'JPY',fr:'EUR',it:'EUR'}[country];
 const countryUrl=url=>url.replace('/kr/fashion/',{kr:'/kr/fashion/',fr:'/fr/mode/',jp:'/jp/fashion/',it:'/it/moda/'}[country]);
 const dir=path.join(root,'crawler',`${country}-remaining`);
+const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands/chanel/countries',country)));
 fs.mkdirSync(dir,{recursive:true});
 const headers={apikey:process.env.EXPO_PUBLIC_SUPABASE_KEY,Authorization:`Bearer ${process.env.EXPO_PUBLIC_SUPABASE_KEY}`};
 async function catalog(final=false){
@@ -43,9 +44,21 @@ for(let i=0;i<pending.length;i+=1){
  const urls=batch.map(r=>countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url));
  const file=path.join(dir,`urls-${i}.json`);fs.writeFileSync(file,JSON.stringify(urls));
  const fd=fs.openSync(path.join(dir,`batch-${i}.log`),'w');
- const run=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),['chanel',country,'--max-products','1','--urls-file',file],{cwd:root,env:{...process.env,LUXURY_BROWSER_MAINTENANCE_SINK:'1',LUXURY_USE_ASIDE:'0'},stdio:['ignore',fd,fd]});fs.closeSync(fd);
+ let run;
+ for(let attempt=0;attempt<=config.maxRetriesPerUrl;attempt++){
+  run=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),['chanel',country,'--max-products','1','--urls-file',file,'--navigation-retries','0'],{cwd:root,env:{...process.env,LUXURY_BROWSER_MAINTENANCE_SINK:'1',LUXURY_USE_ASIDE:'0'},stdio:['ignore',fd,fd]});
+  if(run.status===0||run.status===78||run.signal||run.error)break;
+  const runs=path.join(root,'crawler/runs/chanel',country);
+  const last=fs.existsSync(runs)?fs.readdirSync(runs).sort().at(-1):null;
+  const failure=last?path.join(runs,last,'failure.json'):null;
+  const code=failure&&fs.existsSync(failure)?JSON.parse(fs.readFileSync(failure)).failureCode:'';
+  // Only transient transport failures retry; access blocks and policy violations never do.
+  if(!/^(?:INCOMPLETE_)?DETAIL_(?:ERR_PROXY_CONNECTION_FAILED|TIMEOUT)$/.test(code))break;
+  if(attempt<config.maxRetriesPerUrl)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,Math.max(config.minNavigationIntervalMs,config.retryDelayMs));
+ }
+ fs.closeSync(fd);
  if(run.status===0)processed+=batch.length;else failed+=batch.length;
- // Never retry failed batches. Stop on token/network policy violations.
+ // Stop the country immediately on token/network policy violations.
  if(run.status===78)break;
 }
 const after=await catalog(true);

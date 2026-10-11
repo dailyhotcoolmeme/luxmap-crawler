@@ -12,9 +12,12 @@ const maxIndex = args.indexOf("--max-products");
 const prefixIndex = args.indexOf("--model-code-prefix");
 const seedIndex = args.indexOf("--seed-url");
 const urlsIndex = args.indexOf("--urls-file");
+const retryIndex = args.indexOf('--navigation-retries');
 const fixedUrls = urlsIndex >= 0 ? JSON.parse(await fs.readFile(args[urlsIndex + 1], 'utf8')) : null;
 if (configIndex < 0 || !args[configIndex + 1]) throw new Error("country config required");
 const config = JSON.parse(await fs.readFile(args[configIndex + 1], "utf8"));
+const navigationRetries=retryIndex>=0?Number(args[retryIndex+1]):config.maxRetriesPerUrl;
+if(!Number.isInteger(navigationRetries)||navigationRetries<0||navigationRetries>config.maxRetriesPerUrl)throw new Error('invalid navigation retry limit');
 const parentModelMap = JSON.parse(await fs.readFile(new URL("./parent-model-map.json", import.meta.url), "utf8"));
 const runDir = process.env.CRAWL_RUN_DIR;
 const summaryFile = process.env.CRAWL_SUMMARY_FILE;
@@ -74,7 +77,7 @@ function parentModelKey(productName, normalizedCode) {
 
 async function navigate(page, url) {
   let lastError;
-  for (let attempt = 0; attempt <= config.maxRetriesPerUrl; attempt += 1) {
+  for (let attempt = 0; attempt <= navigationRetries; attempt += 1) {
     try {
       const remaining = (config.minNavigationIntervalMs || 0) - (Date.now() - lastNavigationAt);
       if (remaining > 0) await page.waitForTimeout(remaining);
@@ -90,7 +93,7 @@ async function navigate(page, url) {
     } catch (error) {
       if (error?.failureCode === 'ACCESS_BLOCKED') throw error;
       lastError = error;
-      if (attempt < config.maxRetriesPerUrl) await page.waitForTimeout(config.retryDelayMs);
+      if (attempt < navigationRetries) await page.waitForTimeout(config.retryDelayMs);
     }
   }
   throw lastError;
