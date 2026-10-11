@@ -107,11 +107,12 @@ try {
   browser = await chromium.connectOverCDP(process.env.CRAWL_CDP_URL, { timeout: 10000 }).catch(() => { const error = new Error('CDP connection failed'); error.failureCode = 'CDP_CONNECTION_FAILED'; throw error; });
   runStage = 'IMAGE_CONTEXT';
   const context = browser.contexts()[0];
-  const imageRequest = await request.newContext({ proxy: { server: process.env.LUXURY_NETWORK_PROXY } });
+  const imageRequest = config.country==='KR'?await request.newContext({ proxy: { server: process.env.LUXURY_NETWORK_PROXY } }):null;
   const allowedHosts = new Set(config.allowedHosts);
   runStage = 'ROUTE_SETUP';
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if(config.country!=='KR'&&['image','media','font'].includes(route.request().resourceType())){await route.abort('blockedbyclient');return;}
     if (["data:", "blob:"].includes(url.protocol) || allowedHosts.has(url.hostname)) await route.continue();
     else await route.abort("blockedbyclient");
   });
@@ -257,10 +258,11 @@ try {
       const imageUrl = extracted.imageCandidates.find((url) => {
         try { return allowedHosts.has(new URL(url).hostname) && !/(logo|icon|sprite)/i.test(url); } catch { return false; }
       });
-      if (!imageUrl) throw new Error("official product image not found");
+      if (!imageUrl&&config.country==='KR') throw new Error("official product image not found");
 
       stage = "IMAGE";
-      const image = await downloadAndOptimizeImage({ request: imageRequest }, imageUrl, artifactDir);
+      // Foreign markets attach prices to Korean variants; never recollect/store their images.
+      const image = config.country==='KR'?await downloadAndOptimizeImage({ request: imageRequest }, imageUrl, artifactDir):{};
       const checkedAt = new Date().toISOString();
       const material = typeof product.material === "string" ? product.material.trim() : null;
       const color = typeof product.color === "string" ? product.color.trim() : null;

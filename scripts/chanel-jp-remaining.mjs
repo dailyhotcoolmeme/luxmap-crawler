@@ -83,6 +83,10 @@ for(let i=0;i<pending.length;i+=1){
   for(const row of batch)failures.set(row.normalized_code,/^[A-Z_]{1,40}$/.test(code)?code:'PIPELINE_FAILED');
   accessBlocked=String(code).includes('ACCESS_BLOCKED');
  }
+ const progressDir=path.join(dir,'progress');fs.mkdirSync(progressDir,{recursive:true});
+ const progressFile=path.join(progressDir,'summary.json');
+ fs.writeFileSync(progressFile,JSON.stringify([{brand:'chanel',country:countryCode,parentModel:'KR reference',variantCode:batch[0].normalized_code,price:null,currency,status:`DONE${processed}_FAIL${failed}_TOTAL${pending.length}`,officialUrl:urls[0]}]));
+ if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[progressFile],{stdio:'ignore'}).status!==0)throw new Error('progress summary blocked');
  // Stop the country immediately on token/network policy violations.
  if(run.status===78||accessBlocked)break;
 }
