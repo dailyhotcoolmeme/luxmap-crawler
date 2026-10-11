@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {productReady} from '../crawler/common/product-ready.js';
+let scripts=[];
+const document={querySelectorAll:()=>scripts.map(value=>({textContent:typeof value==='string'?value:JSON.stringify(value)}))};
+assert.equal(productReady('A01112Y01864C3906',document),false);
+scripts=['malformed'];assert.equal(productReady('A01112Y01864C3906',document),false);
+scripts=[{'@type':'Product',sku:'other'}];assert.equal(productReady('A01112Y01864C3906',document),false);
+scripts=[{'@graph':[{'@type':['Product','IndividualProduct'],sku:'a01112-y01864 c3906'}]}];
+assert.equal(productReady('A01112Y01864C3906',document),true);
+scripts=[{'@type':'ProductGroup',hasVariant:{'@type':'Product',sku:'A01112Y01864C3906'}}];
+assert.equal(productReady('A01112Y01864C3906',document),true);
+console.log('PASS: delayed data, malformed data, type arrays and exact SKU readiness.');

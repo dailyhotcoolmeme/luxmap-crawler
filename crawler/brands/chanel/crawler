@@ -4,6 +4,7 @@ import path from "node:path";
 import { chromium, request } from "playwright-core";
 import { downloadAndOptimizeImage } from "../../common/image-processor.js";
 import { normalizeProductCode, originalCodeFromText, parseDimensions } from "../../common/product-normalizer.js";
+import {productReady} from '../../common/product-ready.js';
 
 const args = process.argv.slice(2);
 const probeOnly=args.includes('--probe-page');
@@ -167,17 +168,7 @@ try {
       // A fixed sleep is not a readiness signal: regional pages hydrate at different speeds.
       const expectedCode=normalizeProductCode(new URL(officialUrl).pathname.match(/\/p\/([^/]+)/)?.[1]);
       if(lastNavigationStatus===404){const error=new Error('official detail not found');error.failureCode='DETAIL_HTTP_404';throw error;}
-      await page.waitForFunction(expected=>{
-        const normalize=value=>String(value??'').replace(/[^a-z0-9]/gi,'').toUpperCase();
-        let ready=false;
-        const visit=value=>{
-          if(!value||typeof value!=='object')return;
-          if([value['@type']].flat().includes('Product')&&normalize(value.sku)===expected)ready=true;
-          Object.values(value).forEach(visit);
-        };
-        for(const script of document.querySelectorAll('script[type="application/ld+json"]')){try{visit(JSON.parse(script.textContent||'null'));}catch{}}
-        return ready;
-      },expectedCode,{timeout:Math.min(config.navigationTimeoutMs,15000)}).catch(()=>{
+      await page.waitForFunction(productReady,expectedCode,{timeout:Math.min(config.navigationTimeoutMs,15000)}).catch(()=>{
         const error=new Error('product structured data missing');error.failureCode='STRUCTURED_DATA_MISSING';throw error;
       });
       if(probeOnly){
