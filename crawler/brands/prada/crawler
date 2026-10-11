@@ -26,11 +26,19 @@ async function get(url) {
   let retries=0;
   for(let hop=0;hop<4;hop++){
     const destination=new URL(url);
+    stage=destination.pathname.endsWith('.model.json')?'OPTIONS':destination.pathname.includes('/p/')?'DETAIL':destination.pathname.includes('/c/')?'LISTING':'HOME';
     if(destination.protocol!=='https:'||!config.allowedHosts.includes(destination.hostname))throw fail('UNAUTHORIZED_URL');
     if(destination.hostname==='api.prada.com'&&destination.pathname!=='/anon/approductfilteringprd/PRD_04_07_GetGroupedProducts')throw fail('UNAUTHORIZED_PRODUCT_API');
     if(++pages>250)throw fail('PAGE_LIMIT');
     const slot=Math.max(Date.now(),lastRequest+300);lastRequest=slot;const delay=slot-Date.now();if(delay>0)await new Promise(resolve=>setTimeout(resolve,delay));
-    const response=await context.get(url,{maxRedirects:0});
+    let response;
+    try{response=await context.get(url,{maxRedirects:0});}
+    catch(error){
+      const transient=/ECONNRESET|socket hang up|connection reset|socket disconnected|request aborted/i.test(error.message??'');
+      if(transient&&retries<config.maxRetriesPerUrl){retries++;hop--;await new Promise(resolve=>setTimeout(resolve,1000*retries));continue;}
+      const reason=transient?'NETWORK_RESET':/proxy/i.test(error.message??'')?'PROXY_FAILED':/certificate|SSL|EPROTO/i.test(error.message??'')?'TLS_FAILED':/Timeout|timeout/i.test(error.message??'')?'TIMEOUT':'REQUEST_FAILED';
+      throw fail(`${stage}_${reason}`);
+    }
     if([403,429].includes(response.status()))throw fail('ACCESS_BLOCKED');
     if([502,503,504].includes(response.status())&&retries<config.maxRetriesPerUrl){retries++;hop--;await new Promise(resolve=>setTimeout(resolve,1000*retries));continue;}
     if(![301,302,303,307,308].includes(response.status()))return response;
