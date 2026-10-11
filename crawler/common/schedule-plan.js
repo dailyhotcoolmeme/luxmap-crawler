@@ -18,11 +18,13 @@ export function schedulePlan(schedule, {smoke=false}={}) {
   });
 }
 export function executePlan(plan, run) {
-  let failed=false;
+  let failed=false;const blockedBrands=new Set();
   for(const job of plan){
+    if(blockedBrands.has(job.brand))continue;
     const result=run(job);
     if(result.status!==0)failed=true;
-    if((job.country==='kr'&&result.status!==0)||result.status===78||result.signal||result.error)break;
+    if(result.status===78||result.signal||result.error)break;
+    if(job.country==='kr'&&result.status!==0)blockedBrands.add(job.brand);
   }
   return failed?1:0;
 }

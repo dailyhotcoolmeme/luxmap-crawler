@@ -31,4 +31,7 @@ for(const failure of [{status:1},{status:78},{status:null,signal:'SIGTERM'}]){
 }
 assert.equal(schedulePlan(schedule,{smoke:true}).length,schedule.jobs.length);
 assert.ok(schedulePlan(schedule,{smoke:true}).every(job=>job.phase==='refresh'&&job.args.includes('--limit')));
+const visited=[];assert.equal(executePlan(fullPlan,job=>{visited.push(`${job.brand}/${job.country}`);return {status:job.brand==='chanel'?1:0};}),1);
+assert.deepEqual(visited.filter(id=>id.startsWith('chanel/')),['chanel/kr']);assert.equal(visited.filter(id=>id.startsWith('prada/')).length,9);
+let stopped=0;assert.equal(executePlan(fullPlan,()=>{stopped++;return {status:78};}),1);assert.equal(stopped,1);
 console.log('PASS: Korean-first discovery, new product propagation, country addition and failure stops.');

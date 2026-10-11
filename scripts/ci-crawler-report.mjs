@@ -6,8 +6,14 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const rows=[];
 for(const job of schedule.jobs){
+ if(job.brand==='prada'){
+  const report=path.join(root,'crawler/prada-progress',job.country,'report/summary.json');
+  const progress=path.join(root,'crawler/prada-progress',job.country,'summary.json');
+  if(fs.existsSync(report)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[report],{stdio:'ignore'}).status===0){rows.push(...JSON.parse(fs.readFileSync(report)));if(fs.existsSync(progress)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[progress],{stdio:'ignore'}).status===0){const first=JSON.parse(fs.readFileSync(progress))[0];if(first?.variantCode==='FAILED')rows.push(first);}continue;}
+  if(fs.existsSync(progress)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[progress],{stdio:'ignore'}).status===0){rows.push(JSON.parse(fs.readFileSync(progress))[0]);continue;}
+ }
  const dir=path.join(root,'crawler',`${job.country}-remaining`);
- const seed=path.join(dir,'urls-0.json');
+ const seed=job.brand==='chanel'?path.join(dir,'urls-0.json'):path.join(root,'crawler/prada-progress',job.country,'unused-seed.json');
  if(!fs.existsSync(seed)){
   const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',job.brand,'countries',job.country)));
   const runs=path.join(root,'crawler/runs',job.brand,job.country);
