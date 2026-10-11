@@ -104,6 +104,9 @@ async function navigate(page, url) {
   }
   throw lastError;
 }
+async function waitForListing(page){
+ await page.waitForFunction(pattern=>[...document.querySelectorAll('a[href]')].some(a=>new RegExp(pattern).test(new URL(a.href,location.href).pathname)),config.detailPathPattern,{timeout:Math.min(config.navigationTimeoutMs,15000)}).catch(()=>{});
+}
 
 try {
   browser = await chromium.connectOverCDP(process.env.CRAWL_CDP_URL, { timeout: 10000 }).catch(() => { const error = new Error('CDP connection failed'); error.failureCode = 'CDP_CONNECTION_FAILED'; throw error; });
@@ -121,14 +124,18 @@ try {
   const page = context.pages()[0] || await context.newPage();
   if(listingProbe){
     await navigate(page,config.listingUrls[0]);
+    await waitForListing(page);
     const count=await page.evaluate(pattern=>[...document.querySelectorAll('a[href]')].filter(a=>new RegExp(pattern).test(new URL(a.href,location.href).pathname)).length,config.detailPathPattern);
-    await fs.writeFile(summaryFile,JSON.stringify([{brand:'chanel',country:config.country,parentModel:'listing diagnostic',variantCode:'listing',price:null,currency:config.currency,status:`HTTP_${lastNavigationStatus}_LINKS_${count}`,officialUrl:config.listingUrls[0]}]));
+    const blocked=await page.evaluate(()=>/access denied|you don't have permission|접근이 거부/i.test((document.body?.innerText??'')+document.title));
+    await fs.writeFile(summaryFile,JSON.stringify([{brand:'chanel',country:config.country,parentModel:'listing diagnostic',variantCode:'listing',price:null,currency:config.currency,status:`HTTP_${lastNavigationStatus}_LINKS_${count}_BLOCKED_${Number(blocked)}`,officialUrl:config.listingUrls[0]}]));
   }else{
   runStage = 'LISTING';
   const productUrls = new Set();
 
   for (const listingUrl of (fixedUrls || (seedUrl && modelCodePrefix) ? [] : config.listingUrls)) {
     await navigate(page, listingUrl);
+    await waitForListing(page);
+    if(await page.evaluate(()=>/access denied|you don't have permission|접근이 거부/i.test((document.body?.innerText??'')+document.title)))throw new Error('official page access blocked');
     let previousCount = -1;
     let stableRounds = 0;
     for (let round = 0; round < config.maxDiscoveryScrolls && stableRounds < config.discoveryStableRounds; round += 1) {
