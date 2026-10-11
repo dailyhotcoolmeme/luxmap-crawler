@@ -55,7 +55,7 @@ try{
  }else{
   const rows=await references();if(!rows.length)throw new Error('Korean reference missing');
   const limitIndex=process.argv.indexOf('--limit'),selected=limitIndex>=0?rows.slice(0,Number(process.argv[limitIndex+1])):rows;
-  for(let i=0;i<selected.length;i+=20){const batch=selected.slice(i,i+20);const file=path.join(state,'batch-urls.json');fs.writeFileSync(file,JSON.stringify(batch.map(row=>{const source=new URL(row.official_url);if(source.origin!=='https://www.prada.com'||!source.pathname.startsWith('/kr/ko/p/'))throw new Error('invalid Korean source');source.pathname=source.pathname.replace('/kr/ko/p/',config.referenceDetailPrefix);return source.href;})));writeSummary(batch,`PROCESSING_${i}_OF_${selected.length}`);pipeline(['--urls-file',file]);}
+  for(let i=0;i<selected.length;i+=20){const batch=selected.slice(i,i+20);const file=path.join(state,'batch-urls.json');fs.writeFileSync(file,JSON.stringify(batch.map(row=>{const source=new URL(row.official_url);if(source.origin!=='https://www.prada.com'||!source.pathname.startsWith('/kr/ko/p/'))throw new Error('invalid Korean source');source.pathname=source.pathname.replace('/kr/ko/p/',config.referenceDetailPrefix);return source.href;})));writeSummary(batch,`PROCESSING_${i}_OF_${selected.length}`);pipeline(['--urls-file',file,...(process.argv.includes('--prices-only')?['--prices-only']:[])]);}
  }
  await verify();
 }catch(error){writeSummary([{normalized_code:'FAILED',official_url:config.listingUrls[0]}],error.failureCode??'FAILED');process.exitCode??=1;}

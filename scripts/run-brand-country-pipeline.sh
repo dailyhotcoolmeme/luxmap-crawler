@@ -40,6 +40,11 @@ case "$BRAND/$COUNTRY" in
   chanel/jp|chanel/fr|chanel/it|chanel/es|chanel/us|chanel/sg|chanel/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;
   *) echo "BLOCKED: no reviewed ingest adapter for $BRAND/$COUNTRY." >&2; exit 1 ;;
 esac
+if [ "$BRAND/$COUNTRY" = prada/kr ]; then
+ for option in "$@"; do
+  if [ "$option" = --prices-only ]; then INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh"; fi
+ done
+fi
 
 set +x
 SERVICE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
