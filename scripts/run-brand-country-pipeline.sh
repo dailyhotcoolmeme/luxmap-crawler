@@ -35,6 +35,8 @@ fi
 
 case "$BRAND/$COUNTRY" in
   chanel/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-products.sh" ;;
+  prada/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-products.sh" ;;
+  prada/jp|prada/fr|prada/it|prada/es|prada/us|prada/sg|prada/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;
   chanel/jp|chanel/fr|chanel/it|chanel/es|chanel/us|chanel/sg|chanel/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;
   *) echo "BLOCKED: no reviewed ingest adapter for $BRAND/$COUNTRY." >&2; exit 1 ;;
 esac
@@ -68,6 +70,7 @@ env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   CLOUDFLARE_ACCOUNT_ID='4c0f5d706177b84ade4d424a08ec46e8' \
   LUXURY_SERVICE_STATE_DIR="${LUXURY_SERVICE_STATE_DIR:-}" \
   LUXURY_MARKET_COUNTRY="$COUNTRY" \
+  LUXURY_INGEST_BRAND="$BRAND" \
   WRANGLER_SEND_METRICS=false \
   node "$PROJECT_DIR/scripts/network-isolate.mjs" \
   '["nxgnbrdxxmlhtcnymqsl.supabase.co","api.cloudflare.com","4c0f5d706177b84ade4d424a08ec46e8.r2.cloudflarestorage.com"]' 0 \

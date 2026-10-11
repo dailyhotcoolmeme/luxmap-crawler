@@ -8,7 +8,10 @@ if(!key)throw new Error('missing credential');
 const rows=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 const country=(process.argv[3]||'JP').toUpperCase();
 if(!/^[A-Z]{2}$/.test(country)||country==='KR')throw new Error('invalid foreign country');
-const config=JSON.parse(fs.readFileSync(new URL(`../crawler/brands/chanel/countries/${country.toLowerCase()}`,import.meta.url)));
+const brand=process.env.LUXURY_INGEST_BRAND??'chanel';
+if(!['chanel','prada'].includes(brand))throw new Error('unreviewed brand');
+const origin=brand==='prada'?'https://www.prada.com':'https://www.chanel.com';
+const config=JSON.parse(fs.readFileSync(new URL(`../crawler/brands/${brand}/countries/${country.toLowerCase()}`,import.meta.url)));
 const currency=config.currency;
 if(config.country!==country||!currency||!config.referenceDetailPrefix)throw new Error('country configuration required');
 const query=(endpoint,method='GET',body)=>{
@@ -20,18 +23,18 @@ const query=(endpoint,method='GET',body)=>{
 // Prevalidate the entire batch before writes; never create unmatched variants.
 const matched=rows.map(row=>{
  const url=new URL(row.officialUrl);
- if(row.country!==country||row.currency!==currency||url.origin!=='https://www.chanel.com'||!url.pathname.startsWith(config.referenceDetailPrefix)||!new RegExp(config.detailPathPattern).test(url.pathname))throw new Error('invalid country record');
- const variants=query(`product_variants?normalized_code=eq.${encodeURIComponent(row.normalizedCode)}&brands.name_original=eq.CHANEL&select=id,normalized_code,brands!inner(name_original)&limit=2`);
- if(variants.length!==1||variants[0].normalized_code!==row.normalizedCode||String(variants[0].brands?.name_original).toLowerCase()!=='chanel')throw new Error('unmatched product code');
+ if(row.country!==country||row.currency!==currency||url.origin!==origin||!url.pathname.startsWith(config.referenceDetailPrefix)||!new RegExp(config.detailPathPattern).test(url.pathname))throw new Error('invalid country record');
+ const variants=query(`product_variants?normalized_code=eq.${encodeURIComponent(row.normalizedCode)}&brands.name_original=eq.${brand.toUpperCase()}&select=id,normalized_code,name_original,brands!inner(name_original)&limit=2`);
+ if(variants.length!==1||variants[0].normalized_code!==row.normalizedCode||String(variants[0].brands?.name_original).toLowerCase()!==brand)throw new Error('unmatched product code');
  const variant=variants[0].id;
  const korean=query(`market_products?variant_id=eq.${variant}&country_code=eq.KR&select=id,official_product_code`);
  if(korean.length!==1||korean[0].official_product_code!==row.normalizedCode)throw new Error('Korean reference missing');
- return {row,variant};
+ return {row,variant,fallbackName:variants[0].name_original};
 });
-for(const {row,variant} of matched){
+for(const {row,variant,fallbackName} of matched){
  const old=query(`market_products?variant_id=eq.${variant}&country_code=eq.${country}&limit=2`);
  if(old.length>1)throw new Error('duplicate market');
- const payload={variant_id:variant,country_code:country,currency_code:currency,official_product_code:row.normalizedCode,official_name:row.productName,official_url:row.officialUrl,current_price:row.price,price_status:row.priceStatus,page_checked_at:row.checkedAt,last_seen_at:row.checkedAt};
+ const payload={variant_id:variant,country_code:country,currency_code:currency,official_product_code:row.normalizedCode,official_name:row.productName??`[한국 기준] ${fallbackName}`,official_url:row.officialUrl,current_price:row.price,price_status:row.priceStatus,page_checked_at:row.checkedAt,last_seen_at:row.checkedAt};
  if(row.price!==null)payload.price_checked_at=row.checkedAt;
  // Do not erase a previously confirmed price on an unconfirmed observation.
  if(old[0]?.current_price!=null&&row.price===null){delete payload.current_price;delete payload.price_status;}

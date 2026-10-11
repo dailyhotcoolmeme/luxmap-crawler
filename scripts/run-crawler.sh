@@ -19,6 +19,11 @@ BRAND=$1
 COUNTRY=$2
 shift 2
 
+if [ "$BRAND" = 'duty-free' ]; then
+  echo 'BLOCKED: duty-free retailers were removed from the project scope.' >&2
+  exit 2
+fi
+
 case "$BRAND" in *[!a-z0-9-]*|'') echo "BLOCKED: invalid brand id." >&2; exit 1;; esac
 case "$COUNTRY" in *[!a-z]*|'') echo "BLOCKED: invalid country id." >&2; exit 1;; esac
 
@@ -68,8 +73,12 @@ trap 'exit 143' TERM
 if jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; then
   CDP_PORT=$((9300 + ($$ % 500)))
   BROWSER_EXECUTABLE=$(jq -r '.browserExecutable' "$COUNTRY_CONFIG")
+  BROWSER_ENTRY='about:blank'
   if [ "${LUXURY_USE_ASIDE:-0}" = '1' ]; then
     BROWSER_EXECUTABLE='/Applications/Aside.app/Contents/MacOS/Aside'
+    if [ "${LUXURY_ASIDE_APP_MODE:-0}" = '1' ]; then
+      BROWSER_ENTRY='--app=about:blank'
+    fi
   fi
   if [ ! -x "$BROWSER_EXECUTABLE" ]; then
     echo 'FAILED: BROWSER_EXECUTABLE_UNAVAILABLE.' >&2
@@ -99,7 +108,7 @@ if jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; then
     --component-updater=url-source=http://127.0.0.1:9 \
     --extensions-update-url=http://127.0.0.1:9 \
     --proxy-server='__NETWORK_PROXY__' \
-    about:blank >"$RUN_DIR/chrome.stdout.log" 2>"$RUN_DIR/chrome.stderr.log" &
+    "$BROWSER_ENTRY" >"$RUN_DIR/chrome.stdout.log" 2>"$RUN_DIR/chrome.stderr.log" &
   CHROME_PID=$!
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
     if curl -fsS --max-time 1 "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1; then

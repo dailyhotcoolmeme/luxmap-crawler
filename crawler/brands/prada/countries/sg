@@ -1,0 +1,1 @@
+{"country":"SG","currency":"SGD","locale":"en","referenceDetailPrefix":"/sg/en/p/","detailPathPattern":"^/sg/en/p/[^/]+/[A-Za-z0-9_]+$","listingUrls":["https://www.prada.com/sg/en/womens/bags/c/10062SG"],"allowedHosts":["www.prada.com"],"maxProductsPerRun":100,"navigationTimeoutMs":30000,"maxRetriesPerUrl":2,"maxImagesPerProduct":1,"browserMode":"http"}

@@ -1,0 +1,1 @@
+{"country":"IT","currency":"EUR","locale":"it","referenceDetailPrefix":"/it/it/p/","detailPathPattern":"^/it/it/p/[^/]+/[A-Za-z0-9_]+$","listingUrls":["https://www.prada.com/it/it/womens/bags/c/10062IT"],"allowedHosts":["www.prada.com"],"maxProductsPerRun":100,"navigationTimeoutMs":30000,"maxRetriesPerUrl":2,"maxImagesPerProduct":1,"browserMode":"http"}

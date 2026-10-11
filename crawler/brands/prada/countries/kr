@@ -1,0 +1,10 @@
+{
+  "country": "KR", "currency": "KRW", "locale": "ko-KR",
+  "listingUrls": ["https://www.prada.com/kr/ko/womens/bags/c/10062KR", "https://www.prada.com/kr/ko/mens/bags/c/10143KR"],
+  "referenceDetailPrefix": "/kr/ko/p/", "maxDiscoveryPages": 30,
+  "allowedHosts": ["www.prada.com"],
+  "maxProductsPerRun": 250, "navigationTimeoutMs": 30000,
+  "maxRetriesPerUrl": 2, "maxImagesPerProduct": 1,
+  "browserMode": "http",
+  "browserExecutable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+}

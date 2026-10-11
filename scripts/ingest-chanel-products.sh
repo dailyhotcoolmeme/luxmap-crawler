@@ -8,6 +8,15 @@ RECORDS_FILE=${1:?records.json path required}
 : "${SUPABASE_SERVICE_ROLE_KEY:?missing service role key}"
 : "${CLOUDFLARE_API_TOKEN:?missing Cloudflare API token}"
 SUPABASE_URL="https://nxgnbrdxxmlhtcnymqsl.supabase.co"
+INGEST_BRAND=${LUXURY_INGEST_BRAND:-chanel}
+case "$INGEST_BRAND" in
+  chanel) BRAND_KO='샤넬'; BRAND_ORIGINAL='CHANEL' ;;
+  prada) BRAND_KO='프라다'; BRAND_ORIGINAL='PRADA' ;;
+  *) echo 'BLOCKED: unreviewed reference brand.' >&2; exit 2 ;;
+esac
+if ! jq -e 'length > 0 and all(.[]; .country == "KR" and .currency == "KRW" and (.normalizedCode | type == "string" and length > 0) and (.modelKey | type == "string" and length > 0))' "$RECORDS_FILE" >/dev/null; then
+  echo 'BLOCKED: invalid Korean reference batch.' >&2; exit 2
+fi
 
 request() (
   request_method=$1 request_endpoint=$2 request_payload=${3:-} request_output_file=$4
@@ -79,7 +88,7 @@ while [ "$index" -lt "$count" ]; do
   image_sha=$(jq -r '.imageSha256' "$record")
   model_key=$(jq -r '.modelKey' "$record")
   product_code=$(jq -r '.normalizedCode' "$record")
-  object_key="products/chanel/$model_key/$product_code/$image_sha.webp"
+  object_key="products/$INGEST_BRAND/$model_key/$product_code/$image_sha.webp"
   existing_image=$(mktemp)
   request GET "product_media?sha256=eq.$image_sha&r2_object_key=eq.$object_key&select=id&limit=1" '' "$existing_image"
   if ! jq -e 'length > 0' "$existing_image" >/dev/null; then
@@ -102,7 +111,7 @@ while [ "$index" -lt "$count" ]; do
   fi
 
   response=$(mktemp)
-  payload=$(jq -nc '{slug:"chanel",name_ko:"샤넬",name_original:"CHANEL",active:true}')
+  payload=$(jq -nc --arg slug "$INGEST_BRAND" --arg ko "$BRAND_KO" --arg original "$BRAND_ORIGINAL" '{slug:$slug,name_ko:$ko,name_original:$original,active:true}')
   request POST 'brands?on_conflict=slug' "$payload" "$response"
   brand_id=$(jq -er '.[0].id' "$response")
 
@@ -132,6 +141,9 @@ while [ "$index" -lt "$count" ]; do
      price_checked_at:(if .price==null then null else $checked end),page_checked_at:$checked,first_seen_at:$checked,last_seen_at:$checked}' "$record")
   old_market=$(mktemp)
   request GET "market_products?variant_id=eq.$variant_id&country_code=eq.KR&limit=1" '' "$old_market"
+  if jq -e '.[0].current_price != null' "$old_market" >/dev/null && jq -e '.price == null' "$record" >/dev/null; then
+    payload=$(printf '%s' "$payload" | jq 'del(.current_price,.price_status)')
+  fi
   market_changed=$(printf '%s' "$payload" | jq --slurpfile old "$old_market" '
     del(.first_seen_at,.last_seen_at,.page_checked_at,.price_checked_at) | to_entries | any(.[]; .value != $old[0][0][.key])')
   request POST 'market_products?on_conflict=variant_id,country_code' "$payload" "$response"

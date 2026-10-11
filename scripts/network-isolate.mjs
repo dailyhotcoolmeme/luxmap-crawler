@@ -12,7 +12,7 @@ let blocked = false;
 let logLimited = false;
 let capturedBytes = 0;
 const discardMaintenance = process.env.LUXURY_BROWSER_MAINTENANCE_SINK === '1'
-  && command === '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  && new Set(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Aside.app/Contents/MacOS/Aside']).has(command);
 // These browser services receive only a local rejection, never an upstream socket.
 const maintenanceHosts = new Set(['clients1.google.com', 'clients2.google.com', 'www.gstatic.com', 'www.google.com', 'accounts.google.com', 'android.clients.google.com', 'update.googleapis.com']);
 // Exact observed page telemetry endpoint: reject locally, never forward.

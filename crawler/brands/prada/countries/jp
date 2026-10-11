@@ -1,0 +1,1 @@
+{"country":"JP","currency":"JPY","locale":"ja","referenceDetailPrefix":"/jp/ja/p/","detailPathPattern":"^/jp/ja/p/[^/]+/[A-Za-z0-9_]+$","listingUrls":["https://www.prada.com/jp/ja/womens/bags/c/10062JP"],"allowedHosts":["www.prada.com"],"maxProductsPerRun":100,"navigationTimeoutMs":30000,"maxRetriesPerUrl":2,"maxImagesPerProduct":1,"browserMode":"http"}

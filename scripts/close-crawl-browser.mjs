@@ -2,7 +2,8 @@ import {execFileSync} from 'node:child_process';
 const [port,profile]=process.argv.slice(2);
 if(!/^\d+$/.test(port)||!profile?.includes('/crawler/runs/')||!profile.endsWith('/browser-profile'))process.exit(1);
 const commands=execFileSync('ps',['-axo','command'],{encoding:'utf8'}).split('\n');
-const owned=commands.some(line=>line.startsWith('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome ')&&line.includes(`--user-data-dir=${profile}`)&&line.includes(`--remote-debugging-port=${port}`));
+const executables=['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome','/Applications/Aside.app/Contents/MacOS/Aside'];
+const owned=commands.some(line=>executables.some(executable=>line.startsWith(`${executable} `))&&line.includes(`--user-data-dir=${profile}`)&&line.includes(`--remote-debugging-port=${port}`));
 if(!owned)process.exit(0);
 const timer=setTimeout(()=>process.exit(1),2500);
 try{

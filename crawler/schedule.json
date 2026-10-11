@@ -15,6 +15,14 @@
     {"brand":"chanel","country":"es","adapter":"scripts/chanel-jp-remaining.mjs"},
     {"brand":"chanel","country":"us","adapter":"scripts/chanel-jp-remaining.mjs"},
     {"brand":"chanel","country":"sg","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"hk","adapter":"scripts/chanel-jp-remaining.mjs"}
+    {"brand":"chanel","country":"hk","adapter":"scripts/chanel-jp-remaining.mjs"},
+    {"brand":"prada","country":"kr","adapter":"scripts/prada-market.mjs"},
+    {"brand":"prada","country":"jp","adapter":"scripts/prada-market.mjs"},
+    {"brand":"prada","country":"fr","adapter":"scripts/prada-market.mjs"},
+    {"brand":"prada","country":"it","adapter":"scripts/prada-market.mjs"},
+    {"brand":"prada","country":"es","adapter":"scripts/prada-market.mjs"},
+    {"brand":"prada","country":"us","adapter":"scripts/prada-market.mjs"},
+    {"brand":"prada","country":"sg","adapter":"scripts/prada-market.mjs"},
+    {"brand":"prada","country":"hk","adapter":"scripts/prada-market.mjs"}
   ]
 }

@@ -1,0 +1,15 @@
+[
+  {"key":"galleria","name":"갤러리아","pattern":"갤러리아|Galleria"},
+  {"key":"re-edition-2005","name":"리에디션 2005","pattern":"(?:리에디션|Re.Edition).*2005"},
+  {"key":"re-edition-2000","name":"리에디션 2000","pattern":"(?:리에디션|Re.Edition).*2000"},
+  {"key":"re-edition-1995","name":"리에디션 1995","pattern":"(?:리에디션|Re.Edition).*1995"},
+  {"key":"buckle","name":"버클","pattern":"버클 백|Buckle"},
+  {"key":"cleo","name":"클레오","pattern":"클레오|Cleo"},
+  {"key":"arque","name":"아르케","pattern":"아르케|Arqué|Arque"},
+  {"key":"bonnie","name":"보니","pattern":"보니|Bonnie"},
+  {"key":"aimee","name":"아이메","pattern":"아이메|Aimée|Aimee"},
+  {"key":"panier","name":"파니에","pattern":"파니에|Panier"},
+  {"key":"double","name":"더블","pattern":"프라다 더블|Prada Double"},
+  {"key":"symbole","name":"심볼","pattern":"심볼|Symbole"},
+  {"key":"re-edition-1978","name":"리에디션 1978","pattern":"(?:리에디션|Re.Edition).*1978"}
+]
