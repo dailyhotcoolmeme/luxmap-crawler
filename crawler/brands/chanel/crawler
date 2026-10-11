@@ -128,6 +128,7 @@ try {
     const count=await page.evaluate(pattern=>[...document.querySelectorAll('a[href]')].filter(a=>new RegExp(pattern).test(new URL(a.href,location.href).pathname)).length,config.detailPathPattern);
     const blocked=await page.evaluate(()=>/access denied|you don't have permission|접근이 거부/i.test((document.body?.innerText??'')+document.title));
     await fs.writeFile(summaryFile,JSON.stringify([{brand:'chanel',country:config.country,parentModel:'listing diagnostic',variantCode:'listing',price:null,currency:config.currency,status:`HTTP_${lastNavigationStatus}_LINKS_${count}_BLOCKED_${Number(blocked)}`,officialUrl:config.listingUrls[0]}]));
+    if(blocked||count===0){const error=new Error('listing diagnostic incomplete');error.failureCode=blocked?'ACCESS_BLOCKED':'LISTING_PRODUCT_LINKS_MISSING';throw error;}
   }else{
   runStage = 'LISTING';
   const productUrls = new Set();
