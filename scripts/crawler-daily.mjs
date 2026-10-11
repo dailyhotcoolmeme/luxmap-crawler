@@ -5,6 +5,7 @@ import {spawnSync} from 'node:child_process';
 import {schedulePlan,executePlan} from '../crawler/common/schedule-plan.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 if(process.env.LUXURY_SERVICE_GUARD!=='enabled')throw new Error('scheduled service required');
+if(spawnSync(process.execPath,[path.join(root,'scripts/crawler-schedule-check.mjs')],{stdio:'ignore'}).status!==0)throw new Error('invalid schedule');
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const plan=schedulePlan(schedule,{smoke:process.argv.includes('--smoke')});
 process.exitCode=executePlan(plan,job=>{
