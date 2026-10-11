@@ -54,6 +54,7 @@ if(!Number.isSafeInteger(limit)||limit<1)throw new Error('invalid refresh limit'
 const pending=reference.filter(r=>r.normalized_code!==excludedCode&&(refresh||!r.market_products.some(m=>m.country_code===countryCode))).slice(0,limit);
 fs.writeFileSync(path.join(dir,'reference.json'),JSON.stringify(reference.map(r=>r.normalized_code)));
 let processed=0,failed=0;
+const failures=new Map();
 for(let i=0;i<pending.length;i+=1){
  const batch=pending.slice(i,i+1);
  const urls=batch.map(r=>countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url));
@@ -72,14 +73,21 @@ for(let i=0;i<pending.length;i+=1){
   if(attempt<config.maxRetriesPerUrl)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,Math.max(config.minNavigationIntervalMs,config.retryDelayMs));
  }
  fs.closeSync(fd);
- if(run.status===0)processed+=batch.length;else failed+=batch.length;
+ if(run.status===0)processed+=batch.length;else {
+  failed+=batch.length;
+  const runs=path.join(root,'crawler/runs/chanel',country);
+  const last=fs.existsSync(runs)?fs.readdirSync(runs).sort().at(-1):null;
+  const file=last?path.join(runs,last,'failure.json'):null;
+  const code=file&&fs.existsSync(file)?JSON.parse(fs.readFileSync(file)).failureCode:'PIPELINE_FAILED';
+  for(const row of batch)failures.set(row.normalized_code,/^[A-Z_]{1,40}$/.test(code)?code:'PIPELINE_FAILED');
+ }
  // Stop the country immediately on token/network policy violations.
  if(run.status===78)break;
 }
 const after=await catalog(true);
 const matched=after.filter(r=>r.market_products.some(m=>m.country_code===countryCode));
 const priced=matched.filter(r=>r.market_products.some(m=>m.country_code===countryCode&&m.current_price!=null));
-const summary=after.map(r=>{const market=r.market_products.find(m=>m.country_code===countryCode);return {brand:'chanel',country:countryCode,parentModel:'KR reference',variantCode:r.normalized_code,price:market?.current_price??null,currency,status:market?(market.current_price==null?'price_unavailable':'confirmed'):'unprocessed',officialUrl:market?.official_url??countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url)};});
+const summary=after.map(r=>{const market=r.market_products.find(m=>m.country_code===countryCode);return {brand:'chanel',country:countryCode,parentModel:'KR reference',variantCode:r.normalized_code,price:market?.current_price??null,currency,status:failures.get(r.normalized_code)??(market?(market.current_price==null?'price_unavailable':'confirmed'):'unprocessed'),officialUrl:market?.official_url??countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url)};});
 // Detailed data remains local; publish bounded guarded summary pages, never truncate work.
 for(let offset=0;offset<summary.length;offset+=25){
  const file=path.join(dir,offset===0?'summary.json':`summary-${offset/25}.json`);

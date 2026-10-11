@@ -17,6 +17,12 @@ for(const job of schedule.jobs){
   status=text.includes('stored_and_verified')||text.includes('crawl and storage completed')?'stored':text.match(/(?:FAILED|BLOCKED): ([A-Z_]+)/)?.[1]||'pipeline_failed';
  }
  const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',job.brand,'countries',job.country)));
+ const summary=path.join(dir,'summary.json');
+ if(status!=='stored'&&fs.existsSync(summary)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[summary],{stdio:'ignore'}).status===0){
+  const code=new URL(url).pathname.match(/\/p\/([^/]+)/)?.[1];
+  const record=JSON.parse(fs.readFileSync(summary)).find(row=>row.variantCode===code);
+  if(record)status=record.status;
+ }
  rows.push({brand:job.brand,country:config.country,parentModel:'KR reference',variantCode:new URL(url).pathname.match(/\/p\/([^/]+)/)?.[1]||'unknown',price:null,currency:config.currency,status:status.slice(0,40),officialUrl:url});
 }
 fs.mkdirSync(path.join(root,'.ci-report'),{recursive:true});
