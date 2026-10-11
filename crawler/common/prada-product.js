@@ -11,6 +11,9 @@ export function productLinks(html, base, country) {
   }
   return links;
 }
+export function pradaModelProductLinks(model,base,country){
+ const links=new Map();const visit=(value,key='')=>{if(/stock|inventory|availability/i.test(key))return;if(typeof value==='string'){for(const[code,url]of productLinks(value,base,country))links.set(code,url);try{const url=new URL(decodeHtml(value),base);if(url.origin==='https://www.prada.com'&&url.pathname.startsWith(`/${country}/`)&&url.pathname.includes('/p/')){const code=decodeURIComponent(url.pathname.split('/').at(-1));if(/^\d[A-Z]{2}\d{3}_[A-Z0-9]+_F[A-Z0-9]+(?:_V_[A-Z0-9]+)?$/i.test(code)){url.search='';url.hash='';links.set(normalizeProductCode(code),url.href);}}}catch{}if(/^[\[{]/.test(value))try{visit(JSON.parse(value),key);}catch{}return;}if(value&&typeof value==='object')for(const[k,v]of Object.entries(value))visit(v,k);};visit(model);return links;
+}
 export function parsePradaProduct(html, url, config, modelMap) {
   const originalCode=decodeURIComponent(new URL(url).pathname.split('/').at(-1));
   const normalizedCode=normalizeProductCode(originalCode);
@@ -53,9 +56,13 @@ export function parsePradaProduct(html, url, config, modelMap) {
 export function pradaSupplement(model, row) {
   const output={codes:new Set(),color:null,material:null,widthMm:null,heightMm:null,depthMm:null};
   const detailText=[];
+  const collectOptionCodes=value=>{
+    if(typeof value==='string'){for(const code of decodeHtml(value).match(/\d[A-Z]{2}\d{3}[_-][A-Z0-9]+[_-]F[A-Z0-9]+(?:[_-]V[_-][A-Z0-9]+)?/gi)??[])output.codes.add(code.replaceAll('-','_'));return;}
+    if(value&&typeof value==='object')for(const[key,item]of Object.entries(value))if(!/stock|inventory|availability/i.test(key)){collectOptionCodes(key);collectOptionCodes(item);}
+  };
   const visit=(value,field='')=>{
+    if(/^sizePickerJSON$/i.test(field))collectOptionCodes(value);
     if(typeof value==='string'){
-      if(field==='sizePickerJSON')for(const code of value.match(/\d[A-Z]{2}\d{3}_[A-Z0-9]+_F[A-Z0-9]+(?:_V_[A-Z0-9]+)?/g)??[])output.codes.add(code);
       if(/^[\[{]/.test(value)){try{visit(JSON.parse(value),field);}catch{}}
       if(/description|detail/i.test(field))detailText.push(decodeHtml(value.replace(/<[^>]+>/g,' ')));
       return;

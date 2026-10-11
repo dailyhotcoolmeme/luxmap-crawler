@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {productLinks,parsePradaProduct,pradaSupplement} from '../crawler/common/prada-product.js';
+import {productLinks,parsePradaProduct,pradaSupplement,pradaModelProductLinks} from '../crawler/common/prada-product.js';
 const map=JSON.parse(fs.readFileSync(new URL('../crawler/brands/prada/parent-model-map.json',import.meta.url)));
 const config={country:'KR',currency:'KRW'};
 const url='https://www.prada.com/kr/ko/p/galleria/1BA896_NZV_F0002_V_OOO';
@@ -21,4 +21,6 @@ assert.equal(productLinks(`<a href="${url}"></a><a href="https://example.com/kr/
 assert.equal(productLinks(`<a href="${url}"></a>`,url,'jp').size,0);
 const options=pradaSupplement({sizePickerJSON:JSON.stringify([{code:'1BA896_NZV_F0002_V_OOO'},{code:'1BA863_NZV_F0007_V_EOO'}]),inventory:{sizePickerJSON:'1BA000_NZV_F0002_V_OOO'}},{normalizedCode:a.normalizedCode});
 assert.deepEqual([...options.codes],['1BA896_NZV_F0002_V_OOO','1BA863_NZV_F0007_V_EOO']);
+assert.equal(pradaModelProductLinks({href:url,other:'https://evil.test/kr/ko/p/test/1BA896_NZV_F0002_V_OOO',stock:{href:url.replace('1BA896','1BA000')}},url,'kr').size,1);
+const objectOptions=pradaSupplement({sizePickerJSON:{sizes:[{code:'1BA896_NZV_F0002_V_OOO'},{code:'1BA863_NZV_F0007_V_EOO'}],inventory:{code:'1BA000_NZV_F0002_V_OOO'}}},{normalizedCode:a.normalizedCode});assert.deepEqual([...objectOptions.codes],[...options.codes]);
 console.log('PASS: Prada exact code, family grouping, dimensions, color, official locale and host');
