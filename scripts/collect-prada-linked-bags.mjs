@@ -49,5 +49,5 @@ try{
   added+=missing.length;
  }
  if(!closed)throw Error('linked graph pass limit reached');
- progress(`STORED_${added}_TARGETS_${targets.size}_CONFIRMED_BAG_MISSING_0`);
-}catch(error){progress('LINKED_INGEST_FAILED');process.exitCode=error.exitCode??1;}
+ progress(`STORED_${added}_TARGETS_${targets.size}_MISSING_0`);
+}catch(error){progress((error.failureCode??error.message??'LINKED_INGEST_FAILED').toUpperCase().replace(/[^A-Z0-9_]/g,'_').slice(0,40));process.exitCode=error.exitCode??1;}
