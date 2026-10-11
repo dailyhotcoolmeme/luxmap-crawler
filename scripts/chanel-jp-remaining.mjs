@@ -3,6 +3,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {reportCrawlFailure,flushCrawlAlerts} from './crawler-alert.mjs';
+import {validCountryMarket} from '../crawler/common/country-market.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const country=(process.argv[2]||'jp').toLowerCase();
 if(!/^[a-z]{2}$/.test(country))throw new Error('invalid country');
@@ -57,7 +58,7 @@ const refresh=process.argv.includes('--refresh');
 const limitIndex=process.argv.indexOf('--limit');
 const limit=limitIndex>=0?Number(process.argv[limitIndex+1]):reference.length;
 if(!Number.isSafeInteger(limit)||limit<1)throw new Error('invalid refresh limit');
-const pending=reference.filter(r=>r.normalized_code!==excludedCode&&(refresh||!r.market_products.some(m=>m.country_code===countryCode))).slice(0,limit);
+const pending=reference.filter(r=>r.normalized_code!==excludedCode&&(refresh||!r.market_products.some(m=>validCountryMarket(m,r,config)))).slice(0,limit);
 fs.writeFileSync(path.join(dir,'reference.json'),JSON.stringify(reference.map(r=>r.normalized_code)));
 let processed=0,failed=0;
 const failures=new Map();
@@ -101,9 +102,9 @@ for(let i=0;i<pending.length;i+=1){
  if(accessBlocked)break;
 }
 const after=await catalog(true);
-const matched=after.filter(r=>r.market_products.some(m=>m.country_code===countryCode));
+const matched=after.filter(r=>r.market_products.some(m=>validCountryMarket(m,r,config)));
 const priced=matched.filter(r=>r.market_products.some(m=>m.country_code===countryCode&&m.current_price!=null));
-const summary=after.map(r=>{const market=r.market_products.find(m=>m.country_code===countryCode);return {brand:'chanel',country:countryCode,parentModel:'KR reference',variantCode:r.normalized_code,price:market?.current_price??null,currency,status:failures.get(r.normalized_code)??(market?(market.current_price==null?'price_unavailable':'confirmed'):'unprocessed'),officialUrl:market?.official_url??countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url)};});
+const summary=after.map(r=>{const market=r.market_products.find(m=>m.country_code===countryCode);const valid=validCountryMarket(market,r,config);return {brand:'chanel',country:countryCode,parentModel:'KR reference',variantCode:r.normalized_code,price:valid?market.current_price:null,currency,status:failures.get(r.normalized_code)??(market?(valid?(market.current_price==null?'price_unavailable':'confirmed'):'invalid_market_record'):'unprocessed'),officialUrl:valid?market.official_url:countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url)};});
 // Detailed data remains local; publish bounded guarded summary pages, never truncate work.
 for(let offset=0;offset<summary.length;offset+=25){
  const file=path.join(dir,offset===0?'summary.json':`summary-${offset/25}.json`);
