@@ -73,6 +73,7 @@ try{
         const row={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'page_not_found',officialUrl:url,checkedAt:new Date().toISOString()};rows.push(row);summaries.push(summarize(row));continue;
       }
       if(!response.ok())throw fail('DETAIL_HTTP_FAILED');
+      if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_REDIRECT');
       const row=parsePradaProduct(html,url,config,map);
       if(config.country==='KR'){
         const modelResponse=await get(`${url}.model.json`);

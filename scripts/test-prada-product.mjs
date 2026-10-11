@@ -9,6 +9,7 @@ const a=parsePradaProduct(fixture('프라다 갤러리아 스몰 사피아노 �
 const b=parsePradaProduct(fixture('프라다 갤러리아 라지 가죽 백'),url,config,map);
 assert.equal(a.modelKey,b.modelKey);assert.equal(a.modelKey,'galleria');assert.equal(a.colorDisplay,'블랙');assert.equal(a.widthMm,300);assert.equal(a.heightMm,220);assert.equal(a.depthMm,135);
 assert.throws(()=>parsePradaProduct(fixture('test','DIFFERENT'),url,config,map),/exact product missing/);
+assert.throws(()=>parsePradaProduct(fixture('test'),url,{country:'JP',currency:'JPY'},map),/country currency mismatch/);
 assert.notEqual(parsePradaProduct(fixture('리에디션 2000'),url,config,map).modelKey,parsePradaProduct(fixture('리에디션 2005'),url,config,map).modelKey);
 assert.equal(productLinks(`<a href="${url}"></a><a href="https://example.com/kr/ko/p/a/1BA896_NZV_F0002_V_OOO"></a>`,url,'kr').size,1);
 assert.equal(productLinks(`<a href="${url}"></a>`,url,'jp').size,0);

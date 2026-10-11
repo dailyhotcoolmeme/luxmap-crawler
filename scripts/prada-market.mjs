@@ -25,21 +25,28 @@ function pipeline(args){
  return path.join(root,'crawler/runs/prada',country,latestRun());
 }
 function writeSummary(rows,phase){
- const summary=rows.map(row=>({brand:'prada',country:config.country,parentModel:'한국 기준',variantCode:row.normalized_code,price:null,currency:config.currency,status:phase,officialUrl:row.official_url??config.listingUrls[0]}));
+ const summary=rows.map(row=>({brand:'prada',country:config.country,parentModel:'한국 기준',variantCode:row.normalized_code,price:null,currency:config.currency,status:phase,officialUrl:row.official_url?.length<=500?row.official_url:config.listingUrls[0]}));
  if(!summary.length)summary.push({brand:'prada',country:config.country,parentModel:'한국 기준',variantCode:'RUN',price:null,currency:config.currency,status:phase,officialUrl:config.listingUrls[0]});
  for(let i=0;i<summary.length;i+=25){const file=path.join(state,i===0?'summary.json':`summary-${i/25}.json`);fs.writeFileSync(file,JSON.stringify(summary.slice(i,i+25)));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0)throw new Error('progress summary blocked');}
 }
 async function verify(){
  const rows=await references(),markets=[];
  for(let offset=0;;offset+=500){const batch=await query(`market_products?country_code=eq.${config.country}&select=variant_id,official_product_code,current_price,currency_code,official_url&order=id&limit=500&offset=${offset}`);markets.push(...batch);if(batch.length<500)break;}
- const summaries=rows.map(row=>{const market=markets.find(item=>item.variant_id===row.id);const valid=market&&market.official_product_code===row.normalized_code&&market.currency_code===config.currency&&market.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`);return {brand:'prada',country:config.country,parentModel:'한국 기준',variantCode:row.normalized_code,price:valid?Number(market.current_price)||null:null,currency:config.currency,status:valid?(market.current_price==null?'price_unavailable':'confirmed'):'unprocessed',officialUrl:market?.official_url??config.listingUrls[0]};});
+ const summaries=rows.map(row=>{const market=markets.find(item=>item.variant_id===row.id);const valid=market&&market.official_product_code===row.normalized_code&&market.currency_code===config.currency&&market.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`)&&decodeURIComponent(new URL(market.official_url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()===row.normalized_code;return {brand:'prada',country:config.country,parentModel:'한국 기준',variantCode:row.normalized_code,price:valid?Number(market.current_price)||null:null,currency:config.currency,status:valid?(market.current_price==null?'price_unavailable':'confirmed'):'unprocessed',officialUrl:market?.official_url?.length<=500?market.official_url:config.listingUrls[0]};});
+ let discoveryMissing=0;
+ if(country==='kr'){
+  const runs=path.join(root,'crawler/runs/prada/kr');const discovery=fs.readdirSync(runs).sort().reverse().find(name=>fs.existsSync(path.join(runs,name,'artifacts/discovered-urls.json')));
+  if(!discovery)throw new Error('discovery baseline missing');const urls=JSON.parse(fs.readFileSync(path.join(runs,discovery,'artifacts/discovered-urls.json')));const codes=new Set(rows.map(row=>row.normalized_code));discoveryMissing=urls.filter(url=>!codes.has(decodeURIComponent(new URL(url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase())).length;
+ }
  for(let i=0;i<summaries.length;i+=25){const file=path.join(state,i===0?'summary.json':`summary-${i/25}.json`);fs.writeFileSync(file,JSON.stringify(summaries.slice(i,i+25)));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0)throw new Error('verification summary blocked');}
- const report=[['REFERENCE',rows.length],['LINKED',summaries.filter(r=>r.status!=='unprocessed').length],['CONFIRMED',summaries.filter(r=>r.status==='confirmed').length],['UNAVAILABLE',summaries.filter(r=>r.status==='price_unavailable').length],['UNPROCESSED',summaries.filter(r=>r.status==='unprocessed').length]].map(([label,count])=>({brand:'prada',country:config.country,parentModel:'검증 합계',variantCode:'TOTAL',price:null,currency:config.currency,status:`${label}_${count}`,officialUrl:config.listingUrls[0]}));
+ const report=[['REFERENCE',rows.length],['LINKED',summaries.filter(r=>r.status!=='unprocessed').length],['CONFIRMED',summaries.filter(r=>r.status==='confirmed').length],['UNAVAILABLE',summaries.filter(r=>r.status==='price_unavailable').length],['UNPROCESSED',summaries.filter(r=>r.status==='unprocessed').length],['DISCOVERY_MISSING',discoveryMissing]].map(([label,count])=>({brand:'prada',country:config.country,parentModel:'검증 합계',variantCode:'TOTAL',price:null,currency:config.currency,status:`${label}_${count}`,officialUrl:config.listingUrls[0]}));
  const folder=path.join(state,'report');fs.mkdirSync(folder,{recursive:true});const file=path.join(folder,'summary.json');fs.writeFileSync(file,JSON.stringify(report));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0)throw new Error('report blocked');
- if(!rows.length||summaries.some(row=>row.status==='unprocessed'))throw Object.assign(new Error('incomplete country coverage'),{failureCode:'INCOMPLETE_COVERAGE'});
+ if(!rows.length||discoveryMissing||summaries.some(row=>row.status==='unprocessed'))throw Object.assign(new Error('incomplete country coverage'),{failureCode:'INCOMPLETE_COVERAGE'});
 }
 try{
- if(process.argv.includes('--discover-reference')){
+ if(process.argv.includes('--verify-only')){
+  await verify();
+ }else if(process.argv.includes('--discover-reference')){
   if(country!=='kr')throw new Error('foreign discovery forbidden');
   const run=pipeline(['--crawl-only','--discover']);
   const urls=JSON.parse(fs.readFileSync(path.join(run,'artifacts/discovered-urls.json')));
