@@ -17,6 +17,12 @@ if [ "${1:-}" = '--crawl-only' ]; then
   echo "PASS: $BRAND/$COUNTRY crawl-only completed; storage was not modified."
   exit 0
 fi
+for option in "$@"; do
+  if [ "$option" = '--inspect-linked-candidates' ]; then
+    echo 'BLOCKED: linked candidate inspection is crawl-only.' >&2
+    exit 1
+  fi
+done
 
 # A scheduled run has no interactive shell environment. Reuse an existing
 # credential only; never save secrets or put them into the launchd plist.

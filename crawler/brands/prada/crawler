@@ -8,9 +8,11 @@ import { normalizeProductCode } from '../../common/product-normalizer.js';
 
 if (process.env.CRAWL_MODE !== 'deterministic-only' || process.env.LUXURY_PIPELINE_GUARD !== 'enabled' || process.env.LUXURY_NETWORK_ISOLATED !== 'enabled') throw new Error('guarded isolated pipeline required');
 const args=process.argv.slice(2),arg=name=>args[args.indexOf(name)+1];
-const allowedArguments=new Set(['--country-config','--discover','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index','--probe-price-options','--targets-file']);
+const allowedArguments=new Set(['--country-config','--discover','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index','--probe-price-options','--targets-file','--inspect-linked-candidates']);
 if(args.some(value=>value.startsWith('--')&&!allowedArguments.has(value)))throw new Error('unreviewed diagnostic mode is disabled');
 const config=JSON.parse(await fs.readFile(arg('--country-config'),'utf8'));
+const inspectCandidates=args.includes('--inspect-linked-candidates');
+if(inspectCandidates&&(config.country!=='KR'||!args.includes('--prices-only')||!args.includes('--urls-file')))throw new Error('read-only Korean candidate inspection required');
 config.maxDiscoveryPages??=30;
 const map=JSON.parse(await fs.readFile(new URL('./parent-model-map.json',import.meta.url),'utf8'));
 const run=process.env.CRAWL_RUN_DIR,artifact=path.join(run,'artifacts');
@@ -87,12 +89,12 @@ try{
         while(cursor<unique.length){const index=cursor++,url=unique[index],code=normalizeProductCode(decodeURIComponent(new URL(url).pathname.split('/').at(-1)));
           if(!new URL(url).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');
           const response=await get(url),html=await response.text();await fs.writeFile(path.join(run,'raw',`${code}.html`),html);
-          if(response.status()===404&&config.country!=='KR'){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'page_not_found',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
+          if(response.status()===404&&(config.country!=='KR'||inspectCandidates)){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'page_not_found',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
           if(!response.ok())throw fail(`DETAIL_HTTP_${response.status()}`);if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix)){
-            if(config.country!=='KR'&&new URL(response.url()).origin==='https://www.prada.com'&&new URL(response.url()).pathname.startsWith(`/${config.country.toLowerCase()}/`)){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
+            if((config.country!=='KR'||inspectCandidates)&&new URL(response.url()).origin==='https://www.prada.com'&&new URL(response.url()).pathname.startsWith(`/${config.country.toLowerCase()}/`)){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
             throw fail('WRONG_COUNTRY_REDIRECT');
           }
-          try{results[index]=parsePradaProduct(html,url,config,map);}catch(error){if(config.country!=='KR'&&error.failureCode==='EXACT_PRODUCT_MISSING'&&error.observedCode){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};}else throw error;}
+          try{results[index]=parsePradaProduct(html,url,config,map);}catch(error){if(error.failureCode==='EXACT_PRODUCT_MISSING'&&((config.country!=='KR'&&error.observedCode)||inspectCandidates)){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};}else throw error;}
         }
       }));
       rows.push(...results);summaries.push(...results.map(row=>summarize(row)));await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(rows));

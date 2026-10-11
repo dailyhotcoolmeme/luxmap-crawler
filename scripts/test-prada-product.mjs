@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {productLinks,parsePradaProduct,pradaSupplement,pradaModelProductLinks} from '../crawler/common/prada-product.js';
+import {productLinks,parsePradaProduct,pradaSupplement,pradaModelProductLinks,isPradaBag} from '../crawler/common/prada-product.js';
 const map=JSON.parse(fs.readFileSync(new URL('../crawler/brands/prada/parent-model-map.json',import.meta.url)));
 const config={country:'KR',currency:'KRW'};
 const url='https://www.prada.com/kr/ko/p/galleria/1BA896_NZV_F0002_V_OOO';
@@ -8,6 +8,8 @@ const fixture=(name,sku='1BA896_NZV_F0002_V_OOO')=>`<script type="application/ld
 const a=parsePradaProduct(fixture('프라다 갤러리아 스몰 사피아노 가죽 백'),url,config,map);
 const b=parsePradaProduct(fixture('프라다 갤러리아 라지 가죽 백'),url,config,map);
 assert.equal(a.modelKey,b.modelKey);assert.equal(a.modelKey,'galleria');assert.equal(a.colorDisplay,'블랙');assert.equal(a.widthMm,300);assert.equal(a.heightMm,220);assert.equal(a.depthMm,135);
+assert(isPradaBag('프라다 보니 스몰 가죽 숄더백'));assert(isPradaBag('프라다 갤러리아 라지 가죽 백'));assert(!isPradaBag('가죽 백 참'));assert(!isPradaBag('티셔츠'));assert(!isPradaBag('백 스트랩'));
+const otherSize=url.replace('1BA896','1BA274');assert.equal(pradaModelProductLinks({sizePickerJSON:JSON.stringify({href:otherSize})},url,'kr').get('1BA274NZVF0002VOOO'),otherSize);
 assert.throws(()=>parsePradaProduct(fixture('test','DIFFERENT'),url,config,map),/exact product missing/);
 assert.throws(()=>parsePradaProduct(fixture('test'),url,{country:'JP',currency:'JPY'},map),/country currency mismatch/);
 assert.equal(parsePradaProduct(fixture('test').replace(',"priceCurrency":"KRW"',''),url,config,map).price,null);

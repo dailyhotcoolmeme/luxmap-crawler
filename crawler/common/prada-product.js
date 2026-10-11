@@ -1,6 +1,8 @@
 import { normalizeProductCode } from './product-normalizer.js';
 
 export const decodeHtml = value => String(value ?? '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([a-f0-9]+);/gi, (_, n) => String.fromCodePoint(parseInt(n,16)));
+// Korean official names only; never infer a category from the source URL slug.
+export const isPradaBag = name => /(가방|핸드백|토트|쇼퍼|호보|클러치|백팩|백)/i.test(name ?? '') && !/(백참|백 참|장식|스트랩|티셔츠|재킷)/i.test(name ?? '');
 export function productLinks(html, base, country) {
   const links=new Map();
   for(const match of html.matchAll(/href=["']([^"']+)["']/gi)){
