@@ -298,10 +298,14 @@ try {
   if (records.length === 0&&!probeOnly) throw new Error("no valid product records");
   await fs.writeFile(path.join(artifactDir, "records.json"), JSON.stringify(records), "utf8");
   await fs.writeFile(path.join(runDir, "failures.json"), JSON.stringify(failures), "utf8");
-  await fs.writeFile(summaryFile, JSON.stringify(probeOnly?probes:records.map((record) => ({
+  const summaries=probeOnly?probes:records.map((record) => ({
     brand: record.brand, country: record.country, parentModel: record.parentModel, variantCode: record.normalizedCode,
     price: record.price, currency: record.currency, status: record.priceStatus, officialUrl: record.officialUrl
-  }))), "utf8");
+  }));
+  for(let offset=0;offset<summaries.length;offset+=25){
+   const file=offset===0?summaryFile:path.join(runDir,`summary-${offset/25}.json`);
+   await fs.writeFile(file,JSON.stringify(summaries.slice(offset,offset+25)),'utf8');
+  }
   }
 } catch (error) {
   await fs.writeFile(path.join(runDir, "failure.json"), JSON.stringify({ failureCode: classifyFailure(error, runStage) }), "utf8");

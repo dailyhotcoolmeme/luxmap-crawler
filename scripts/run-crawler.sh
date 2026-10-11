@@ -164,6 +164,10 @@ if [ "$CRAWL_EXIT" -ne 0 ]; then
 fi
 
 "$PROJECT_DIR/scripts/crawl-output-guard.sh" "$SUMMARY_FILE"
+for SUMMARY_PAGE in "$RUN_DIR"/summary-*.json; do
+  [ -f "$SUMMARY_PAGE" ] || continue
+  "$PROJECT_DIR/scripts/crawl-output-guard.sh" "$SUMMARY_PAGE" >/dev/null
+done
 chmod 000 "$STDOUT_FILE" "$STDERR_FILE" 2>/dev/null || true
 find "$RUN_DIR/raw" -type f -exec chmod 000 {} + 2>/dev/null || true
 
