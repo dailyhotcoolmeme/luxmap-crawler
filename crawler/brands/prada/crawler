@@ -8,7 +8,7 @@ import { normalizeProductCode } from '../../common/product-normalizer.js';
 
 if (process.env.CRAWL_MODE !== 'deterministic-only' || process.env.LUXURY_PIPELINE_GUARD !== 'enabled' || process.env.LUXURY_NETWORK_ISOLATED !== 'enabled') throw new Error('guarded isolated pipeline required');
 const args=process.argv.slice(2),arg=name=>args[args.indexOf(name)+1];
-const allowedArguments=new Set(['--country-config','--discover','--urls-file','--expand-variants','--inspect-metadata']);
+const allowedArguments=new Set(['--country-config','--discover','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file']);
 if(args.some(value=>value.startsWith('--')&&!allowedArguments.has(value)))throw new Error('unreviewed diagnostic mode is disabled');
 const config=JSON.parse(await fs.readFile(arg('--country-config'),'utf8'));
 const map=JSON.parse(await fs.readFile(new URL('./parent-model-map.json',import.meta.url),'utf8'));
@@ -62,10 +62,12 @@ try{
     const urls=JSON.parse(await fs.readFile(arg('--urls-file'),'utf8'));
     if(!Array.isArray(urls)||!urls.length||urls.length>config.maxProductsPerRun)throw fail('PRODUCT_LIMIT');
     const queue=[...urls],seen=new Set();
+    if(args.includes('--exclude-codes-file')){if(config.country!=='KR'||!args.includes('--expand-variants'))throw fail('INVALID_EXCLUSION_MODE');const excluded=JSON.parse(await fs.readFile(arg('--exclude-codes-file'),'utf8'));if(!Array.isArray(excluded)||excluded.some(code=>typeof code!=='string'||!/^[A-Z0-9]+$/.test(code)))throw fail('INVALID_EXCLUSION_CODES');for(const code of excluded)seen.add(code);}
+    let processed=0;
     while(queue.length){
       const url=queue.shift(),code=normalizeProductCode(decodeURIComponent(new URL(url).pathname.split('/').at(-1)));
       if(seen.has(code))continue;seen.add(code);
-      if(seen.size>config.maxProductsPerRun)throw fail('VARIANT_BATCH_LIMIT');
+      if(++processed>config.maxProductsPerRun)throw fail('VARIANT_BATCH_LIMIT');
       if(!new URL(url).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');
       const response=await get(url),html=await response.text();
       await fs.writeFile(path.join(run,'raw',`${code}.html`),html);

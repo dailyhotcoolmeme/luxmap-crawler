@@ -21,7 +21,7 @@ export function parsePradaProduct(html, url, config, modelMap) {
   if(!product||!product.name)throw Object.assign(new Error('exact product missing'),{failureCode:'EXACT_PRODUCT_MISSING'});
   const offers=[product.offers].flat().filter(Boolean);
   const offer=offers.find(item=>item?.priceCurrency===config.currency);
-  if(!offer&&offers.some(item=>item.price!=null))throw Object.assign(new Error('country currency mismatch'),{failureCode:'CURRENCY_MISMATCH'});
+  if(!offer&&offers.some(item=>item.price!=null&&item.priceCurrency))throw Object.assign(new Error('country currency mismatch'),{failureCode:'CURRENCY_MISMATCH'});
   const price=offer?.price==null?null:Number(String(offer.price).replace(/,/g,''));
   if(price!==null&&(!Number.isFinite(price)||price<=0))throw Object.assign(new Error('price invalid'),{failureCode:'INVALID_PRICE'});
   const name=decodeHtml(product.name);

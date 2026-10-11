@@ -49,8 +49,9 @@ try{
  }else if(process.argv.includes('--discover-reference')){
   if(country!=='kr')throw new Error('foreign discovery forbidden');
   const run=pipeline(['--crawl-only','--discover']);
-  const urls=JSON.parse(fs.readFileSync(path.join(run,'artifacts/discovered-urls.json')));
-  for(let i=0;i<urls.length;i+=8){const file=path.join(state,'batch-urls.json');fs.writeFileSync(file,JSON.stringify(urls.slice(i,i+8)));writeSummary([{normalized_code:'DISCOVERY',official_url:config.listingUrls[0]}],`INGESTING_${i}_OF_${urls.length}`);pipeline(['--urls-file',file,'--expand-variants']);}
+  let urls=JSON.parse(fs.readFileSync(path.join(run,'artifacts/discovered-urls.json')));
+  if(process.argv.includes('--remaining')){const existing=new Set((await references()).map(row=>row.normalized_code));urls=urls.filter(url=>!existing.has(decodeURIComponent(new URL(url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()));}
+  for(let i=0;i<urls.length;i+=8){const file=path.join(state,'batch-urls.json');fs.writeFileSync(file,JSON.stringify(urls.slice(i,i+8)));writeSummary([{normalized_code:'DISCOVERY',official_url:config.listingUrls[0]}],`INGESTING_${i}_OF_${urls.length}`);const extra=[];if(process.argv.includes('--remaining')){const excluded=path.join(state,'existing-codes.json');fs.writeFileSync(excluded,JSON.stringify((await references()).map(row=>row.normalized_code)));extra.push('--exclude-codes-file',excluded);}pipeline(['--urls-file',file,'--expand-variants',...extra]);}
  }else{
   const rows=await references();if(!rows.length)throw new Error('Korean reference missing');
   const limitIndex=process.argv.indexOf('--limit'),selected=limitIndex>=0?rows.slice(0,Number(process.argv[limitIndex+1])):rows;
