@@ -85,7 +85,7 @@ try{
       if(config.country!=='KR'){const home=await get(`https://www.prada.com${config.referenceDetailPrefix.replace(/\/p\/$/,'.html')}`);if(!home.ok())throw fail('HOME_HTTP_FAILED');if(!new URL(home.url()).pathname.startsWith(`/${config.country.toLowerCase()}/`))throw fail('WRONG_COUNTRY_REDIRECT');}
       const unique=[...new Map(urls.map(url=>[normalizeProductCode(decodeURIComponent(new URL(url).pathname.split('/').at(-1))),url])).values()];
       const results=new Array(unique.length);let cursor=0;
-      await Promise.all(Array.from({length:Math.min(3,unique.length)},async()=>{
+      await Promise.all(Array.from({length:Math.min(2,unique.length)},async()=>{
         while(cursor<unique.length){const index=cursor++,url=unique[index],code=normalizeProductCode(decodeURIComponent(new URL(url).pathname.split('/').at(-1)));
           if(!new URL(url).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');
           const response=await get(url),html=await response.text();await fs.writeFile(path.join(run,'raw',`${code}.html`),html);

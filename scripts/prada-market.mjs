@@ -52,7 +52,7 @@ try{
   await verify();
  }else if(process.argv.includes('--linked-reference')){
   if(country!=='kr')throw new Error('Korean linked reference only');
-  const result=spawnSync(process.execPath,[path.join(root,'scripts/collect-prada-linked-bags.mjs'),'--approved-cached-candidates'],{cwd:root,env:process.env,stdio:'ignore',timeout:10*60000});
+  const result=spawnSync(process.execPath,[path.join(root,'scripts/collect-prada-linked-bags.mjs'),'--approved-cached-candidates'],{cwd:root,env:process.env,stdio:'ignore',timeout:30*60000});
   if(result.status!==0)throw Object.assign(new Error('linked reference failed'),{failureCode:'LINKED_REFERENCE_FAILED'});
  }else if(process.argv.includes('--discover-reference')){
   if(country!=='kr')throw new Error('foreign discovery forbidden');
