@@ -53,7 +53,7 @@ for(let i=0;i<pending.length;i+=1){
   const failure=last?path.join(runs,last,'failure.json'):null;
   const code=failure&&fs.existsSync(failure)?JSON.parse(fs.readFileSync(failure)).failureCode:'';
   // Only transient transport failures retry; access blocks and policy violations never do.
-  if(!/^(?:INCOMPLETE_)?DETAIL_(?:ERR_PROXY_CONNECTION_FAILED|TIMEOUT)$/.test(code))break;
+  if(!/^(?:(?:INCOMPLETE_)?DETAIL_(?:ERR_PROXY_CONNECTION_FAILED|TIMEOUT)|CDP_CONNECTION_FAILED)$/.test(code))break;
   if(attempt<config.maxRetriesPerUrl)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,Math.max(config.minNavigationIntervalMs,config.retryDelayMs));
  }
  fs.closeSync(fd);

@@ -2,6 +2,7 @@
 set -eu
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$PROJECT_DIR"
 . "$PROJECT_DIR/scripts/crawler-env.sh"
 GUARD_FILE="$PROJECT_DIR/crawler/guardrails.json"
 
