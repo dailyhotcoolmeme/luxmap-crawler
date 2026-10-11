@@ -1,6 +1,7 @@
 {
   "country": "IT",
   "currency": "EUR",
+  "referenceDetailPrefix": "/it/moda/p/",
   "locale": "it-IT",
   "listingUrls": ["https://www.chanel.com/it/moda/borse/c/1x1x1/"],
   "detailPathPattern": "^/it/moda/p/[A-Za-z0-9]+/",

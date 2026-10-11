@@ -1,6 +1,7 @@
 {
   "country": "JP",
   "currency": "JPY",
+  "referenceDetailPrefix": "/jp/fashion/p/",
   "locale": "ja-JP",
   "listingUrls": ["https://www.chanel.com/jp/fashion/handbags/c/1x1x1/"],
   "detailPathPattern": "^/jp/fashion/p/[A-Za-z0-9]+/",

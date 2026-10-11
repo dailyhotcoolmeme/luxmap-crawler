@@ -1,6 +1,7 @@
 {
   "country": "KR",
   "currency": "KRW",
+  "referenceDetailPrefix": "/kr/fashion/p/",
   "locale": "ko-KR",
   "listingUrls": ["https://www.chanel.com/kr/fashion/handbags/c/1x1x1/"],
   "detailPathPattern": "^/kr/fashion/p/[A-Za-z0-9]+/",
