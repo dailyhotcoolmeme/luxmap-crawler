@@ -25,7 +25,7 @@ async function get(url) {
     if(destination.protocol!=='https:'||!config.allowedHosts.includes(destination.hostname))throw fail('UNAUTHORIZED_URL');
     if(destination.hostname==='api.prada.com'&&destination.pathname!=='/anon/approductfilteringprd/PRD_04_07_GetGroupedProducts')throw fail('UNAUTHORIZED_PRODUCT_API');
     if(++pages>250)throw fail('PAGE_LIMIT');
-    const delay=300-(Date.now()-lastRequest);if(delay>0)await new Promise(resolve=>setTimeout(resolve,delay));lastRequest=Date.now();
+    const slot=Math.max(Date.now(),lastRequest+300);lastRequest=slot;const delay=slot-Date.now();if(delay>0)await new Promise(resolve=>setTimeout(resolve,delay));
     const response=await context.get(url,{maxRedirects:0});
     if([403,429].includes(response.status()))throw fail('ACCESS_BLOCKED');
     if(![301,302,303,307,308].includes(response.status()))return response;
@@ -61,6 +61,20 @@ try{
     if(!args.includes('--urls-file'))throw fail('EXPLICIT_BATCH_REQUIRED');
     const urls=JSON.parse(await fs.readFile(arg('--urls-file'),'utf8'));
     if(!Array.isArray(urls)||!urls.length||urls.length>config.maxProductsPerRun)throw fail('PRODUCT_LIMIT');
+    if(config.country!=='KR'||args.includes('--prices-only')){
+      const unique=[...new Map(urls.map(url=>[normalizeProductCode(decodeURIComponent(new URL(url).pathname.split('/').at(-1))),url])).values()];
+      const results=new Array(unique.length);let cursor=0;
+      await Promise.all(Array.from({length:Math.min(3,unique.length)},async()=>{
+        while(cursor<unique.length){const index=cursor++,url=unique[index],code=normalizeProductCode(decodeURIComponent(new URL(url).pathname.split('/').at(-1)));
+          if(!new URL(url).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');
+          const response=await get(url),html=await response.text();await fs.writeFile(path.join(run,'raw',`${code}.html`),html);
+          if(response.status()===404&&config.country!=='KR'){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'page_not_found',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
+          if(!response.ok())throw fail('DETAIL_HTTP_FAILED');if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_REDIRECT');
+          results[index]=parsePradaProduct(html,url,config,map);
+        }
+      }));
+      rows.push(...results);summaries.push(...results.map(row=>summarize(row)));await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(rows));
+    }else{
     const queue=[...urls],seen=new Set();
     if(args.includes('--exclude-codes-file')){if(config.country!=='KR'||!args.includes('--expand-variants'))throw fail('INVALID_EXCLUSION_MODE');const excluded=JSON.parse(await fs.readFile(arg('--exclude-codes-file'),'utf8'));if(!Array.isArray(excluded)||excluded.some(code=>typeof code!=='string'||!/^[A-Z0-9]+$/.test(code)))throw fail('INVALID_EXCLUSION_CODES');for(const code of excluded)seen.add(code);}
     let processed=0;
@@ -96,6 +110,7 @@ try{
       await saveSummary();
     }
     await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(rows));
+    }
   }
 }catch(error){
   const network=error.message?.match(/net::(ERR_[A-Z_]+)/)?.[1];
