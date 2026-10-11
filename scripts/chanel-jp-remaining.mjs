@@ -25,11 +25,13 @@ if(process.argv.includes('--discover-reference')){
  const result=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),['chanel','kr'],{cwd:root,env:{...process.env,LUXURY_BROWSER_MAINTENANCE_SINK:'1',LUXURY_USE_ASIDE:'0'},stdio:'ignore',timeout:2*60*60*1000,killSignal:'SIGTERM'});
  process.exit(result.status??1);
 }
-const headers={apikey:process.env.EXPO_PUBLIC_SUPABASE_KEY,Authorization:`Bearer ${process.env.EXPO_PUBLIC_SUPABASE_KEY}`};
+const serverKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
+if(!serverKey)throw new Error('server credential required for authoritative Korean reference');
+const headers={apikey:serverKey,Authorization:`Bearer ${serverKey}`};
 async function catalog(final=false){
  const rows=[];
  for(let offset=0;;offset+=500){
-  const response=await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/product_variants?select=id,normalized_code,brands(name_original),market_products(country_code,current_price,currency_code,official_url)&order=normalized_code,id&limit=500&offset=${offset}&last_seen_at=gte.${encodeURIComponent(new Date(Date.now()%86400000).toISOString())}`,{headers:{...headers,'Cache-Control':'no-cache'},cache:'no-store',signal:AbortSignal.timeout(30000)});
+  const response=await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/rpc/crawler_korean_references?limit=500&offset=${offset}`,{method:'POST',headers:{...headers,'Content-Type':'application/json','Cache-Control':'no-cache'},body:JSON.stringify({p_brand:'chanel'}),cache:'no-store',signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw new Error('catalog query failed');
   const batch=await response.json();rows.push(...batch);if(batch.length<500)break;
  }
@@ -41,7 +43,8 @@ async function catalog(final=false){
  const batch=await marketResponse.json();markets.push(...batch);if(batch.length<500)break;
  }
  for(const row of rows)row.market_products=markets.filter(m=>m.variant_id===row.id);
- return rows.filter(r=>String(r.brands?.name_original).toLowerCase()==='chanel'&&r.market_products.some(m=>m.country_code==='KR'));
+ if(rows.some(row=>!row.market_products.some(m=>m.country_code==='KR'&&m.official_product_code===row.normalized_code)))throw new Error('Korean reference integrity failed');
+ return rows;
 }
 const reference=await catalog();
 if(!reference.length)throw new Error('empty reference');
