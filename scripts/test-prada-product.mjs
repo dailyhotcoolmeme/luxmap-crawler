@@ -14,6 +14,8 @@ assert.equal(parsePradaProduct(fixture('test').replace(',"priceCurrency":"KRW"',
 const linkedPrice=fixture('test').replace('"priceCurrency":"KRW"',`"url":"${url}"`);
 assert.equal(parsePradaProduct(linkedPrice,url,{...config,referenceDetailPrefix:'/kr/ko/p/'},map).price,6000000);
 assert.equal(parsePradaProduct(linkedPrice,url,{country:'JP',currency:'JPY',referenceDetailPrefix:'/jp/ja/p/'},map).price,null);
+const encoded=fixture('프라다 갤러리아').replace(/(<script[^>]*>)([\s\S]*?)(<\/script>)/,(_,open,json,close)=>open+json.replaceAll('"','&quot;')+close);
+assert.equal(parsePradaProduct(encoded,url,config,map).price,6000000);
 assert.notEqual(parsePradaProduct(fixture('리에디션 2000'),url,config,map).modelKey,parsePradaProduct(fixture('리에디션 2005'),url,config,map).modelKey);
 assert.equal(productLinks(`<a href="${url}"></a><a href="https://example.com/kr/ko/p/a/1BA896_NZV_F0002_V_OOO"></a>`,url,'kr').size,1);
 assert.equal(productLinks(`<a href="${url}"></a>`,url,'jp').size,0);

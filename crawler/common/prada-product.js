@@ -16,9 +16,9 @@ export function parsePradaProduct(html, url, config, modelMap) {
   const normalizedCode=normalizeProductCode(originalCode);
   const nodes=[];
   const visit=value=>{if(!value||typeof value!=='object')return;if([value['@type']].flat().includes('Product'))nodes.push(value);for(const child of Object.values(value))if(child&&typeof child==='object')visit(child);};
-  for(const match of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){try{visit(JSON.parse(match[1]));}catch{}}
+  for(const match of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){try{visit(JSON.parse(match[1]));}catch{try{visit(JSON.parse(decodeHtml(match[1]).trim().replace(/^<!--\s*|\s*-->$/g,'')));}catch{}}}
   const product=nodes.find(node=>normalizeProductCode(node.sku??node.productID)===normalizedCode);
-  if(!product||!product.name)throw Object.assign(new Error('exact product missing'),{failureCode:'EXACT_PRODUCT_MISSING'});
+  if(!product||!product.name)throw Object.assign(new Error('exact product missing'),{failureCode:'EXACT_PRODUCT_MISSING',observedCode:nodes.map(node=>normalizeProductCode(node.sku??node.productID)).find(code=>code!==normalizedCode&&/^\d[A-Z]{2}\d{3}[A-Z0-9]+$/.test(code))});
   const offers=[product.offers].flat().filter(Boolean);
   let offer=offers.find(item=>item?.priceCurrency===config.currency);
   if(!offer&&offers.some(item=>item.price!=null&&item.priceCurrency))throw Object.assign(new Error('country currency mismatch'),{failureCode:'CURRENCY_MISMATCH'});

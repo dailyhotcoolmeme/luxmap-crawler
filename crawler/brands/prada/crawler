@@ -73,6 +73,7 @@ try{
     const urls=JSON.parse(await fs.readFile(arg('--urls-file'),'utf8'));
     if(!Array.isArray(urls)||!urls.length||urls.length>config.maxProductsPerRun)throw fail('PRODUCT_LIMIT');
     if(config.country!=='KR'||args.includes('--prices-only')){
+      if(config.country!=='KR'){const home=await get(`https://www.prada.com${config.referenceDetailPrefix.replace(/\/p\/$/,'.html')}`);if(!home.ok())throw fail('HOME_HTTP_FAILED');if(!new URL(home.url()).pathname.startsWith(`/${config.country.toLowerCase()}/`))throw fail('WRONG_COUNTRY_REDIRECT');}
       const unique=[...new Map(urls.map(url=>[normalizeProductCode(decodeURIComponent(new URL(url).pathname.split('/').at(-1))),url])).values()];
       const results=new Array(unique.length);let cursor=0;
       await Promise.all(Array.from({length:Math.min(3,unique.length)},async()=>{
@@ -84,7 +85,7 @@ try{
             if(config.country!=='KR'&&new URL(response.url()).origin==='https://www.prada.com'&&new URL(response.url()).pathname.startsWith(`/${config.country.toLowerCase()}/`)){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
             throw fail('WRONG_COUNTRY_REDIRECT');
           }
-          results[index]=parsePradaProduct(html,url,config,map);
+          try{results[index]=parsePradaProduct(html,url,config,map);}catch(error){if(config.country!=='KR'&&error.failureCode==='EXACT_PRODUCT_MISSING'&&error.observedCode){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};}else throw error;}
         }
       }));
       rows.push(...results);summaries.push(...results.map(row=>summarize(row)));await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(rows));
