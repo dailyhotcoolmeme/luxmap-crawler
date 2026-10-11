@@ -1,3 +1,8 @@
+export function coverageFailure(rows,discoveryMissing=0){
+ if(!rows.length||discoveryMissing||rows.some(row=>row.status==='unprocessed'))return 'INCOMPLETE_COVERAGE';
+ if(!rows.some(row=>row.status==='confirmed'&&Number(row.price)>0))return 'ALL_PRICES_UNAVAILABLE';
+ return null;
+}
 export async function storePradaMarkets(rows,config,query){
  if(!Array.isArray(rows)||!rows.length||rows.length>100)throw new Error('invalid batch');
  const codes=new Set();

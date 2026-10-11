@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {storePradaMarkets} from '../crawler/common/prada-market-store.js';
+import {storePradaMarkets,coverageFailure} from '../crawler/common/prada-market-store.js';
 const config={country:'JP',currency:'JPY',referenceDetailPrefix:'/jp/ja/p/',detailPathPattern:'^/jp/ja/p/[^/]+/[A-Za-z0-9_]+$'};
 const row={normalizedCode:'1BA896NZVF0002VOOO',country:'JP',currency:'JPY',officialUrl:'https://www.prada.com/jp/ja/p/test/1BA896_NZV_F0002_V_OOO',price:600000,priceStatus:'confirmed',checkedAt:'2026-10-11T13:00:00Z',productName:'Test'};
 const variant={id:'v1',normalized_code:row.normalizedCode,name_original:'한국 기준',brands:{name_original:'PRADA'}};
@@ -13,3 +13,6 @@ await storePradaMarkets([{...row,price:null,priceStatus:'page_not_found',product
 await assert.rejects(storePradaMarkets([{...row,currency:'KRW'}],config,query),/invalid country record/);
 await assert.rejects(storePradaMarkets([row,row],config,query),/invalid country record/);
 console.log('PASS: Prada bulk exact matching, preserved confirmed price, changed-only history and readback verification');
+assert.equal(coverageFailure([{status:'price_unavailable',price:null}]),'ALL_PRICES_UNAVAILABLE');
+assert.equal(coverageFailure([{status:'confirmed',price:100}]),null);
+assert.equal(coverageFailure([{status:'confirmed',price:100}],1),'INCOMPLETE_COVERAGE');

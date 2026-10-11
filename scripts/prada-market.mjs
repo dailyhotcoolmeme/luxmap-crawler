@@ -3,6 +3,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {guardedRest} from '../crawler/common/guarded-rest.js';
+import {coverageFailure} from '../crawler/common/prada-market-store.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const country=process.argv[2]??'kr';
 if(!/^[a-z]{2}$/.test(country))throw new Error('invalid country');
@@ -41,7 +42,7 @@ async function verify(){
  for(let i=0;i<summaries.length;i+=25){const file=path.join(state,i===0?'summary.json':`summary-${i/25}.json`);fs.writeFileSync(file,JSON.stringify(summaries.slice(i,i+25)));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0)throw new Error('verification summary blocked');}
  const report=[['REFERENCE',rows.length],['LINKED',summaries.filter(r=>r.status!=='unprocessed').length],['CONFIRMED',summaries.filter(r=>r.status==='confirmed').length],['UNAVAILABLE',summaries.filter(r=>r.status==='price_unavailable').length],['UNPROCESSED',summaries.filter(r=>r.status==='unprocessed').length],['DISCOVERY_MISSING',discoveryMissing]].map(([label,count])=>({brand:'prada',country:config.country,parentModel:'검증 합계',variantCode:'TOTAL',price:null,currency:config.currency,status:`${label}_${count}`,officialUrl:config.listingUrls[0]}));
  const folder=path.join(state,'report');fs.mkdirSync(folder,{recursive:true});const file=path.join(folder,'summary.json');fs.writeFileSync(file,JSON.stringify(report));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0)throw new Error('report blocked');
- if(!rows.length||discoveryMissing||summaries.some(row=>row.status==='unprocessed'))throw Object.assign(new Error('incomplete country coverage'),{failureCode:'INCOMPLETE_COVERAGE'});
+ const failure=coverageFailure(summaries,discoveryMissing);if(failure)throw Object.assign(new Error('incomplete country coverage'),{failureCode:failure});
 }
 try{
  if(process.argv.includes('--verify-only')){
