@@ -13,6 +13,7 @@ if(selection>=0){
  const countries=String(process.argv[selection+1]??'').split(',');
  if(!countries.length||countries.some(country=>country==='kr'||!schedule.jobs.some(job=>job.country===country)))throw new Error('invalid targeted countries');
  plan=plan.filter(job=>job.phase==='refresh'&&countries.includes(job.country));
+ if(process.argv.includes('--remaining'))plan=plan.map(job=>({...job,args:job.args.filter(arg=>arg!=='--refresh')}));
 }
 process.exitCode=executePlan(plan,job=>{
  if(!/^scripts\/[a-z0-9-]+\.mjs$/.test(job.adapter)||!/^[a-z0-9-]+$/.test(job.brand)||!/^[a-z]{2}$/.test(job.country))throw new Error('invalid scheduled job');

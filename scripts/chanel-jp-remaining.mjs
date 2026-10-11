@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {reportCrawlFailure} from './crawler-alert.mjs';
+import {reportCrawlFailure,flushCrawlAlerts} from './crawler-alert.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const country=(process.argv[2]||'jp').toLowerCase();
 if(!/^[a-z]{2}$/.test(country))throw new Error('invalid country');
@@ -11,6 +11,8 @@ const dir=path.join(root,'crawler',`${country}-remaining`);
 const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands/chanel/countries',country)));
 if(config.country!==countryCode||!config.referenceDetailPrefix)throw new Error('country reference mapping required');
 const currency=config.currency;
+async function main(){
+await flushCrawlAlerts();
 const countryUrl=url=>{
  const source=new URL(url);
  if(source.origin!=='https://www.chanel.com'||!source.pathname.startsWith('/kr/fashion/p/'))throw new Error('invalid Korean reference URL');
@@ -60,6 +62,7 @@ fs.writeFileSync(path.join(dir,'reference.json'),JSON.stringify(reference.map(r=
 let processed=0,failed=0;
 const failures=new Map();
 let accessBlocked=false;
+let policyBlocked=false;
 for(let i=0;i<pending.length;i+=1){
  const batch=pending.slice(i,i+1);
  const urls=batch.map(r=>countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url));
@@ -84,7 +87,8 @@ for(let i=0;i<pending.length;i+=1){
   const last=fs.existsSync(runs)?fs.readdirSync(runs).sort().at(-1):null;
   const file=last?path.join(runs,last,'failure.json'):null;
   const code=file&&fs.existsSync(file)?JSON.parse(fs.readFileSync(file)).failureCode:'PIPELINE_FAILED';
-  for(const row of batch)failures.set(row.normalized_code,/^[A-Z_]{1,40}$/.test(code)?code:'PIPELINE_FAILED');
+  const summaryCode=String(code).replace(/^INCOMPLETE_/, '');
+  for(const row of batch)failures.set(row.normalized_code,/^[A-Z_]{1,40}$/.test(summaryCode)?summaryCode:'PIPELINE_FAILED');
   accessBlocked=String(code).includes('ACCESS_BLOCKED');
   await reportCrawlFailure({brand:'chanel',country:countryCode,status:code,variantCode:batch[0].normalized_code});
  }
@@ -93,7 +97,8 @@ for(let i=0;i<pending.length;i+=1){
  fs.writeFileSync(progressFile,JSON.stringify([{brand:'chanel',country:countryCode,parentModel:'KR reference',variantCode:batch[0].normalized_code,price:null,currency,status:`DONE${processed}_FAIL${failed}_TOTAL${pending.length}`,officialUrl:urls[0]}]));
  if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[progressFile],{stdio:'ignore'}).status!==0)throw new Error('progress summary blocked');
  // Stop the country immediately on token/network policy violations.
- if(run.status===78||accessBlocked)break;
+ if(run.status===78){policyBlocked=true;break;}
+ if(accessBlocked)break;
 }
 const after=await catalog(true);
 const matched=after.filter(r=>r.market_products.some(m=>m.country_code===countryCode));
@@ -108,4 +113,15 @@ for(let offset=0;offset<summary.length;offset+=25){
 const guard=spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[path.join(dir,'summary.json')],{stdio:'ignore'});
 if(guard.status!==0)throw new Error('summary blocked');
 console.log(JSON.stringify({total:reference.length,newlyProcessed:processed,failed,matched:matched.length,priced:priced.length,unprocessed:reference.length-matched.length}));
-process.exitCode=failed===0&&processed===pending.length&&(limitIndex>=0||reference.length===matched.length)?0:1;
+await flushCrawlAlerts();
+process.exitCode=policyBlocked?78:failed===0&&processed===pending.length&&(limitIndex>=0||reference.length===matched.length)?0:1;
+}
+main().catch(error=>{
+ const known={'catalog query failed':'REFERENCE_QUERY_FAILED','market verification query failed':'MARKET_QUERY_FAILED','Korean reference integrity failed':'REFERENCE_INTEGRITY_FAILED','administrator alert queue limit':'ALERT_QUEUE_LIMIT'};
+ const status=known[error.message]??'ADAPTER_FAILED';
+ const out=path.join(dir,'execution');fs.mkdirSync(out,{recursive:true});
+ const file=path.join(out,'summary.json');
+ fs.writeFileSync(file,JSON.stringify([{brand:'chanel',country:countryCode,parentModel:'execution',variantCode:'unknown',price:null,currency,status,officialUrl:config.listingUrls[0]}]));
+ spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'});
+ process.exitCode=1;
+});
