@@ -14,6 +14,11 @@ test -n "$PUBLIC_KEY" || { echo 'Supabase public client key not found.' >&2; exi
 
 export EXPO_PUBLIC_SUPABASE_URL="https://${PROJECT_REF}.supabase.co"
 export EXPO_PUBLIC_SUPABASE_KEY="$PUBLIC_KEY"
+if [ "${LUXURY_LOAD_SERVICE_CREDENTIAL:-0}" = 1 ]; then
+  SUPABASE_SERVICE_ROLE_KEY=$(printf '%s' "$KEYS_JSON" | jq -r 'map(select(.name == "service_role"))[0].api_key // empty')
+  test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo 'Server credential unavailable.' >&2; exit 1; }
+  export SUPABASE_SERVICE_ROLE_KEY
+fi
 export EXPO_PUBLIC_ASSET_BASE_URL="https://luxury-assets.dailyhotcoolmeme.workers.dev"
 
 cd "$(dirname "$0")/../app"

@@ -1,5 +1,8 @@
 name: Luxmap crawler
+run-name: ${{ inputs.mode || 'full' }} Luxmap crawler
 on:
+  schedule:
+    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -42,12 +45,12 @@ jobs:
           LUXURY_BROWSER_MAINTENANCE_SINK: '1'
           LUXURY_SERVICE_GUARD: enabled
           LUXURY_SERVICE_STATE_DIR: ${{ github.workspace }}/crawler/service
-          RUN_MODE: ${{ inputs.mode }}
+          RUN_MODE: ${{ inputs.mode || 'full' }}
         run: |
           if [ "$RUN_MODE" = smoke ]; then
-            node scripts/crawler-daily.mjs --smoke > /dev/null 2>&1
+            node scripts/coordinated-crawler.mjs --smoke > /dev/null 2>&1
           else
-            node scripts/crawler-daily.mjs > /dev/null 2>&1
+            node scripts/coordinated-crawler.mjs > /dev/null 2>&1
           fi
       - name: Close owned browser processes
         if: always()

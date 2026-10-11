@@ -2,6 +2,8 @@
   "version": 1,
   "hour": 9,
   "minute": 0,
+  "primary": "github",
+  "fallbackHours": [12,14,16,18,20,22],
   "scope": "existing_korean_reference_price_refresh",
   "jobs": [
     {"brand":"chanel","country":"kr","adapter":"scripts/chanel-jp-remaining.mjs","evidence":"crawler/runs/chanel/kr/20260924T004511Z-27163/summary.json"},
