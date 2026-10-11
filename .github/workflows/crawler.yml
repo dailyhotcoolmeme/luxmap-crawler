@@ -52,3 +52,13 @@ jobs:
       - name: Close owned browser processes
         if: always()
         run: node scripts/close-finished-crawl-browsers.mjs > /dev/null 2>&1
+      - name: Prepare guarded diagnostic summary
+        if: always()
+        run: node scripts/ci-crawler-report.mjs > /dev/null 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: guarded-summary
+          path: .ci-report/summary.json
+          retention-days: 1
+          if-no-files-found: ignore
