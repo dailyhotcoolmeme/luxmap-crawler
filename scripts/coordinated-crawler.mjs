@@ -19,6 +19,10 @@ const acquired=await rpc('acquire_crawler_execution',{p_owner:owner,p_source:sou
 if(!acquired){
  // Explicit human-triggered diagnostics are read-only; never ingest or clear the daily failure budget.
  if(source==='github'&&process.env.GITHUB_EVENT_NAME==='workflow_dispatch'&&process.argv.includes('--smoke')){
+  const response=await fetch('https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/crawler_execution_control?id=eq.catalog&select=failed_day,failed_sources,lease_until',{headers:{apikey:key,Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(15000)});
+  if(!response.ok)process.exit(3);
+  const [state]=await response.json();
+  if(state?.failed_day!==day||!state.failed_sources?.includes('github')||Date.parse(state.lease_until)>Date.now())process.exit(3);
   const result=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),['chanel','kr','--crawl-only','--probe-listing','--max-products','1','--navigation-retries','0'],{cwd:root,env:process.env,stdio:'ignore',timeout:90000,killSignal:'SIGTERM'});
   process.exit(result.status??1);
  }
