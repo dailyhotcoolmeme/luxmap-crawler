@@ -63,7 +63,6 @@ fs.writeFileSync(path.join(dir,'reference.json'),JSON.stringify(reference.map(r=
 let processed=0,failed=0;
 const failures=new Map();
 let accessBlocked=false;
-let policyBlocked=false;
 for(let i=0;i<pending.length;i+=1){
  const batch=pending.slice(i,i+1);
  const urls=batch.map(r=>countryUrl(r.market_products.find(m=>m.country_code==='KR').official_url));
@@ -115,7 +114,7 @@ const guard=spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[path.join
 if(guard.status!==0)throw new Error('summary blocked');
 console.log(JSON.stringify({total:reference.length,newlyProcessed:processed,failed,matched:matched.length,priced:priced.length,unprocessed:reference.length-matched.length}));
 await flushCrawlAlerts();
-process.exitCode=policyBlocked?78:failed===0&&processed===pending.length&&(limitIndex>=0||reference.length===matched.length)?0:1;
+process.exitCode=failed===0&&processed===pending.length&&(limitIndex>=0||reference.length===matched.length)?0:1;
 }
 main().catch(error=>{
  const known={'catalog query failed':'REFERENCE_QUERY_FAILED','market verification query failed':'MARKET_QUERY_FAILED','Korean reference integrity failed':'REFERENCE_INTEGRITY_FAILED','administrator alert queue limit':'ALERT_QUEUE_LIMIT'};
