@@ -8,7 +8,20 @@ const rows=[];
 for(const job of schedule.jobs){
  const dir=path.join(root,'crawler',`${job.country}-remaining`);
  const seed=path.join(dir,'urls-0.json');
- if(!fs.existsSync(seed))continue;
+ if(!fs.existsSync(seed)){
+  const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',job.brand,'countries',job.country)));
+  const runs=path.join(root,'crawler/runs',job.brand,job.country);
+  const latest=fs.existsSync(runs)?fs.readdirSync(runs).sort().at(-1):null;
+  if(!latest)continue;
+  const summary=path.join(runs,latest,'summary.json');
+  const failure=path.join(runs,latest,'failure.json');
+  if(fs.existsSync(summary)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[summary],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(summary)));
+  else{
+   const code=fs.existsSync(failure)?String(JSON.parse(fs.readFileSync(failure)).failureCode).replace(/^INCOMPLETE_/,''):'DISCOVERY_PIPELINE_FAILED';
+   rows.push({brand:job.brand,country:config.country,parentModel:'discovery diagnostic',variantCode:'listing',price:null,currency:config.currency,status:/^[A-Z0-9_]{1,40}$/.test(code)?code:'DISCOVERY_PIPELINE_FAILED',officialUrl:config.listingUrls[0]});
+  }
+  continue;
+ }
  const url=JSON.parse(fs.readFileSync(seed))[0];
  let status='unclassified';
  const log=path.join(dir,'batch-0.log');

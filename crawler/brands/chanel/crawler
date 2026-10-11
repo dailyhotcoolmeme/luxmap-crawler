@@ -8,6 +8,7 @@ import {productReady} from '../../common/product-ready.js';
 
 const args = process.argv.slice(2);
 const probeOnly=args.includes('--probe-page');
+const listingProbe=args.includes('--probe-listing');
 if (process.env.LUXURY_NETWORK_ISOLATED !== 'enabled' || !process.env.LUXURY_NETWORK_PROXY) throw new Error('kernel network isolation required');
 const configIndex = args.indexOf("--country-config");
 const maxIndex = args.indexOf("--max-products");
@@ -118,6 +119,11 @@ try {
     else await route.abort("blockedbyclient");
   });
   const page = context.pages()[0] || await context.newPage();
+  if(listingProbe){
+    await navigate(page,config.listingUrls[0]);
+    const count=await page.evaluate(pattern=>[...document.querySelectorAll('a[href]')].filter(a=>new RegExp(pattern).test(new URL(a.href,location.href).pathname)).length,config.detailPathPattern);
+    await fs.writeFile(summaryFile,JSON.stringify([{brand:'chanel',country:config.country,parentModel:'listing diagnostic',variantCode:'listing',price:null,currency:config.currency,status:`HTTP_${lastNavigationStatus}_LINKS_${count}`,officialUrl:config.listingUrls[0]}]));
+  }else{
   runStage = 'LISTING';
   const productUrls = new Set();
 
@@ -288,6 +294,7 @@ try {
     brand: record.brand, country: record.country, parentModel: record.parentModel, variantCode: record.normalizedCode,
     price: record.price, currency: record.currency, status: record.priceStatus, officialUrl: record.officialUrl
   }))), "utf8");
+  }
 } catch (error) {
   await fs.writeFile(path.join(runDir, "failure.json"), JSON.stringify({ failureCode: classifyFailure(error, runStage) }), "utf8");
   throw error;

@@ -1,4 +1,4 @@
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
@@ -16,7 +16,14 @@ const rpc=async(name,args)=>{
  return response.json();
 };
 const acquired=await rpc('acquire_crawler_execution',{p_owner:owner,p_source:source,p_day:day});
-if(!acquired){console.log('SKIPPED: active lease or completed daily run.');process.exit(3);}
+if(!acquired){
+ // Explicit human-triggered diagnostics are read-only; never ingest or clear the daily failure budget.
+ if(source==='github'&&process.env.GITHUB_EVENT_NAME==='workflow_dispatch'&&process.argv.includes('--smoke')){
+  const result=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),['chanel','kr','--crawl-only','--probe-listing','--max-products','1','--navigation-retries','0'],{cwd:root,env:process.env,stdio:'ignore',timeout:90000,killSignal:'SIGTERM'});
+  process.exit(result.status??1);
+ }
+ console.log('SKIPPED: active lease or completed daily run.');process.exit(3);
+}
 let child,timer,heartbeatFailed=false,renewing=false,killTimer,finished=false;
 const stop=()=>{if(child){try{process.kill(-child.pid,'SIGTERM');}catch{}killTimer??=setTimeout(()=>{try{process.kill(-child.pid,'SIGKILL');}catch{}},5000);}};
 try{
