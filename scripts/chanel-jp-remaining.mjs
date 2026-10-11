@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {reportCrawlFailure} from './crawler-alert.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const country=(process.argv[2]||'jp').toLowerCase();
 if(!/^[a-z]{2}$/.test(country))throw new Error('invalid country');
@@ -82,6 +83,7 @@ for(let i=0;i<pending.length;i+=1){
   const code=file&&fs.existsSync(file)?JSON.parse(fs.readFileSync(file)).failureCode:'PIPELINE_FAILED';
   for(const row of batch)failures.set(row.normalized_code,/^[A-Z_]{1,40}$/.test(code)?code:'PIPELINE_FAILED');
   accessBlocked=String(code).includes('ACCESS_BLOCKED');
+  await reportCrawlFailure({brand:'chanel',country:countryCode,status:code,variantCode:batch[0].normalized_code});
  }
  const progressDir=path.join(dir,'progress');fs.mkdirSync(progressDir,{recursive:true});
  const progressFile=path.join(progressDir,'summary.json');
