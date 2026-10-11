@@ -69,7 +69,10 @@ try{
           if(!new URL(url).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');
           const response=await get(url),html=await response.text();await fs.writeFile(path.join(run,'raw',`${code}.html`),html);
           if(response.status()===404&&config.country!=='KR'){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'page_not_found',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
-          if(!response.ok())throw fail('DETAIL_HTTP_FAILED');if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_REDIRECT');
+          if(!response.ok())throw fail('DETAIL_HTTP_FAILED');if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix)){
+            if(config.country!=='KR'&&new URL(response.url()).origin==='https://www.prada.com'&&new URL(response.url()).pathname.startsWith(`/${config.country.toLowerCase()}/`)){results[index]={country:config.country,currency:config.currency,normalizedCode:code,productName:null,price:null,priceStatus:'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};continue;}
+            throw fail('WRONG_COUNTRY_REDIRECT');
+          }
           results[index]=parsePradaProduct(html,url,config,map);
         }
       }));
