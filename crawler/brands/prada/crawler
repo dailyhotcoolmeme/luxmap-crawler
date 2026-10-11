@@ -8,7 +8,7 @@ import { normalizeProductCode } from '../../common/product-normalizer.js';
 
 if (process.env.CRAWL_MODE !== 'deterministic-only' || process.env.LUXURY_PIPELINE_GUARD !== 'enabled' || process.env.LUXURY_NETWORK_ISOLATED !== 'enabled') throw new Error('guarded isolated pipeline required');
 const args=process.argv.slice(2),arg=name=>args[args.indexOf(name)+1];
-const allowedArguments=new Set(['--country-config','--discover','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index']);
+const allowedArguments=new Set(['--country-config','--discover','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index','--probe-price-options','--targets-file']);
 if(args.some(value=>value.startsWith('--')&&!allowedArguments.has(value)))throw new Error('unreviewed diagnostic mode is disabled');
 const config=JSON.parse(await fs.readFile(arg('--country-config'),'utf8'));
 config.maxDiscoveryPages??=30;
@@ -39,7 +39,14 @@ async function get(url) {
 function summarize(row,status=row.priceStatus){return {brand:'prada',country:config.country,parentModel:(row.parentModel??'KR reference').slice(0,120),variantCode:row.normalizedCode,price:row.price,currency:config.currency,status,officialUrl:row.officialUrl.length<=500?row.officialUrl:config.listingUrls[0]};}
 async function saveSummary(){for(let offset=0;offset<Math.max(summaries.length,1);offset+=25)await fs.writeFile(path.join(run,offset===0?'summary.json':`summary-${offset/25}.json`),JSON.stringify(summaries.slice(offset,offset+25)));}
 try{
-  if(args.includes('--build-price-index')){
+  if(args.includes('--probe-price-options')){
+    if(config.country==='KR'||!args.includes('--urls-file')||!args.includes('--targets-file'))throw fail('INVALID_OPTION_PROBE');
+    const urls=JSON.parse(await fs.readFile(arg('--urls-file'),'utf8')),targets=JSON.parse(await fs.readFile(arg('--targets-file'),'utf8'));
+    if(!Array.isArray(urls)||!urls.length||urls.length>20||!Array.isArray(targets)||targets.length>500||targets.some(c=>typeof c!=='string'||!/^[A-Z0-9]+$/.test(c)))throw fail('OPTION_PROBE_LIMIT');
+    const found=new Map(),wanted=new Set(targets);const home=await get(`https://www.prada.com${config.referenceDetailPrefix.replace(/\/p\/$/,'.html')}`);if(!home.ok())throw fail('HOME_HTTP_FAILED');
+    for(const url of urls){if(new URL(url).origin!=='https://www.prada.com'||!new URL(url).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');const response=await get(`${url}.model.json`);if(response.status()===404)continue;if(!response.ok())throw fail('OPTION_MODEL_HTTP_FAILED');if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_REDIRECT');const text=await response.text();await fs.writeFile(path.join(run,'raw',`${normalizeProductCode(new URL(url).pathname.split('/').at(-1))}-options.json`),text);let model;try{model=JSON.parse(text);}catch{throw fail('INVALID_OPTION_MODEL');}const extra=pradaSupplement(model,{normalizedCode:normalizeProductCode(new URL(url).pathname.split('/').at(-1))});for(const code of extra.codes){const normalized=normalizeProductCode(code);if(wanted.has(normalized)){const target=new URL(url);target.pathname=target.pathname.replace(/[^/]+$/,code);found.set(normalized,target.href);}}}
+    await fs.writeFile(path.join(artifact,'price-option-index.json'),JSON.stringify([...found]));for(const code of targets)summaries.push({brand:'prada',country:config.country,parentModel:'공식 국가 옵션 대조',variantCode:code,price:null,currency:config.currency,status:found.has(code)?'OFFICIAL_OPTION_PRESENT':'OPTION_NOT_FOUND',officialUrl:found.get(code)??urls[0]});
+  }else if(args.includes('--build-price-index')){
     if(config.country==='KR')throw fail('FOREIGN_INDEX_ONLY');
     const home=`https://www.prada.com${config.referenceDetailPrefix.replace(/\/p\/$/,'.html')}`;
     const response=await get(home),html=await response.text();if(!response.ok())throw fail('HOME_HTTP_FAILED');await fs.writeFile(path.join(run,'raw','home.html'),html);
