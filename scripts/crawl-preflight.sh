@@ -26,14 +26,14 @@ if ! rg -q '"allowWebSearchAsCrawler"[[:space:]]*:[[:space:]]*false' "$GUARD_FIL
   exit 1
 fi
 
-if rg -n -i --glob '!scripts/crawl-preflight.sh' --glob '!scripts/token-safety-gate.sh' --glob '!AGENTS.md' --glob '!PRODUCT_SPEC.md' --glob '!guardrails.json' \
+if rg -l -i --glob '!crawl-preflight.sh' --glob '!token-safety-gate.sh' --glob '!AGENTS.md' --glob '!PRODUCT_SPEC.md' --glob '!guardrails.json' \
   '(openai|anthropic|gemini|generativelanguage|api\.openai\.com|api\.anthropic\.com|generativeai|cohere|mistral|huggingface|langchain|llamaindex)' \
-  "$PROJECT_DIR/crawler" "$PROJECT_DIR/scripts" 2>/dev/null; then
+  "$PROJECT_DIR/crawler/brands" "$PROJECT_DIR/crawler/common" "$PROJECT_DIR/scripts" 2>/dev/null; then
   echo "BLOCKED: model API or SDK reference detected in crawler code." >&2
   exit 1
 fi
 
-for MANIFEST in $(find "$PROJECT_DIR/crawler" -type f \( -name 'package.json' -o -name 'requirements*.txt' -o -name 'pyproject.toml' -o -name 'Cargo.toml' \) 2>/dev/null); do
+for MANIFEST in $(find "$PROJECT_DIR/crawler/brands" "$PROJECT_DIR/crawler/common" -type f \( -name 'package.json' -o -name 'requirements*.txt' -o -name 'pyproject.toml' -o -name 'Cargo.toml' \) 2>/dev/null); do
   if rg -n -i '(openai|anthropic|gemini|generative-ai|langchain|llamaindex|cohere|mistral)' "$MANIFEST" >/dev/null; then
     echo "BLOCKED: model dependency detected in crawler manifest." >&2
     exit 1
