@@ -27,7 +27,8 @@ try{
  process.env.CRAWL_RUN_DIR=temp;process.env.LUXURY_NETWORK_ISOLATED='enabled';
  const source=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500"><rect width="1200" height="1500" fill="white"/><path d="M450 550 V420 Q600 260 750 420 V550" fill="none" stroke="#111" stroke-width="42"/><rect x="260" y="520" width="680" height="620" rx="60" fill="#171717"/><rect x="280" y="650" width="640" height="12" fill="#555"/></svg>')).png().toBuffer();
  const context={request:{get:async()=>({ok:()=>true,headers:()=>({'content-type':'image/png'}),body:async()=>source})}};
- const image=await downloadAndOptimizeImage(context,'https://www.prada.com/content/dam/test.png',temp);
+ const [image,second]=await Promise.all([downloadAndOptimizeImage(context,'https://www.prada.com/content/dam/test.png',temp),downloadAndOptimizeImage(context,'https://www.prada.com/content/dam/test2.png',temp)]);
+ assert.equal(second.imageProcessingVersion,'original-cutout-v1');assert.notEqual(second.originalImagePath,image.originalImagePath);
  assert.equal(image.imageProcessingVersion,'original-cutout-v1');
  const meta=await sharp(image.imagePath).metadata();assert.equal(meta.width,960);assert.equal(meta.height,960);assert(meta.hasAlpha);
  assert(fs.existsSync(image.originalImagePath),'original retained until storage verification');

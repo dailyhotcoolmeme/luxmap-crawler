@@ -9,6 +9,7 @@ import sharp from 'sharp';
 const root=path.resolve(import.meta.dirname,'../..');
 export const IMAGE_PROCESSING_VERSION='original-cutout-v1';
 let inputStream,outputStream,lines,waiting,ready,closed=false;
+let jobQueue=Promise.resolve();
 export function originalImageUrl(imageUrl){
  const url=new URL(imageUrl);
  if(url.protocol!=='https:'||url.username||url.password)throw Error('IMAGE_URL');
@@ -63,10 +64,14 @@ export async function downloadAndOptimizeImage(context,imageUrl,artifactDir){
  if(!metadata.width||!metadata.height||Math.min(metadata.width,metadata.height)<200)throw Error('IMAGE_PIXEL_LIMIT');
  const id=crypto.randomUUID(),input=path.join(artifactDir,`${id}-original.image`),temp=path.join(artifactDir,`${id}-cutout.webp`);
  await fs.writeFile(input,source,{mode:0o600});
- const resultPromise=receive();
- inputStream.write(JSON.stringify({input,output:temp})+'\n');
- const result=await resultPromise;
- if(!result.ok)throw Error(result.code??'IMAGE_MASK_FAILED');
+ const job=jobQueue.then(async()=>{
+  const resultPromise=receive();
+  inputStream.write(JSON.stringify({input,output:temp})+'\n');
+  const result=await resultPromise;
+  if(!result.ok)throw Error(result.code??'IMAGE_MASK_FAILED');
+ });
+ jobQueue=job;
+ await job;
  const output=await fs.readFile(temp),info=await sharp(output).metadata();
  if(info.width!==960||info.height!==960||!info.hasAlpha||output.length>4*1024*1024)throw Error('IMAGE_OUTPUT_INVALID');
  const sha256=crypto.createHash('sha256').update(output).digest('hex'),outputPath=path.join(artifactDir,`${sha256}.webp`);

@@ -19,10 +19,14 @@ export async function refreshImages(config,file){
  const records=[],summary=[];
  const status=(row,value)=>({brand,country:'KR',parentModel:row.parentModel,variantCode:row.normalizedCode,price:null,currency:'KRW',status:value,officialUrl:row.officialUrl});
  try{
-  for(const row of targets){
-   const image=await downloadAndOptimizeImage({request:context},row.sourceImageUrl,artifacts);
-   records.push({...row,...image,checkedAt:new Date().toISOString()});
-   summary.push(status(row,'IMAGE_PROCESSED'));
+  for(let offset=0;offset<targets.length;offset+=2){
+   const batch=targets.slice(offset,offset+2);
+   const results=await Promise.allSettled(batch.map(row=>downloadAndOptimizeImage({request:context},row.sourceImageUrl,artifacts)));
+   for(const[index,row]of batch.entries()){
+    if(results[index].status!=='fulfilled')throw results[index].reason;
+    records.push({...row,...results[index].value,checkedAt:new Date().toISOString()});
+    summary.push(status(row,'IMAGE_PROCESSED'));
+   }
    await fs.writeFile(path.join(run,'summary.json'),JSON.stringify(summary));
   }
   await fs.writeFile(path.join(artifacts,'records.json'),JSON.stringify(records),{mode:0o600});
