@@ -84,6 +84,25 @@ try{
   const limitIndex=process.argv.indexOf('--limit');let selected=limitIndex>=0?rows.slice(0,Number(process.argv[limitIndex+1])):rows;
   let index=new Map(),familyByStyle=new Map();if(country!=='kr'&&selected.length){writeSummary([{normalized_code:'INDEX',official_url:config.listingUrls[0]}],'BUILDING_PRICE_INDEX');const run=pipeline(['--crawl-only',process.argv.includes('--independent-index')?'--sitemap-price-index':'--build-price-index']);index=new Map(JSON.parse(fs.readFileSync(path.join(run,'artifacts/price-url-index.json'))));
    const cached=process.argv.includes('--cached-options');if(cached){const file=path.join(state,'cached-option-index.json');if(!fs.existsSync(file))throw new Error('cached option index missing');for(const[code,url]of JSON.parse(fs.readFileSync(file))){const target=new URL(url);if(target.origin!=='https://www.prada.com'||!target.pathname.startsWith(config.referenceDetailPrefix)||decodeURIComponent(target.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()!==code)throw new Error('cached exact URL invalid');index.set(code,url);}}
+   if(process.argv.includes('--native-first')){
+    if(!process.argv.includes('--remaining'))throw Error('native-first requires remaining scope');
+    const existingMarkets=[];for(let offset=0;;offset+=500){const page=await query(`market_products?country_code=eq.${config.country}&select=variant_id&limit=500&offset=${offset}&order=id`);existingMarkets.push(...page);if(page.length<500)break;}
+    const existingIds=new Set(existingMarkets.map(row=>row.variant_id));
+    const nativeRows=selected.filter(row=>index.has(row.normalized_code)||(!existingIds.has(row.id)&&[...index.keys()].some(code=>code.slice(0,6)===row.normalized_code.slice(0,6))));
+    for(let i=0;i<nativeRows.length;i+=20){
+     const batch=nativeRows.slice(i,i+20),file=path.join(state,'native-first-urls.json');
+     fs.writeFileSync(file,JSON.stringify(batch.map(row=>{
+      if(index.has(row.normalized_code))return index.get(row.normalized_code);
+      const native=[...index].find(([code])=>code.slice(0,6)===row.normalized_code.slice(0,6));
+      const url=new URL(native[1]),kr=new URL(row.official_url);
+      if(kr.origin!=='https://www.prada.com'||!kr.pathname.startsWith('/kr/ko/p/'))throw Error('invalid Korean source');
+      url.pathname=url.pathname.replace(/[^/]+$/,kr.pathname.split('/').at(-1));return url.href;
+     })));
+     writeSummary(batch,`NATIVE_PROCESSING_${i}_OF_${nativeRows.length}`);pipeline(['--urls-file',file]);
+    }
+    const confirmed=new Set();for(let offset=0;;offset+=500){const page=await query(`market_products?country_code=eq.${config.country}&current_price=not.is.null&select=variant_id,official_product_code,currency_code,official_url&limit=500&offset=${offset}&order=id`);for(const market of page)if(market.currency_code===config.currency&&market.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`)&&selected.some(row=>row.id===market.variant_id&&row.normalized_code===market.official_product_code))confirmed.add(market.variant_id);if(page.length<500)break;}
+    selected=selected.filter(row=>!confirmed.has(row.id));
+   }
    const missing=selected.filter(row=>!index.has(row.normalized_code)),styles=new Set(missing.map(row=>row.normalized_code.slice(0,6)));
    if(missing.length){
     const profiles=[];for(let offset=0;;offset+=500){const page=await query(`product_variants?brands.slug=eq.prada&active=eq.true&select=normalized_code,style_code,brands!inner(slug),product_models(model_key)&order=normalized_code&limit=500&offset=${offset}`);profiles.push(...page);if(page.length<500)break;}
