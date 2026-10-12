@@ -7,10 +7,12 @@ import { productLinks, parsePradaProduct, pradaSupplement, pradaModelProductLink
 import { downloadAndOptimizeImage, closeImageProcessor } from '../../common/image-processor.js';
 import {refreshImages} from '../../common/image-refresh.js';
 import { normalizeProductCode } from '../../common/product-normalizer.js';
+import {exactPradaModelPrice} from '../../common/prada-model-price.js';
+import {classifyPradaCandidate} from '../../common/catalog-completeness.js';
 
 if (process.env.CRAWL_MODE !== 'deterministic-only' || process.env.LUXURY_PIPELINE_GUARD !== 'enabled' || process.env.LUXURY_NETWORK_ISOLATED !== 'enabled') throw new Error('guarded isolated pipeline required');
 const args=process.argv.slice(2),arg=name=>args[args.indexOf(name)+1];
-const allowedArguments=new Set(['--country-config','--discover','--audit-discovery','--sitemap-price-index','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index','--probe-price-options','--targets-file','--inspect-linked-candidates','--image-source-samples-file','--image-refresh-file']);
+const allowedArguments=new Set(['--country-config','--discover','--audit-discovery','--sitemap-price-index','--exact-price-model','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index','--probe-price-options','--targets-file','--inspect-linked-candidates','--image-source-samples-file','--image-refresh-file']);
 if(args.some(value=>value.startsWith('--')&&!allowedArguments.has(value)))throw new Error('unreviewed diagnostic mode is disabled');
 const config=JSON.parse(await fs.readFile(arg('--country-config'),'utf8'));
 if(args.includes('--image-refresh-file')){
@@ -77,6 +79,18 @@ try{
       await saveSummary();
     }
     await fs.writeFile(path.join(artifact,'image-source-samples.json'),JSON.stringify(rows));
+  }else if(args.includes('--exact-price-model')){
+    if(config.country==='KR'||!args.includes('--urls-file'))throw fail('INVALID_EXACT_PRICE_MODEL_MODE');
+    const urls=JSON.parse(await fs.readFile(arg('--urls-file'),'utf8'));if(!Array.isArray(urls)||!urls.length||urls.length>20)throw fail('EXACT_MODEL_LIMIT');
+    for(const url of urls){
+      const source=new URL(url),code=normalizeProductCode(decodeURIComponent(source.pathname.split('/').at(-1)));
+      if(source.origin!=='https://www.prada.com'||!source.pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');
+      const response=await get(`${url}.model.json`);if(![200,404].includes(response.status()))throw fail('EXACT_MODEL_HTTP_FAILED');
+      if(response.ok()&&!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_REDIRECT');
+      let price=null;if(response.ok()){const text=await response.text();await fs.writeFile(path.join(run,'raw',`${code}-exact-price.json`),text);price=exactPradaModelPrice(JSON.parse(text),code,config);}
+      const row={normalizedCode:code,country:config.country,currency:config.currency,price,priceStatus:price===null?'price_unavailable':'confirmed',officialUrl:url,checkedAt:new Date().toISOString()};rows.push(row);summaries.push(summarize(row));
+    }
+    await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(rows));
   }else if(args.includes('--probe-price-options')){
     if(config.country==='KR'||!args.includes('--urls-file')||!args.includes('--targets-file'))throw fail('INVALID_OPTION_PROBE');
     const urls=JSON.parse(await fs.readFile(arg('--urls-file'),'utf8')),targets=JSON.parse(await fs.readFile(arg('--targets-file'),'utf8'));
@@ -97,13 +111,18 @@ try{
     if((foreignIndex&&config.country==='KR')||(!foreignIndex&&config.country!=='KR'))throw fail('INVALID_SITEMAP_MODE');
     const response=await get('https://www.prada.com/robots.txt');if(!response.ok())throw fail('ROBOTS_HTTP_FAILED');
     const text=await response.text();await fs.writeFile(path.join(run,'raw','robots.txt'),text);
-    const pending=[...text.matchAll(/^\s*Sitemap:\s*(\S+)/gmi)].map(match=>match[1]).filter(value=>new URL(value).origin==='https://www.prada.com'),visited=new Set(),links=new Map();
+    const pending=[...text.matchAll(/^\s*Sitemap:\s*(\S+)/gmi)].map(match=>match[1]).filter(value=>new URL(value).origin==='https://www.prada.com'),visited=new Set(),links=new Map(),missingSources=[];
     if(!pending.length)throw fail('SITEMAP_SOURCE_MISSING');
     while(pending.length){
-      if(visited.size>=config.maxDiscoveryPages)throw fail('SITEMAP_PAGE_LIMIT');
       const url=pending.shift();if(visited.has(url))continue;
+      if(visited.size>=config.maxDiscoveryPages)throw fail('SITEMAP_PAGE_LIMIT');
       if(new URL(url).origin!=='https://www.prada.com')throw fail('SITEMAP_HOST_NOT_ALLOWED');
-      visited.add(url);const response=await get(url);if(!response.ok())throw Object.assign(fail(`SITEMAP_HTTP_${response.status()}`),{failedUrl:url});
+      visited.add(url);const response=await get(url);
+      // A foreign price URL index is a lookup aid, not a completeness proof.
+      // A stale declared XML URL may be absent; keep that failure explicit and
+      // inspect the other declared sources. Korean completeness stays closed.
+      if(foreignIndex&&response.status()===404){missingSources.push(url);continue;}
+      if(!response.ok())throw Object.assign(fail(`SITEMAP_HTTP_${response.status()}`),{failedUrl:url});
       const xml=await response.text();if(Buffer.byteLength(xml)>8*1024*1024)throw fail('SITEMAP_SIZE_LIMIT');
       await fs.writeFile(path.join(run,'raw',`sitemap-${visited.size}.xml`),xml);
       const locations=[...xml.matchAll(/<loc[^>]*>([\s\S]*?)<\/loc>/gi)].map(match=>decodeHtml(match[1].trim())).filter(value=>new URL(value).origin==='https://www.prada.com');
@@ -113,12 +132,13 @@ try{
         const regional=locations.filter(value=>region.test(new URL(value).pathname));
         const local=regional.length?regional:locations.filter(value=>language.test(new URL(value).pathname));
         if(local.length)pending.push(...local);else if(locations.length<=config.maxDiscoveryPages)pending.push(...locations);else throw fail('KOREAN_SITEMAP_NOT_IDENTIFIED');
-      }else if(/<urlset\b/i.test(xml))for(const[code,target]of pradaModelProductLinks(locations,url,config.country.toLowerCase()))links.set(code,target);
+      }else if(/<urlset\b/i.test(xml))for(const[code,target]of pradaModelProductLinks(locations,url,config.country.toLowerCase()))if(new URL(target).pathname.startsWith(config.referenceDetailPrefix))links.set(code,target);
       else throw fail('SITEMAP_FORMAT_UNVERIFIED');
     }
     if(!links.size)throw fail('KOREAN_SITEMAP_EMPTY');
     await fs.writeFile(path.join(artifact,foreignIndex?'price-url-index.json':'independent-urls.json'),JSON.stringify(foreignIndex?[...links]:[...links.values()]));
     summaries.push({brand:'prada',country:config.country,parentModel:'독립 공식 상품 색인',variantCode:'SITEMAP',price:null,currency:config.currency,status:`DISCOVERED_${links.size}`,officialUrl:config.listingUrls[0]});
+    if(missingSources.length)summaries.push({brand:'prada',country:config.country,parentModel:'전체 색인 완료 아님',variantCode:'SOURCE',price:null,currency:config.currency,status:`PARTIAL_MISSING_XML_${missingSources.length}`,officialUrl:config.listingUrls[0]});
   }else if(args.includes('--discover')){
     if(config.country!=='KR')throw fail('FOREIGN_DISCOVERY_PROHIBITED');
     const links=new Map();
@@ -178,7 +198,7 @@ try{
       if(!response.ok())throw fail('DETAIL_HTTP_FAILED');
       if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_REDIRECT');
       const row=parsePradaProduct(html,url,config,map);
-      if(config.country==='KR'&&!isPradaBag(row.productName))throw fail('BAG_CLASSIFICATION_UNVERIFIED');
+      if(config.country==='KR'&&classifyPradaCandidate(row,isPradaBag)!=='bag')throw fail('BAG_CLASSIFICATION_UNVERIFIED');
       if(config.country==='KR'&&!args.includes('--prices-only')){
         const modelResponse=await get(`${url}.model.json`);
         if(!modelResponse.ok())throw fail('PRODUCT_MODEL_HTTP_FAILED');

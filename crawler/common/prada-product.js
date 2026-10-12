@@ -19,8 +19,8 @@ export function pradaModelProductLinks(model,base,country){
 export function parsePradaProduct(html, url, config, modelMap, {requireImage=true}={}) {
   const originalCode=decodeURIComponent(new URL(url).pathname.split('/').at(-1));
   const normalizedCode=normalizeProductCode(originalCode);
-  const nodes=[];
-  const visit=value=>{if(!value||typeof value!=='object')return;if([value['@type']].flat().includes('Product'))nodes.push(value);for(const child of Object.values(value))if(child&&typeof child==='object')visit(child);};
+  const nodes=[],breadcrumbs=[];
+  const visit=value=>{if(!value||typeof value!=='object')return;if([value['@type']].flat().includes('Product'))nodes.push(value);if([value['@type']].flat().includes('BreadcrumbList'))breadcrumbs.push(value);for(const child of Object.values(value))if(child&&typeof child==='object')visit(child);};
   for(const match of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){try{visit(JSON.parse(match[1]));}catch{try{visit(JSON.parse(decodeHtml(match[1]).trim().replace(/^<!--\s*|\s*-->$/g,'')));}catch{}}}
   const product=nodes.find(node=>normalizeProductCode(node.sku??node.productID)===normalizedCode);
   if(!product||!product.name)throw Object.assign(new Error('exact product missing'),{failureCode:'EXACT_PRODUCT_MISSING',observedCode:nodes.map(node=>normalizeProductCode(node.sku??node.productID)).find(code=>code!==normalizedCode&&/^\d[A-Z]{2}\d{3}[A-Z0-9]+$/.test(code))});
@@ -52,7 +52,11 @@ export function parsePradaProduct(html, url, config, modelMap, {requireImage=tru
   const material=typeof product.material==='string'?product.material:name.match(/사피아노 가죽|소프트 그레인 가죽|나파 가죽|송아지 가죽|가죽|리나일론|Re-Nylon|스웨이드|캔버스|라피아|데님/i)?.[0]??null;
   const image=[product.image].flat()[0];const imageUrl=typeof image==='string'?new URL(decodeHtml(image),url).href:image?.url;
   if(requireImage&&(!imageUrl||new URL(imageUrl).origin!=='https://www.prada.com'))throw Object.assign(new Error('reviewed image host required'),{failureCode:'IMAGE_HOST_UNREVIEWED'});
-  return {originalCode,normalizedCode,styleCode,productName:name,parentModel:family?.name??`${name} · ${styleCode}`,modelKey:family?.key??`unreviewed-${styleCode.toLowerCase()}`,materialDisplay:material,materialOriginal:material,colorDisplay:color,colorOriginal:color,widthMm:dimension('(?:너비|폭)'),heightMm:dimension('높이'),depthMm:dimension('(?:깊이|길이)'),sourceImageUrl:imageUrl,price,priceStatus:price===null?'price_unavailable':'confirmed',officialUrl:url,country:config.country,currency:config.currency,checkedAt:new Date().toISOString()};
+  const officialCategories=[product.category].flat().map(value=>typeof value==='string'?value:value?.name).filter(value=>typeof value==='string');
+  const itemUrl=item=>typeof item.item==='string'?item.item:(item.item?.['@id']??item.item?.url??item.url);
+  const trail=breadcrumbs.find(list=>Array.isArray(list.itemListElement)&&list.itemListElement.some(item=>{try{const target=new URL(itemUrl(item),url);return target.origin==='https://www.prada.com'&&target.pathname.startsWith(config.referenceDetailPrefix??'/kr/ko/p/')&&normalizeProductCode(decodeURIComponent(target.pathname.split('/').at(-1)))===normalizedCode;}catch{return false;}}));
+  if(trail)for(const item of trail.itemListElement){try{const target=new URL(itemUrl(item),url);if(target.origin!=='https://www.prada.com')continue;if(config.listingUrls?.includes(target.href))officialCategories.push('Bags');if(/^\/kr\/ko\/(womens|mens)\/shoes\/c\/\d+KR$/.test(target.pathname))officialCategories.push('Footwear');if(/^\/kr\/ko\/(womens|mens)\/ready_to_wear\/c\/\d+KR$/.test(target.pathname))officialCategories.push('Clothing');}catch{}}
+  return {originalCode,normalizedCode,styleCode,productName:name,officialCategories,parentModel:family?.name??`${name} · ${styleCode}`,modelKey:family?.key??`unreviewed-${styleCode.toLowerCase()}`,materialDisplay:material,materialOriginal:material,colorDisplay:color,colorOriginal:color,widthMm:dimension('(?:너비|폭)'),heightMm:dimension('높이'),depthMm:dimension('(?:깊이|길이)'),sourceImageUrl:imageUrl,price,priceStatus:price===null?'price_unavailable':'confirmed',officialUrl:url,country:config.country,currency:config.currency,checkedAt:new Date().toISOString()};
 }
 
 export function pradaSupplement(model, row) {

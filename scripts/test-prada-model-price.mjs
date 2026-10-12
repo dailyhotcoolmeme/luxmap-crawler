@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {exactPradaModelPrice} from '../crawler/common/prada-model-price.js';
+const code='1BG6062CYSF0002VOOO',config={currency:'USD'};
+assert.equal(exactPradaModelPrice({items:[{sku:'1BG606_2CYS_F0002_V_OOO',price:'3,400',priceCurrency:'USD'}]},code,config),3400);
+assert.equal(exactPradaModelPrice({sku:code,price:3400},code,config),null);
+assert.equal(exactPradaModelPrice({sku:code,price:3400,currency:'EUR'},code,config),null);
+assert.equal(exactPradaModelPrice({sku:'OTHER',price:3400,currency:'USD'},code,config),null);
+assert.equal(exactPradaModelPrice({inventory:{sku:code,price:3400,currency:'USD'}},code,config),null);
+assert.throws(()=>exactPradaModelPrice([{sku:code,price:1,currency:'USD'},{sku:code,price:2,currency:'USD'}],code,config),/conflicting/);
+console.log('PASS: model prices require exact SKU, explicit currency and one unambiguous official amount.');

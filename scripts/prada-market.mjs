@@ -50,9 +50,9 @@ async function verify(){
  if(unresolved){const alert={brand:'prada',country:config.country,parentModel:'한국 기준 해외 가격',variantCode:'TOTAL',price:null,currency:config.currency,status:`UNRESOLVED_PRICES_${unresolved}`,officialUrl:config.listingUrls[0]};const result=await reportCrawlFailure(alert,{queuePath:path.join(state,'alert-queue.json'),fetcher:async(url,options)=>{if(url!=='https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/operations_alerts?on_conflict=dedupe_key')throw new Error('unapproved alert destination');const entries=JSON.parse(options.body);for(const entry of entries){const existing=await query(`operations_alerts?dedupe_key=eq.${encodeURIComponent(entry.dedupe_key)}&select=dedupe_key&limit=1`);if(!existing.length)await query('operations_alerts','POST',[entry]);}return {ok:true};}});if(!result.stored)throw Object.assign(new Error('unresolved alert not delivered'),{failureCode:'ALERT_TRANSPORT_FAILED'});}
 }
 try{
- if(process.argv.includes('--audit-reference')){
+ if(process.argv.includes('--audit-reference')||process.argv.includes('--repair-verified')){
   if(country!=='kr')throw new Error('Korean reference audit required');
-  const result=spawnSync(process.execPath,[path.join(root,'scripts/audit-prada-catalog.mjs')],{cwd:root,env:process.env,stdio:'ignore',timeout:2*60*60000});
+  const result=spawnSync(process.execPath,[path.join(root,'scripts/audit-prada-catalog.mjs'),...(process.argv.includes('--repair-verified')?['--verified-repair']:[])],{cwd:root,env:process.env,stdio:'ignore',timeout:2*60*60000});
   if(result.status!==0){process.exitCode=result.status===78?78:1;throw Object.assign(new Error('independent reference audit incomplete'),{failureCode:'INDEPENDENT_AUDIT_INCOMPLETE'});}
  }else if(process.argv.includes('--verify-only')){
   await verify();

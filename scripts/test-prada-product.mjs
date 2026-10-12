@@ -19,6 +19,10 @@ assert.equal(parsePradaProduct(linkedPrice,url,{country:'JP',currency:'JPY',refe
 const noImage=fixture('미디엄 가죽 토트백').replace(/"image"\s*:\s*[^,}]+,?/, '');
 assert.throws(()=>parsePradaProduct(noImage,url,config,map),/reviewed image host required/);
 assert.equal(parsePradaProduct(noImage,url,config,map,{requireImage:false}).price,6000000);
+const breadcrumb=target=>`<script type="application/ld+json">${JSON.stringify({'@type':'BreadcrumbList',itemListElement:[{item:{'@id':'https://www.prada.com/kr/ko/womens/bags/c/10062KR'}},{item:{'@id':target}}]})}</script>`;
+const bagConfig={...config,referenceDetailPrefix:'/kr/ko/p/',listingUrls:['https://www.prada.com/kr/ko/womens/bags/c/10062KR']};
+assert.ok(parsePradaProduct(fixture('이름')+breadcrumb(url),url,bagConfig,map).officialCategories.includes('Bags'));
+assert.deepEqual(parsePradaProduct(fixture('이름')+breadcrumb(url.replace('1BA896','1BA000')),url,bagConfig,map).officialCategories,[]);
 const encoded=fixture('프라다 갤러리아').replace(/(<script[^>]*>)([\s\S]*?)(<\/script>)/,(_,open,json,close)=>open+json.replaceAll('"','&quot;')+close);
 assert.equal(parsePradaProduct(encoded,url,config,map).price,6000000);
 assert.notEqual(parsePradaProduct(fixture('리에디션 2000'),url,config,map).modelKey,parsePradaProduct(fixture('리에디션 2005'),url,config,map).modelKey);

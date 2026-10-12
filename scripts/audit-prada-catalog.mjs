@@ -18,10 +18,18 @@ function artifact(dir,name){const file=path.join(dir,'artifacts',name),mode=fs.s
 const ledgerFile=path.join(state,'ledger.json');let ledger={};
 try{
  run('scripts/crawl-preflight.sh');run('scripts/token-safety-gate.sh');summary('DISCOVERING_INDEPENDENT_SOURCE');
- const independent=pipeline(['--audit-discovery']),listed=pipeline(['--discover']);
- nodeScript('scripts/audit-prada-linked-codes.mjs');
- const linked=JSON.parse(fs.readFileSync(path.join(root,'crawler/prada-linked-code-audit/candidate-urls.json')));
- const urls=[...new Map([...artifact(independent,'independent-urls.json'),...artifact(listed,'discovered-urls.json'),...linked].map(url=>[code(url),url])).values()];
+ const cachedRepair=process.argv.includes('--verified-repair');let urls;
+ if(cachedRepair){
+  const reportFile=path.join(state,'report/summary.json');run('scripts/crawl-output-guard.sh',[reportFile]);
+  if(fs.statSync(reportFile).mtimeMs<Date.now()-86400000)throw Error('verified source expired');
+  urls=JSON.parse(fs.readFileSync(path.join(state,'universe-urls.json')));
+  const report=JSON.parse(fs.readFileSync(reportFile));if(!report.some(row=>row.status===`DISCOVERED_${new Set(urls.map(code)).size}`))throw Error('verified source count mismatch');
+ }else{
+  const independent=pipeline(['--audit-discovery']),listed=pipeline(['--discover']);
+  nodeScript('scripts/audit-prada-linked-codes.mjs');
+  const linked=JSON.parse(fs.readFileSync(path.join(root,'crawler/prada-linked-code-audit/candidate-urls.json')));
+  urls=[...new Map([...artifact(independent,'independent-urls.json'),...artifact(listed,'discovered-urls.json'),...linked].map(url=>[code(url),url])).values()];
+ }
  if(!urls.length)throw Error('empty independent discovery');
  fs.writeFileSync(path.join(state,'universe-urls.json'),JSON.stringify(urls),{mode:0o600});
  const known=new Set((await references()).map(row=>row.normalized_code));
@@ -32,7 +40,7 @@ try{
  const candidates=urls.filter(url=>!known.has(code(url))&&!(ledger[code(url)]?.checkedAt>fresh&&['bag','excluded_nonbag'].includes(ledger[code(url)]?.decision))).sort((a,b)=>Number(/백|가방|토트|bag/i.test(decodeURIComponent(b)))-Number(/백|가방|토트|bag/i.test(decodeURIComponent(a))));
  const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands/prada/countries/kr'))),batchSize=Math.min(100,config.maxProductsPerRun-10);
  if(!Number.isInteger(batchSize)||batchSize<1)throw Error('invalid audit batch limit');
- for(let offset=0;offset<candidates.length;offset+=batchSize){
+ for(let offset=0;!cachedRepair&&offset<candidates.length;offset+=batchSize){
   summary(`CHECKING_${offset}_OF_${candidates.length}`);
   const file=path.join(state,'audit-batch-urls.json');fs.writeFileSync(file,JSON.stringify(candidates.slice(offset,offset+batchSize)),{mode:0o600});
   const dir=pipeline(['--prices-only','--inspect-linked-candidates','--urls-file',file]);
