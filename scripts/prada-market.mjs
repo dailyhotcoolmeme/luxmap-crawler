@@ -80,7 +80,14 @@ try{
   const codesIndex=process.argv.indexOf('--reference-codes-file');
   if(codesIndex>=0){const codes=JSON.parse(fs.readFileSync(process.argv[codesIndex+1]));if(!Array.isArray(codes)||codes.length>500||codes.some(code=>typeof code!=='string'||!/^[A-Z0-9]+$/.test(code)))throw new Error('invalid targeted reference codes');const wanted=new Set(codes);const matched=rows.filter(row=>wanted.has(row.normalized_code));if(matched.length!==wanted.size)throw new Error('target reference missing');rows=matched;}
   const resolveOnly=process.argv.includes('--resolve-unavailable');if(resolveOnly&&country==='kr')throw new Error('foreign resolution only');
-  if(process.argv.includes('--remaining')){const markets=[];for(let offset=0;;offset+=500){const page=await query(`market_products?country_code=eq.${config.country}&select=variant_id,official_product_code,current_price,currency_code,official_url&limit=500&offset=${offset}&order=id`);markets.push(...page);if(page.length<500)break;}rows=rows.filter(row=>!markets.some(m=>m.variant_id===row.id&&m.official_product_code===row.normalized_code&&m.currency_code===config.currency&&m.current_price!=null&&m.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`)));}
+  if(process.argv.includes('--unprocessed-only')&&!process.argv.includes('--remaining'))throw Error('unprocessed scope requires remaining mode');
+  if(process.argv.includes('--remaining')){
+   const markets=[];for(let offset=0;;offset+=500){const page=await query(`market_products?country_code=eq.${config.country}&select=variant_id,official_product_code,current_price,currency_code,official_url&limit=500&offset=${offset}&order=id`);markets.push(...page);if(page.length<500)break;}
+   rows=rows.filter(row=>!markets.some(m=>{
+    if(m.variant_id!==row.id||m.official_product_code!==row.normalized_code||m.currency_code!==config.currency||(!process.argv.includes('--unprocessed-only')&&m.current_price==null))return false;
+    try{const url=new URL(m.official_url);return url.origin==='https://www.prada.com'&&url.pathname.startsWith(config.referenceDetailPrefix)&&decodeURIComponent(url.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()===row.normalized_code;}catch{return false;}
+   }));
+  }
   const limitIndex=process.argv.indexOf('--limit');let selected=limitIndex>=0?rows.slice(0,Number(process.argv[limitIndex+1])):rows;
   let index=new Map(),familyByStyle=new Map();if(country!=='kr'&&selected.length){writeSummary([{normalized_code:'INDEX',official_url:config.listingUrls[0]}],'BUILDING_PRICE_INDEX');const run=pipeline(['--crawl-only',process.argv.includes('--independent-index')?'--sitemap-price-index':'--build-price-index']);index=new Map(JSON.parse(fs.readFileSync(path.join(run,'artifacts/price-url-index.json'))));
    const sitemapCache=path.join(state,'verified-sitemap-index.json');
