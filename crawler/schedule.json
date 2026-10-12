@@ -7,6 +7,10 @@
   "scope": "korean_reference_discovery_and_country_price_refresh",
   "referenceCountry": "KR",
   "discoverReferenceProducts": true,
+  "referenceAudits": {
+    "chanel": "scripts/audit-chanel-catalog.mjs",
+    "prada": "scripts/audit-prada-catalog.mjs"
+  },
   "jobs": [
     {"brand":"chanel","country":"kr","adapter":"scripts/chanel-jp-remaining.mjs"},
     {"brand":"chanel","country":"jp","adapter":"scripts/chanel-jp-remaining.mjs"},

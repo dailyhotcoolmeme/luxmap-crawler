@@ -25,6 +25,8 @@ const extended={...schedule,jobs:[...schedule.jobs,{brand:'chanel',country:'de',
 assert.equal(schedulePlan(extended).filter(job=>job.brand==='chanel').at(-1).country,'de');
 assert.throws(()=>schedulePlan({...schedule,jobs:schedule.jobs.filter(j=>j.country!=='kr')}));
 assert.throws(()=>schedulePlan({...schedule,referenceCountry:'JP'}));
+assert.throws(()=>schedulePlan({...schedule,referenceAudits:{chanel:schedule.referenceAudits.chanel}}));
+assert.throws(()=>schedulePlan({...schedule,jobs:[...schedule.jobs,{brand:'unreviewed',country:'kr',adapter:'scripts/prada-market.mjs'}]}));
 for(const failure of [{status:1},{status:78},{status:null,signal:'SIGTERM'}]){
  let count=0;
  assert.equal(executePlan(plan,()=>{count++;return failure;}),1);

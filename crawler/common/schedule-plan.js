@@ -11,9 +11,11 @@ export function schedulePlan(schedule, {smoke=false}={}) {
   return [...brands.values()].flatMap(jobs=>{
     const korean=jobs.find(job=>job.country==='kr');
     if(!korean)throw new Error('Korean job required for every brand');
+    const audit=schedule.referenceAudits?.[korean.brand];
+    if(!/^scripts\/[a-z0-9-]+\.mjs$/.test(audit??''))throw new Error('registered reference audit required for every brand');
     return [
       ...(!smoke?[{...korean,args:['--discover-reference'],phase:'discover'}]:[]),
-      ...(!smoke?[{...korean,args:['--audit-reference'],phase:'audit'}]:[]),
+      ...(!smoke?[{...korean,adapter:audit,args:[],phase:'audit'}]:[]),
       ...[korean,...jobs.filter(job=>job!==korean)].map(job=>({...job,args:['--refresh',...(smoke?['--limit','1']:[])],phase:'refresh'}))
     ];
   });

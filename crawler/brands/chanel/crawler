@@ -301,6 +301,7 @@ try {
         ...image, checkedAt
       });
     } catch (error) {
+      if(error?.failureCode==='ACCESS_BLOCKED')throw error;
       if (/^(IMAGE_|OFFLINE_)[A-Z_]+$/.test(error?.message || '')) {
         error.failureCode = error.message;
         throw error;
@@ -331,6 +332,11 @@ try {
   }
   }
 } catch (error) {
+  if(records.length){
+   await fs.writeFile(path.join(artifactDir,'records.json'),JSON.stringify(records));
+   const partial=records.map(record=>({brand:record.brand,country:record.country,parentModel:record.parentModel,variantCode:record.normalizedCode,price:record.price,currency:record.currency,status:record.priceStatus,officialUrl:record.officialUrl}));
+   for(let offset=0;offset<partial.length;offset+=25)await fs.writeFile(offset===0?summaryFile:path.join(runDir,`summary-${offset/25}.json`),JSON.stringify(partial.slice(offset,offset+25)));
+  }
   await fs.writeFile(path.join(runDir, "failure.json"), JSON.stringify({ failureCode: classifyFailure(error, runStage) }), "utf8");
   throw error;
 } finally {

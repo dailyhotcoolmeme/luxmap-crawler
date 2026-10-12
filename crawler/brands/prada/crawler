@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { request } from 'playwright-core';
 import sharp from 'sharp';
-import { productLinks, parsePradaProduct, pradaSupplement, pradaModelProductLinks, decodeHtml } from '../../common/prada-product.js';
+import { productLinks, parsePradaProduct, pradaSupplement, pradaModelProductLinks, decodeHtml, isPradaBag } from '../../common/prada-product.js';
 import { downloadAndOptimizeImage, closeImageProcessor } from '../../common/image-processor.js';
 import {refreshImages} from '../../common/image-refresh.js';
 import { normalizeProductCode } from '../../common/product-normalizer.js';
@@ -178,6 +178,7 @@ try{
       if(!response.ok())throw fail('DETAIL_HTTP_FAILED');
       if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_REDIRECT');
       const row=parsePradaProduct(html,url,config,map);
+      if(config.country==='KR'&&!isPradaBag(row.productName))throw fail('BAG_CLASSIFICATION_UNVERIFIED');
       if(config.country==='KR'&&!args.includes('--prices-only')){
         const modelResponse=await get(`${url}.model.json`);
         if(!modelResponse.ok())throw fail('PRODUCT_MODEL_HTTP_FAILED');
