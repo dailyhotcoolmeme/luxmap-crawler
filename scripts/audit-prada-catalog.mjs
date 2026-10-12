@@ -60,6 +60,6 @@ try{
  const pending=[...report.missing.map(code=>({code,status:'BAG_NOT_STORED'})),...report.unresolved.map(code=>({code,status:ledger[code]?.decision==='classification_pending'?'CLASSIFICATION_PENDING':'DETAIL_UNRESOLVED'}))];
  const pendingDir=path.join(state,'pending');fs.mkdirSync(pendingDir,{recursive:true});for(const name of fs.readdirSync(pendingDir).filter(n=>/^summary(?:-\d+)?\.json$/.test(n)))fs.unlinkSync(path.join(pendingDir,name));
  for(let offset=0;offset<pending.length;offset+=25){const file=path.join(pendingDir,offset===0?'summary.json':`summary-${offset/25}.json`);fs.writeFileSync(file,JSON.stringify(pending.slice(offset,offset+25).map(row=>({brand:'prada',country:'KR',parentModel:'공식 코드 대조 미해결',variantCode:row.code,price:null,currency:'KRW',status:row.status,officialUrl:urls.find(url=>code(url)===row.code)}))));run('scripts/crawl-output-guard.sh',[file]);}
- summary(report.complete?'COMPLETE':`INCOMPLETE_${pending.length}`);if(!report.complete)process.exitCode=1;
+ summary(report.complete?'COMPLETE':`INCOMPLETE_${pending.length}`);if(!report.complete)process.exitCode=report.missing.length?1:2;
 }catch(error){summary(error.exitCode===78?'SAFETY_POLICY_BLOCKED':'AUDIT_FAILED');process.exitCode=error.exitCode??1;}
 if(process.exitCode){const file=path.join(state,'summary.json');run('scripts/crawl-output-guard.sh',[file]);await reportAuditFailure(JSON.parse(fs.readFileSync(file))[0],{queuePath:path.join(state,'alert-queue.json'),safetyBlocked:process.exitCode===78});}

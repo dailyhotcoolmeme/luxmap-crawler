@@ -39,5 +39,8 @@ assert.deepEqual(visited.filter(id=>id.startsWith('chanel/')),['chanel/kr']);ass
 const auditVisited=[];
 assert.equal(executePlan(plan,job=>{auditVisited.push(job.phase);return {status:job.phase==='audit'?1:0};}),1);
 assert.deepEqual(auditVisited,['discover','audit']);
+const uncertainVisited=[];
+assert.equal(executePlan(plan,job=>{uncertainVisited.push(job.phase);return {status:job.phase==='audit'?2:0};}),1);
+assert.ok(uncertainVisited.includes('refresh'));
 let stopped=0;assert.equal(executePlan(fullPlan,()=>{stopped++;return {status:78};}),1);assert.equal(stopped,1);
 console.log('PASS: Korean-first discovery, new product propagation, country addition and failure stops.');
