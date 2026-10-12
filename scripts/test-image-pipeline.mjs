@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import {spawnSync} from 'node:child_process';
-import {originalImageUrl,IMAGE_PROCESSING_VERSION} from '../crawler/common/image-processor.js';
+import {spawn,spawnSync} from 'node:child_process';
+import sharp from 'sharp';
+import {originalImageUrl,IMAGE_PROCESSING_VERSION,downloadAndOptimizeImage,closeImageProcessor} from '../crawler/common/image-processor.js';
 const root=path.resolve(import.meta.dirname,'..');
 assert.equal(IMAGE_PROCESSING_VERSION,'original-cutout-v1');
 assert.equal(originalImageUrl('https://www.prada.com/content/dam/a.jpg/_jcr_content/renditions/a.webp'),'https://www.prada.com/content/dam/a.jpg');
@@ -17,4 +19,19 @@ assert.equal(unisolated.status,78);assert.equal(JSON.parse(unisolated.stdout).co
 const wrongModel=spawnSync('/usr/bin/sandbox-exec',['-p','(version 1)(allow default)(deny network*)',python,'-I',worker,path.join(root,'crawler/guardrails.json')],{input:'',encoding:'utf8',timeout:30000,env:{PATH:process.env.PATH}});
 assert.equal(wrongModel.status,78);
 assert(!fs.readFileSync(path.join(root,'crawler/common/image-processor.js'),'utf8').includes('.trim('));
-console.log('PASS: original source, no pre-crop, pinned offline worker, network-required rejection, checksum-required rejection');
+const temp=fs.mkdtempSync(path.join(os.tmpdir(),'luxmap-image-test-'));
+const input=path.join(temp,'cutout-input.fifo'),output=path.join(temp,'cutout-output.fifo');
+assert.equal(spawnSync('/usr/bin/mkfifo',[input,output]).status,0);
+const child=spawn('/bin/sh',['-c','exec /usr/bin/sandbox-exec -p "$1" "$2" -I "$3" "$4" < "$5" > "$6"','offline-test','(version 1)(allow default)(deny network*)',python,worker,model,input,output],{env:{PATH:process.env.PATH},stdio:'ignore'});
+try{
+ process.env.CRAWL_RUN_DIR=temp;process.env.LUXURY_NETWORK_ISOLATED='enabled';
+ const source=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500"><rect width="1200" height="1500" fill="white"/><path d="M450 550 V420 Q600 260 750 420 V550" fill="none" stroke="#111" stroke-width="42"/><rect x="260" y="520" width="680" height="620" rx="60" fill="#171717"/><rect x="280" y="650" width="640" height="12" fill="#555"/></svg>')).png().toBuffer();
+ const context={request:{get:async()=>({ok:()=>true,headers:()=>({'content-type':'image/png'}),body:async()=>source})}};
+ const image=await downloadAndOptimizeImage(context,'https://www.prada.com/content/dam/test.png',temp);
+ assert.equal(image.imageProcessingVersion,'original-cutout-v1');
+ const meta=await sharp(image.imagePath).metadata();assert.equal(meta.width,960);assert.equal(meta.height,960);assert(meta.hasAlpha);
+ assert(fs.existsSync(image.originalImagePath),'original retained until storage verification');
+ await closeImageProcessor();
+ const exit=child.exitCode??await new Promise(resolve=>child.once('exit',resolve));assert.equal(exit,0);
+}finally{child.kill();fs.rmSync(temp,{recursive:true,force:true});}
+console.log('PASS: original source, no pre-crop, pinned offline worker, network/checksum rejection, FIFO processing and clean shutdown');
