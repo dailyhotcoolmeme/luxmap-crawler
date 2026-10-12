@@ -26,22 +26,26 @@ function receive(){
   waiting={resolve:value=>{clearTimeout(timer);waiting=null;resolve(value);},reject:error=>{clearTimeout(timer);waiting=null;reject(error);}};
  });
 }
-async function startWorker(){
+function startWorker(){
  if(ready)return ready;
+ ready=initializeWorker();
+ return ready;
+}
+async function initializeWorker(){
  if(closed||process.platform!=='darwin'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled')throw Error('IMAGE_SANDBOX_REQUIRED');
  const run=process.env.CRAWL_RUN_DIR;
  if(!run)throw Error('IMAGE_RUNTIME_UNAVAILABLE');
- const promise=receive();
  const inputFile=path.join(run,'cutout-input.fifo'),outputFile=path.join(run,'cutout-output.fifo');
  for(const file of [inputFile,outputFile])if(!(await fs.lstat(file)).isFIFO())throw Error('IMAGE_IPC_REQUIRED');
+ const promise=receive();
  inputStream=createWriteStream(inputFile);outputStream=createReadStream(outputFile);
  lines=createInterface({input:outputStream});
  lines.on('line',line=>{if(line.length>200){waiting?.reject(Error('IMAGE_WORKER_OUTPUT_LIMIT'));inputStream.destroy();return;}try{waiting?.resolve(JSON.parse(line));}catch{waiting?.reject(Error('IMAGE_WORKER_OUTPUT'));}});
  inputStream.on('error',()=>waiting?.reject(Error('IMAGE_RUNTIME_UNAVAILABLE')));
  outputStream.on('error',()=>waiting?.reject(Error('IMAGE_RUNTIME_UNAVAILABLE')));
  outputStream.on('end',()=>{if(!closed)waiting?.reject(Error('IMAGE_WORKER_STOPPED'));});
- ready=promise.then(result=>{if(result.ready!==true)throw Error('IMAGE_RUNTIME_FAILED');});
- return ready;
+ const result=await promise;
+ if(result.ready!==true)throw Error('IMAGE_RUNTIME_FAILED');
 }
 export async function closeImageProcessor(){
  closed=true;
