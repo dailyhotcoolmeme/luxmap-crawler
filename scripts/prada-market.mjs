@@ -83,14 +83,22 @@ try{
   if(process.argv.includes('--remaining')){const markets=[];for(let offset=0;;offset+=500){const page=await query(`market_products?country_code=eq.${config.country}&select=variant_id,official_product_code,current_price,currency_code,official_url&limit=500&offset=${offset}&order=id`);markets.push(...page);if(page.length<500)break;}rows=rows.filter(row=>!markets.some(m=>m.variant_id===row.id&&m.official_product_code===row.normalized_code&&m.currency_code===config.currency&&m.current_price!=null&&m.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`)));}
   const limitIndex=process.argv.indexOf('--limit');let selected=limitIndex>=0?rows.slice(0,Number(process.argv[limitIndex+1])):rows;
   let index=new Map(),familyByStyle=new Map();if(country!=='kr'&&selected.length){writeSummary([{normalized_code:'INDEX',official_url:config.listingUrls[0]}],'BUILDING_PRICE_INDEX');const run=pipeline(['--crawl-only',process.argv.includes('--independent-index')?'--sitemap-price-index':'--build-price-index']);index=new Map(JSON.parse(fs.readFileSync(path.join(run,'artifacts/price-url-index.json'))));
+   const sitemapCache=path.join(state,'verified-sitemap-index.json');
+   if(fs.existsSync(sitemapCache)){
+    const cache=JSON.parse(fs.readFileSync(sitemapCache));
+    if(Number.isFinite(cache.sourceTime)&&cache.sourceTime<=Date.now()&&Date.now()-cache.sourceTime<86400000){
+     if(!Array.isArray(cache.entries))throw Error('invalid sitemap cache');
+     for(const[code,url]of cache.entries){const target=new URL(url);if(target.origin!=='https://www.prada.com'||!target.pathname.startsWith(config.referenceDetailPrefix)||decodeURIComponent(target.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()!==code)throw Error('invalid exact sitemap URL');if(!index.has(code))index.set(code,url);}
+    }
+   }
    const cached=process.argv.includes('--cached-options');if(cached){const file=path.join(state,'cached-option-index.json');if(!fs.existsSync(file))throw new Error('cached option index missing');for(const[code,url]of JSON.parse(fs.readFileSync(file))){const target=new URL(url);if(target.origin!=='https://www.prada.com'||!target.pathname.startsWith(config.referenceDetailPrefix)||decodeURIComponent(target.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()!==code)throw new Error('cached exact URL invalid');index.set(code,url);}}
    if(process.argv.includes('--native-first')){
     if(!process.argv.includes('--remaining'))throw Error('native-first requires remaining scope');
     const existingMarkets=[];for(let offset=0;;offset+=500){const page=await query(`market_products?country_code=eq.${config.country}&select=variant_id&limit=500&offset=${offset}&order=id`);existingMarkets.push(...page);if(page.length<500)break;}
     const existingIds=new Set(existingMarkets.map(row=>row.variant_id));
     const nativeRows=selected.filter(row=>index.has(row.normalized_code)||(!existingIds.has(row.id)&&[...index.keys()].some(code=>code.slice(0,6)===row.normalized_code.slice(0,6))));
-    for(let i=0;i<nativeRows.length;i+=20){
-     const batch=nativeRows.slice(i,i+20),file=path.join(state,'native-first-urls.json');
+    for(let i=0;i<nativeRows.length;i+=50){
+     const batch=nativeRows.slice(i,i+50),file=path.join(state,'native-first-urls.json');
      fs.writeFileSync(file,JSON.stringify(batch.map(row=>{
       if(index.has(row.normalized_code))return index.get(row.normalized_code);
       const native=[...index].find(([code])=>code.slice(0,6)===row.normalized_code.slice(0,6));
@@ -127,8 +135,9 @@ try{
    const folder=path.join(state,'resolution');fs.mkdirSync(folder,{recursive:true});for(let i=0;i<resolution.length;i+=25){const file=path.join(folder,i===0?'summary.json':`summary-${i/25}.json`);fs.writeFileSync(file,JSON.stringify(resolution.slice(i,i+25)));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status)throw new Error('resolution summary blocked');}
    if(resolveOnly)selected=selected.filter(row=>index.has(row.normalized_code));
   }
-  for(let i=0;i<selected.length;i+=20){
-   const batch=selected.slice(i,i+20),file=path.join(state,'batch-urls.json');
+  const priceBatchSize=country==='kr'?20:50;
+  for(let i=0;i<selected.length;i+=priceBatchSize){
+   const batch=selected.slice(i,i+priceBatchSize),file=path.join(state,'batch-urls.json');
    fs.writeFileSync(file,JSON.stringify(batch.map(row=>{
     const source=new URL(row.official_url);
     if(source.origin!=='https://www.prada.com'||!source.pathname.startsWith('/kr/ko/p/'))throw new Error('invalid Korean source');

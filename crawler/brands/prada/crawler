@@ -9,6 +9,7 @@ import {refreshImages} from '../../common/image-refresh.js';
 import { normalizeProductCode } from '../../common/product-normalizer.js';
 import {exactPradaModelPrice} from '../../common/prada-model-price.js';
 import {classifyPradaCandidate} from '../../common/catalog-completeness.js';
+import {pradaCountrySitemapLinks} from '../../common/prada-sitemap.js';
 
 if (process.env.CRAWL_MODE !== 'deterministic-only' || process.env.LUXURY_PIPELINE_GUARD !== 'enabled' || process.env.LUXURY_NETWORK_ISOLATED !== 'enabled') throw new Error('guarded isolated pipeline required');
 const args=process.argv.slice(2),arg=name=>args[args.indexOf(name)+1];
@@ -43,9 +44,10 @@ async function get(url) {
     let response;
     try{response=await context.get(url,{maxRedirects:0});}
     catch(error){
-      const transient=/ECONNRESET|socket hang up|connection reset|socket disconnected|request aborted/i.test(error.message??'');
+      const timedOut=/Timeout|timeout/i.test(error.message??'');
+      const transient=timedOut||/ECONNRESET|socket hang up|connection reset|socket disconnected|request aborted/i.test(error.message??'');
       if(transient&&retries<config.maxRetriesPerUrl){retries++;hop--;await new Promise(resolve=>setTimeout(resolve,1000*retries));continue;}
-      const reason=transient?'NETWORK_RESET':/proxy/i.test(error.message??'')?'PROXY_FAILED':/certificate|SSL|EPROTO/i.test(error.message??'')?'TLS_FAILED':/Timeout|timeout/i.test(error.message??'')?'TIMEOUT':'REQUEST_FAILED';
+      const reason=timedOut?'TIMEOUT':transient?'NETWORK_RESET':/proxy/i.test(error.message??'')?'PROXY_FAILED':/certificate|SSL|EPROTO/i.test(error.message??'')?'TLS_FAILED':'REQUEST_FAILED';
       throw fail(`${stage}_${reason}`);
     }
     if([403,429].includes(response.status()))throw fail('ACCESS_BLOCKED');
@@ -141,8 +143,9 @@ try{
         const regional=locations.filter(value=>region.test(new URL(value).pathname));
         const local=regional.length?regional:locations.filter(value=>language.test(new URL(value).pathname));
         if(local.length)pending.push(...local);else if(locations.length<=config.maxDiscoveryPages)pending.push(...locations);else throw fail('KOREAN_SITEMAP_NOT_IDENTIFIED');
-      }else if(/<urlset\b/i.test(xml))for(const[code,target]of pradaModelProductLinks(locations,url,config.country.toLowerCase()))if(new URL(target).pathname.startsWith(config.referenceDetailPrefix))links.set(code,target);
-      else throw fail('SITEMAP_FORMAT_UNVERIFIED');
+      }else if(/<urlset\b/i.test(xml)){
+        for(const[code,target]of pradaCountrySitemapLinks(locations,url,config.country.toLowerCase(),config.referenceDetailPrefix))links.set(code,target);
+      }else throw fail('SITEMAP_FORMAT_UNVERIFIED');
     }
     if(!links.size)throw fail('KOREAN_SITEMAP_EMPTY');
     await fs.writeFile(path.join(artifact,foreignIndex?'price-url-index.json':'independent-urls.json'),JSON.stringify(foreignIndex?[...links]:[...links.values()]));
