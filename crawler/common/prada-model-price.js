@@ -1,4 +1,5 @@
 import {normalizeProductCode} from './product-normalizer.js';
+import {pradaOfficialAmount} from './prada-product.js';
 export function exactPradaModelPrice(model,expected,config){
  const amounts=new Set();
  const visit=(value,key='')=>{
@@ -13,8 +14,8 @@ export function exactPradaModelPrice(model,expected,config){
    // Exact SKU alone is insufficient: require an explicit currency. Do not
    // borrow a neighbouring variant's amount or infer from a generic "$".
    if(currency===config.currency&&(typeof price==='number'||typeof price==='string')){
-    const text=String(price).trim(),amount=Number(text.replaceAll(',',''));
-    if(/^\d[\d,]*(?:\.\d+)?$/.test(text)&&Number.isFinite(amount)&&amount>0)amounts.add(amount);
+    const amount=pradaOfficialAmount(price,config.locale);
+    if(Number.isFinite(amount)&&amount>0)amounts.add(amount);
    }
   }
   for(const[k,v]of Object.entries(value))visit(v,k);

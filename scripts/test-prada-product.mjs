@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {pradaOfficialAmount} from '../crawler/common/prada-product.js';
+assert.equal(pradaOfficialAmount('3.400,00','fr-FR'),3400);
+assert.equal(pradaOfficialAmount('3,400.00','en-US'),3400);
+assert.equal(pradaOfficialAmount('6,400,000','ko-KR'),6400000);
+assert.throws(()=>pradaOfficialAmount('3.400,00','en-US'),/unverified/);
 import {productLinks,parsePradaProduct,pradaSupplement,pradaModelProductLinks,isPradaBag} from '../crawler/common/prada-product.js';
 const map=JSON.parse(fs.readFileSync(new URL('../crawler/brands/prada/parent-model-map.json',import.meta.url)));
 const config={country:'KR',currency:'KRW'};

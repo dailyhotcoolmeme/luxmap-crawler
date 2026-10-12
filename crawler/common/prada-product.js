@@ -1,6 +1,17 @@
 import { normalizeProductCode } from './product-normalizer.js';
 
 export const decodeHtml = value => String(value ?? '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([a-f0-9]+);/gi, (_, n) => String.fromCodePoint(parseInt(n,16)));
+export function pradaOfficialAmount(value,locale=''){
+ if(typeof value==='number')return value;
+ const text=String(value).replace(/[\s\u00a0\u202f]/g,'');
+ if(/^\d+(?:\.\d{1,2})?$/.test(text))return Number(text);
+ if(/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(text))return Number(text.replaceAll(',',''));
+ if(/^(fr|it|es)(?:-|$)/i.test(locale)){
+  if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(text))return Number(text.replaceAll('.','').replace(',','.'));
+  if(/^\d+,\d{1,2}$/.test(text))return Number(text.replace(',','.'));
+ }
+ throw Object.assign(Error('unverified official amount format'),{failureCode:'PRICE_FORMAT_UNVERIFIED'});
+}
 // Korean official names only; never infer a category from the source URL slug.
 export const isPradaBag = name => /(가방|핸드백|토트|쇼퍼|호보|클러치|백팩|백)/i.test(name ?? '') && !/(백\s*참|백\s*장식|스트랩|티셔츠|재킷|슬링백|펌프스|샌들|로퍼|스니커즈|부츠)/i.test(name ?? '');
 export function productLinks(html, base, country) {
@@ -28,7 +39,7 @@ export function parsePradaProduct(html, url, config, modelMap, {requireImage=tru
   let offer=offers.find(item=>item?.priceCurrency===config.currency);
   if(!offer&&offers.some(item=>item.price!=null&&item.priceCurrency))throw Object.assign(new Error('country currency mismatch'),{failureCode:'CURRENCY_MISMATCH'});
   if(!offer&&config.referenceDetailPrefix)offer=offers.find(item=>{if(item.priceCurrency||item.price==null||!item.url)return false;try{const source=new URL(decodeHtml(item.url),url);return source.origin==='https://www.prada.com'&&source.pathname.startsWith(config.referenceDetailPrefix)&&normalizeProductCode(decodeURIComponent(source.pathname.split('/').at(-1)))===normalizedCode;}catch{return false;}});
-  const price=offer?.price==null?null:Number(String(offer.price).replace(/,/g,''));
+  const price=offer?.price==null?null:pradaOfficialAmount(offer.price,config.locale);
   if(price!==null&&(!Number.isFinite(price)||price<=0))throw Object.assign(new Error('price invalid'),{failureCode:'INVALID_PRICE'});
   const name=decodeHtml(product.name);
   const family=modelMap.find(rule=>new RegExp(rule.pattern,'iu').test(name));

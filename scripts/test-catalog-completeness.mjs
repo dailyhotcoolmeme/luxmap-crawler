@@ -8,7 +8,8 @@ assert.equal(classifyPradaCandidate({productName:'미디엄 가죽 토트백',pr
 assert.equal(classifyPradaCandidate({productName:'스터드 장식 나파 가죽 미니백'},isPradaBag),'bag');
 assert.equal(classifyPradaCandidate({productName:'백 프린트 셔츠',officialCategories:['Clothing']},isPradaBag),'excluded_nonbag');
 assert.equal(classifyPradaCandidate({productName:'공식 이름',officialCategories:['Handbags']},isPradaBag),'bag');
-assert.equal(classifyPradaCandidate({productName:'공식 이름',officialCategories:['Bag accessories']},isPradaBag),'classification_pending');
+assert.equal(classifyPradaCandidate({productName:'공식 이름',officialCategories:['Bag accessories']},isPradaBag),'excluded_nonbag');
+assert.equal(classifyPradaCandidate({productName:'가죽 토트백',officialCategories:['Handbags','Clothing']},isPradaBag),'classification_pending');
 const base={discovered:['STORED','BAG','UNKNOWN','NONBAG','BAG'],stored:new Set(['STORED']),decisions:new Map([['BAG','bag'],['UNKNOWN','detail_unresolved'],['NONBAG','excluded_nonbag']]),discoveryVerified:true};
 const report=completenessReport(base);assert.equal(report.discovered,4);assert.deepEqual(report.missing,['BAG']);assert.deepEqual(report.unresolved,['UNKNOWN']);assert.equal(report.complete,false);
 assert.equal(completenessReport({...base,stored:new Set(['STORED','BAG']),decisions:new Map([...base.decisions,['UNKNOWN','excluded_nonbag']])}).complete,true);
