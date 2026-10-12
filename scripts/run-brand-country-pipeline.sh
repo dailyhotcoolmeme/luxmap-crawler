@@ -18,7 +18,7 @@ if [ "${1:-}" = '--crawl-only' ]; then
   exit 0
 fi
 for option in "$@"; do
-  if [ "$option" = '--inspect-linked-candidates' ] || [ "$option" = '--image-source-samples-file' ]; then
+  if [ "$option" = '--inspect-linked-candidates' ] || [ "$option" = '--image-source-samples-file' ] || [ "$option" = '--inspect-image-model' ]; then
     echo 'BLOCKED: diagnostic sampling is crawl-only.' >&2
     exit 1
   fi

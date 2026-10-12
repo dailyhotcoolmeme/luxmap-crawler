@@ -8,6 +8,8 @@ import {originalImageUrl,IMAGE_PROCESSING_VERSION,downloadAndOptimizeImage,close
 const root=path.resolve(import.meta.dirname,'..');
 assert.equal(IMAGE_PROCESSING_VERSION,'original-cutout-v1');
 assert.equal(originalImageUrl('https://www.prada.com/content/dam/a.jpg/_jcr_content/renditions/a.webp'),'https://www.prada.com/content/dam/a.jpg');
+assert.equal(originalImageUrl('https://wsp-cdn.pradagroup.net/assets/a.jpg?width=200&crop=1'),'https://wsp-cdn.pradagroup.net/assets/a.jpg');
+assert.throws(()=>originalImageUrl('https://wsp-cdn.pradagroup.net/service'));
 assert.throws(()=>originalImageUrl('https://example.com/a.jpg'));
 assert.throws(()=>originalImageUrl('http://www.chanel.com/a.jpg'));
 assert.throws(()=>originalImageUrl('https://www.prada.com/not-an-asset.jpg'));

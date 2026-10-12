@@ -12,7 +12,7 @@ import {classifyPradaCandidate} from '../../common/catalog-completeness.js';
 
 if (process.env.CRAWL_MODE !== 'deterministic-only' || process.env.LUXURY_PIPELINE_GUARD !== 'enabled' || process.env.LUXURY_NETWORK_ISOLATED !== 'enabled') throw new Error('guarded isolated pipeline required');
 const args=process.argv.slice(2),arg=name=>args[args.indexOf(name)+1];
-const allowedArguments=new Set(['--country-config','--discover','--audit-discovery','--sitemap-price-index','--exact-price-model','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index','--probe-price-options','--targets-file','--inspect-linked-candidates','--image-source-samples-file','--image-refresh-file']);
+const allowedArguments=new Set(['--country-config','--discover','--audit-discovery','--sitemap-price-index','--exact-price-model','--inspect-image-model','--urls-file','--expand-variants','--inspect-metadata','--exclude-codes-file','--prices-only','--build-price-index','--probe-price-options','--targets-file','--inspect-linked-candidates','--image-source-samples-file','--image-refresh-file']);
 if(args.some(value=>value.startsWith('--')&&!allowedArguments.has(value)))throw new Error('unreviewed diagnostic mode is disabled');
 const config=JSON.parse(await fs.readFile(arg('--country-config'),'utf8'));
 if(args.includes('--image-refresh-file')){
@@ -36,6 +36,7 @@ async function get(url) {
     const destination=new URL(url);
     stage=destination.pathname.endsWith('.model.json')?'OPTIONS':destination.pathname.includes('/p/')?'DETAIL':destination.pathname.includes('/c/')?'LISTING':'HOME';
     if(destination.protocol!=='https:'||!config.allowedHosts.includes(destination.hostname))throw fail('UNAUTHORIZED_URL');
+    if(destination.hostname==='wsp-cdn.pradagroup.net')throw fail('IMAGE_ONLY_HOST_NOT_METADATA');
     if(destination.hostname==='api.prada.com'&&destination.pathname!=='/anon/approductfilteringprd/PRD_04_07_GetGroupedProducts')throw fail('UNAUTHORIZED_PRODUCT_API');
     if(++pages>250)throw fail('PAGE_LIMIT');
     const slot=Math.max(Date.now(),lastRequest+300);lastRequest=slot;const delay=slot-Date.now();if(delay>0)await new Promise(resolve=>setTimeout(resolve,delay));
@@ -79,6 +80,14 @@ try{
       await saveSummary();
     }
     await fs.writeFile(path.join(artifact,'image-source-samples.json'),JSON.stringify(rows));
+  }else if(args.includes('--inspect-image-model')){
+    if(config.country!=='KR'||!args.includes('--urls-file'))throw fail('INVALID_IMAGE_MODEL_MODE');
+    const urls=JSON.parse(await fs.readFile(arg('--urls-file'),'utf8'));if(!Array.isArray(urls)||urls.length!==1)throw fail('IMAGE_MODEL_LIMIT');
+    const url=urls[0],code=normalizeProductCode(decodeURIComponent(new URL(url).pathname.split('/').at(-1)));if(new URL(url).origin!=='https://www.prada.com'||!new URL(url).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_URL');
+    const response=await get(`${url}.model.json`);if(!response.ok())throw fail('IMAGE_MODEL_HTTP_FAILED');
+    const text=await response.text();await fs.writeFile(path.join(run,'raw',`${code}-image-model.json`),text);const found=new Set();
+    const visit=(value,key='')=>{if(/stock|inventory|availability|discount|coupon/i.test(key))return;if(typeof value==='string'){try{const source=new URL(decodeHtml(value),url);if(source.origin==='https://www.prada.com'&&source.pathname.startsWith('/content/dam/')&&/\.(?:jpg|jpeg|png|webp)$/i.test(source.pathname)&&normalizeProductCode(decodeURIComponent(source.pathname)).includes(code))found.add(source.href);}catch{}if(/^[\[{]/.test(value.trim()))try{visit(JSON.parse(value));}catch{}return;}if(value&&typeof value==='object')for(const[k,v]of Object.entries(value))visit(v,k);};visit(JSON.parse(text));
+    await fs.writeFile(path.join(artifact,'image-source-index.json'),JSON.stringify([...found]));summaries.push({brand:'prada',country:'KR',parentModel:'공식 동일 SKU 원본 이미지 대조',variantCode:code,price:null,currency:'KRW',status:found.size?'EXACT_WWW_ASSET_FOUND':'EXACT_WWW_ASSET_NOT_FOUND',officialUrl:url});
   }else if(args.includes('--exact-price-model')){
     if(config.country==='KR'||!args.includes('--urls-file'))throw fail('INVALID_EXACT_PRICE_MODEL_MODE');
     const urls=JSON.parse(await fs.readFile(arg('--urls-file'),'utf8'));if(!Array.isArray(urls)||!urls.length||urls.length>20)throw fail('EXACT_MODEL_LIMIT');

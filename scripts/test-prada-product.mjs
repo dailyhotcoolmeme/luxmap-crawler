@@ -10,6 +10,9 @@ const map=JSON.parse(fs.readFileSync(new URL('../crawler/brands/prada/parent-mod
 const config={country:'KR',currency:'KRW'};
 const url='https://www.prada.com/kr/ko/p/galleria/1BA896_NZV_F0002_V_OOO';
 const fixture=(name,sku='1BA896_NZV_F0002_V_OOO')=>`<script type="application/ld+json">${JSON.stringify({'@type':'Product',name,sku,image:'https://www.prada.com/test.jpg',offers:{price:6000000,priceCurrency:'KRW'}})}</script><a href="${url}" title="블랙"></a><li>높이: 22cm</li><li>너비: 30 cm</li><li>깊이: 13.5cm</li>`;
+assert.equal(parsePradaProduct(fixture('가죽 백').replace('https://www.prada.com/test.jpg','https://wsp-cdn.pradagroup.net/assets/test.jpg'),url,config,map).sourceImageUrl,'https://wsp-cdn.pradagroup.net/assets/test.jpg');
+assert.throws(()=>parsePradaProduct(fixture('가죽 백').replace('https://www.prada.com/test.jpg','https://example.com/test.jpg'),url,config,map),/reviewed image host/);
+assert.throws(()=>parsePradaProduct(fixture('가죽 백').replace('https://www.prada.com/test.jpg','https://wsp-cdn.pradagroup.net/service'),url,config,map),/reviewed image host/);
 const a=parsePradaProduct(fixture('프라다 갤러리아 스몰 사피아노 가죽 백'),url,config,map);
 const b=parsePradaProduct(fixture('프라다 갤러리아 라지 가죽 백'),url,config,map);
 assert.equal(a.modelKey,b.modelKey);assert.equal(a.modelKey,'galleria');assert.equal(a.colorDisplay,'블랙');assert.equal(a.widthMm,300);assert.equal(a.heightMm,220);assert.equal(a.depthMm,135);

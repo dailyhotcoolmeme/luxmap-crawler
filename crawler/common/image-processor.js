@@ -13,8 +13,9 @@ let jobQueue=Promise.resolve();
 export function originalImageUrl(imageUrl){
  const url=new URL(imageUrl);
  if(url.protocol!=='https:'||url.username||url.password)throw Error('IMAGE_URL');
- if(url.hostname==='www.prada.com'){
-  if(!url.pathname.startsWith('/content/dam/'))throw Error('IMAGE_SOURCE_PATH');
+ if(['www.prada.com','wsp-cdn.pradagroup.net'].includes(url.hostname)){
+  if(url.hostname==='www.prada.com'&&!url.pathname.startsWith('/content/dam/'))throw Error('IMAGE_SOURCE_PATH');
+  if(url.hostname==='wsp-cdn.pradagroup.net'&&!/\.(jpg|jpeg|png|webp)$/i.test(url.pathname))throw Error('IMAGE_SOURCE_PATH');
   url.pathname=url.pathname.replace(/\/(?:_jcr_content|jcr:content)\/renditions\/.*$/,'');
   url.search='';
  }else if(!['www.chanel.com','puls-img.chanel.com'].includes(url.hostname))throw Error('IMAGE_SOURCE_HOST');

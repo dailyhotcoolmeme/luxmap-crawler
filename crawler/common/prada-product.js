@@ -62,7 +62,8 @@ export function parsePradaProduct(html, url, config, modelMap, {requireImage=tru
   if(!color){const match=text.match(/(?:색상|컬러)\s*[:：]\s*([^:：]{1,35}?)(?:제품|크기|사이즈|소재|높이|너비|폭|$)/);color=match?.[1]?.trim()??null;}
   const material=typeof product.material==='string'?product.material:name.match(/사피아노 가죽|소프트 그레인 가죽|나파 가죽|송아지 가죽|가죽|리나일론|Re-Nylon|스웨이드|캔버스|라피아|데님/i)?.[0]??null;
   const image=[product.image].flat()[0];const imageUrl=typeof image==='string'?new URL(decodeHtml(image),url).href:image?.url;
-  if(requireImage&&(!imageUrl||new URL(imageUrl).origin!=='https://www.prada.com'))throw Object.assign(new Error('reviewed image host required'),{failureCode:'IMAGE_HOST_UNREVIEWED'});
+  const reviewedImage=imageUrl&&(()=>{try{const source=new URL(imageUrl);return source.protocol==='https:'&&!source.username&&!source.password&&(source.hostname==='www.prada.com'||(source.hostname==='wsp-cdn.pradagroup.net'&&/\.(jpg|jpeg|png|webp)$/i.test(source.pathname)));}catch{return false;}})();
+  if(requireImage&&!reviewedImage)throw Object.assign(new Error('reviewed image host required'),{failureCode:'IMAGE_HOST_UNREVIEWED'});
   const officialCategories=[product.category].flat().map(value=>typeof value==='string'?value:value?.name).filter(value=>typeof value==='string');
   const itemUrl=item=>typeof item.item==='string'?item.item:(item.item?.['@id']??item.item?.url??item.url);
   const trail=breadcrumbs.find(list=>Array.isArray(list.itemListElement)&&list.itemListElement.some(item=>{try{const target=new URL(itemUrl(item),url);return target.origin==='https://www.prada.com'&&target.pathname.startsWith(config.referenceDetailPrefix??'/kr/ko/p/')&&normalizeProductCode(decodeURIComponent(target.pathname.split('/').at(-1)))===normalizedCode;}catch{return false;}}));
