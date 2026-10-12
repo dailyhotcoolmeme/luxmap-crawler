@@ -14,6 +14,10 @@ jq -e '.failClosed == true and .requireCentralPipeline == true and .allowModelAp
 EXPECTED_DEPS=$(jq -c '.allowedRuntimeDependencies | sort' "$GUARD_FILE")
 ACTUAL_DEPS=$(jq -c '(.dependencies // {}) | keys | sort' "$PROJECT_DIR/package.json")
 [ "$EXPECTED_DEPS" = "$ACTUAL_DEPS" ] || { echo "BLOCKED: runtime dependency allowlist mismatch." >&2; exit 1; }
+EXPECTED_IMAGE_DEPS=$(jq -c '.imageProcessing.runtimeDependencies | sort' "$GUARD_FILE")
+ACTUAL_IMAGE_DEPS=$(jq -Rsc 'split("\n") | map(select(length > 0)) | sort' "$PROJECT_DIR/crawler/common/cutout-requirements.txt")
+[ "$EXPECTED_IMAGE_DEPS" = "$ACTUAL_IMAGE_DEPS" ] || { echo 'BLOCKED: image runtime dependency allowlist mismatch.' >&2; exit 78; }
+jq -e '.imageProcessing.requireOfflineCpu == true and .imageProcessing.version == "original-cutout-v1"' "$GUARD_FILE" >/dev/null || exit 78
 
 FORBIDDEN='(openai|anthropic|claude|gemini|generativelanguage|cohere|mistral|huggingface|ollama|langchain|llamaindex|bedrock|vertexai|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|security[[:space:]]+find-generic-password)'
 if rg -n -i --glob '!token-safety-gate.sh' --glob '!crawl-preflight.sh' --glob '!run-brand-country-pipeline.sh' \

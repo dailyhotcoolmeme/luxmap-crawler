@@ -10,7 +10,7 @@ on:
         required: true
         default: smoke
         type: choice
-        options: [smoke, full]
+        options: [smoke, full, image-check]
 permissions:
   contents: read
 concurrency:
@@ -29,7 +29,11 @@ jobs:
       - name: Install pinned dependencies
         run: npm ci --no-audit --no-fund > /dev/null 2>&1
       - name: Install required command line tools
-        run: brew install ripgrep jq > /dev/null 2>&1
+        run: brew install ripgrep jq python@3.11 > /dev/null 2>&1
+      - name: Provision pinned offline image processor
+        run: |
+          LUXURY_SETUP_PYTHON="$(brew --prefix python@3.11)/bin/python3.11" scripts/setup-image-runtime.sh > /dev/null 2>&1
+          node scripts/test-image-pipeline.mjs
       - name: Check platform and token safeguards
         run: |
           scripts/token-safety-gate.sh > /dev/null
@@ -37,6 +41,7 @@ jobs:
           /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)' /usr/bin/true
           mkdir -p app crawler/service
       - name: Collect and ingest through unified registry
+        if: inputs.mode != 'image-check'
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://nxgnbrdxxmlhtcnymqsl.supabase.co
           EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

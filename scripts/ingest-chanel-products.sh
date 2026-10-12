@@ -88,7 +88,9 @@ while [ "$index" -lt "$count" ]; do
   image_sha=$(jq -r '.imageSha256' "$record")
   model_key=$(jq -r '.modelKey' "$record")
   product_code=$(jq -r '.normalizedCode' "$record")
-  object_key="products/$INGEST_BRAND/$model_key/$product_code/$image_sha.webp"
+  image_version=$(jq -r '.imageProcessingVersion // ""' "$record")
+  [ "$image_version" = 'original-cutout-v1' ] || { echo 'BLOCKED: required image processing version missing'; exit 78; }
+  object_key="products/$INGEST_BRAND/$model_key/$product_code/cutout-v1/$image_sha.webp"
   existing_image=$(mktemp)
   request GET "product_media?sha256=eq.$image_sha&r2_object_key=eq.$object_key&select=id&limit=1" '' "$existing_image"
   if ! jq -e 'length > 0' "$existing_image" >/dev/null; then

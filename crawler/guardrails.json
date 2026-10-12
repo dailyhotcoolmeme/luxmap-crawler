@@ -5,6 +5,12 @@
   "failClosed": true,
   "requireCentralPipeline": true,
   "allowedRuntimeDependencies": ["playwright-core", "sharp"],
+  "imageProcessing": {
+    "version": "original-cutout-v1",
+    "requireOfflineCpu": true,
+    "modelSha256": "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491",
+    "runtimeDependencies": ["coloredlogs==15.0.1", "flatbuffers==25.12.19", "humanfriendly==10.0", "mpmath==1.3.0", "numpy==2.2.6", "onnxruntime==1.23.2", "packaging==26.3", "Pillow==11.3.0", "protobuf==7.36.2", "sympy==1.14.0"]
+  },
   "requireBrandCountryIsolation": true,
   "limits": {
     "maxPagesPerBrandCountryRun": 250,

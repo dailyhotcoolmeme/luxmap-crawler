@@ -55,8 +55,18 @@ STDOUT_FILE="$RUN_DIR/stdout.log"
 STDERR_FILE="$RUN_DIR/stderr.log"
 CDP_URL=""
 CDP_PORT=0
+IMAGE_REFRESH=0
+for option in "$@"; do
+  if [ "$option" = '--image-refresh-file' ]; then IMAGE_REFRESH=1; fi
+done
 CHROME_PID=""
+CUTOUT_PID=""
 cleanup_browser() {
+  if [ -n "$CUTOUT_PID" ]; then
+    kill -TERM "$CUTOUT_PID" 2>/dev/null || true
+    wait "$CUTOUT_PID" 2>/dev/null || true
+    CUTOUT_PID=""
+  fi
   if [ "$CDP_PORT" -gt 0 ]; then
     node "$PROJECT_DIR/scripts/close-crawl-browser.mjs" "$CDP_PORT" "$RUN_DIR/browser-profile" >/dev/null 2>&1 || true
   fi
@@ -70,7 +80,18 @@ trap cleanup_browser EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; then
+if [ "$COUNTRY" = kr ]; then
+  mkfifo "$RUN_DIR/cutout-input.fifo" "$RUN_DIR/cutout-output.fifo"
+  chmod 600 "$RUN_DIR/cutout-input.fifo" "$RUN_DIR/cutout-output.fifo"
+  env -i PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" \
+    /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network*)' \
+    "$PROJECT_DIR/.image-runtime/venv/bin/python" -I \
+    "$PROJECT_DIR/crawler/common/cutout-worker.py" "$PROJECT_DIR/.image-runtime/u2net.onnx" \
+    <"$RUN_DIR/cutout-input.fifo" >"$RUN_DIR/cutout-output.fifo" 2>/dev/null &
+  CUTOUT_PID=$!
+fi
+
+if [ "$IMAGE_REFRESH" = 0 ] && jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; then
   CDP_PORT=$((9300 + ($$ % 500)))
   BROWSER_EXECUTABLE=$(jq -r '.browserExecutable' "$COUNTRY_CONFIG")
   BROWSER_ENTRY='about:blank'

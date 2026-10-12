@@ -4,6 +4,8 @@ crawler/runs/
 crawler/service/
 crawler/*-remaining/
 *.log
+.image-runtime/
+.image-refresh/
 .env*
 *.key
 *.pem

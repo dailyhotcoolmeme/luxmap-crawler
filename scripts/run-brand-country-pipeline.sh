@@ -18,8 +18,8 @@ if [ "${1:-}" = '--crawl-only' ]; then
   exit 0
 fi
 for option in "$@"; do
-  if [ "$option" = '--inspect-linked-candidates' ]; then
-    echo 'BLOCKED: linked candidate inspection is crawl-only.' >&2
+  if [ "$option" = '--inspect-linked-candidates' ] || [ "$option" = '--image-source-samples-file' ]; then
+    echo 'BLOCKED: diagnostic sampling is crawl-only.' >&2
     exit 1
   fi
 done
@@ -53,6 +53,12 @@ if [ "$BRAND/$COUNTRY" = prada/kr ]; then
 fi
 
 set +x
+for option in "$@"; do
+ if [ "$option" = --image-refresh-file ]; then
+  [ "$COUNTRY" = kr ] || exit 2
+  INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-product-images.mjs"
+ fi
+done
 SERVICE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
 if [ -z "$SERVICE_KEY" ]; then
 ACCESS_TOKEN=$(security find-generic-password -s 'carrywise.supabase.access-token' -a 'carrywise-project' -w 2>/dev/null) || \
@@ -84,11 +90,12 @@ env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   LUXURY_INGEST_BRAND="$BRAND" \
   WRANGLER_SEND_METRICS=false \
   node "$PROJECT_DIR/scripts/network-isolate.mjs" \
-  '["nxgnbrdxxmlhtcnymqsl.supabase.co","api.cloudflare.com","4c0f5d706177b84ade4d424a08ec46e8.r2.cloudflarestorage.com"]' 0 \
+  '["nxgnbrdxxmlhtcnymqsl.supabase.co","api.cloudflare.com","4c0f5d706177b84ade4d424a08ec46e8.r2.cloudflarestorage.com","luxury-assets.dailyhotcoolmeme.workers.dev"]' 0 \
   "$INGEST_SCRIPT" "$RECORD_FILE"
 unset ACCESS_TOKEN KEYS_JSON SERVICE_KEY
 
 find "$RUN_DIR/raw" "$RUN_DIR/browser-profile" -type f -exec chmod 000 {} + 2>/dev/null || true
 find "$RUN_DIR" -maxdepth 1 -type f -name '*.log' -exec chmod 000 {} + 2>/dev/null || true
+node "$PROJECT_DIR/scripts/cleanup-image-originals.mjs" "$RECORD_FILE"
 chmod 000 "$RECORD_FILE" 2>/dev/null || true
 echo "PASS: $BRAND/$COUNTRY crawl and storage completed through guarded pipeline."

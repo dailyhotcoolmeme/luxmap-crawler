@@ -2,7 +2,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium, request } from "playwright-core";
-import { downloadAndOptimizeImage } from "../../common/image-processor.js";
+import { downloadAndOptimizeImage,closeImageProcessor } from "../../common/image-processor.js";
+import {refreshImages} from '../../common/image-refresh.js';
 import { normalizeProductCode, originalCodeFromText, parseDimensions } from "../../common/product-normalizer.js";
 import {productReady} from '../../common/product-ready.js';
 
@@ -19,6 +20,10 @@ const retryIndex = args.indexOf('--navigation-retries');
 const fixedUrls = urlsIndex >= 0 ? JSON.parse(await fs.readFile(args[urlsIndex + 1], 'utf8')) : null;
 if (configIndex < 0 || !args[configIndex + 1]) throw new Error("country config required");
 const config = JSON.parse(await fs.readFile(args[configIndex + 1], "utf8"));
+if(args.includes('--image-refresh-file')){
+ if(args.length!==4)throw Error('INVALID_IMAGE_REFRESH_MODE');
+ await refreshImages(config,args[args.indexOf('--image-refresh-file')+1]);process.exit(0);
+}
 const navigationRetries=retryIndex>=0?Number(args[retryIndex+1]):config.maxRetriesPerUrl;
 if(!Number.isInteger(navigationRetries)||navigationRetries<0||navigationRetries>config.maxRetriesPerUrl)throw new Error('invalid navigation retry limit');
 const parentModelMap = JSON.parse(await fs.readFile(new URL("./parent-model-map.json", import.meta.url), "utf8"));
@@ -311,5 +316,6 @@ try {
   await fs.writeFile(path.join(runDir, "failure.json"), JSON.stringify({ failureCode: classifyFailure(error, runStage) }), "utf8");
   throw error;
 } finally {
+  await closeImageProcessor();
   await browser?.close().catch(() => {});
 }
