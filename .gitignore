@@ -2,6 +2,11 @@ node_modules/
 app/
 crawler/runs/
 crawler/service/
+crawler/completeness/
+crawler/prada-progress/
+crawler/prada-linked-code-audit/
+crawler/prada-linked-ingest/
+crawler/prada-candidate-inspection/
 crawler/*-remaining/
 *.log
 .image-runtime/

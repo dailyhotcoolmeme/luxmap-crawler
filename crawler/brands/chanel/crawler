@@ -10,6 +10,8 @@ import {productReady} from '../../common/product-ready.js';
 const args = process.argv.slice(2);
 const probeOnly=args.includes('--probe-page');
 const listingProbe=args.includes('--probe-listing');
+const discoverOnly=args.includes('--discover-only');
+const auditVariants=args.includes('--audit-variants');
 if (process.env.LUXURY_NETWORK_ISOLATED !== 'enabled' || !process.env.LUXURY_NETWORK_PROXY) throw new Error('kernel network isolation required');
 const configIndex = args.indexOf("--country-config");
 const maxIndex = args.indexOf("--max-products");
@@ -20,6 +22,8 @@ const retryIndex = args.indexOf('--navigation-retries');
 const fixedUrls = urlsIndex >= 0 ? JSON.parse(await fs.readFile(args[urlsIndex + 1], 'utf8')) : null;
 if (configIndex < 0 || !args[configIndex + 1]) throw new Error("country config required");
 const config = JSON.parse(await fs.readFile(args[configIndex + 1], "utf8"));
+if(discoverOnly&&(config.country!=='KR'||fixedUrls||args.includes('--model-code-prefix')||args.includes('--seed-url')))throw new Error('complete Korean listing discovery required');
+if(auditVariants&&(config.country!=='KR'||fixedUrls||probeOnly||discoverOnly))throw new Error('complete Korean variant audit required');
 if(args.includes('--image-refresh-file')){
  if(args.length!==4)throw Error('INVALID_IMAGE_REFRESH_MODE');
  await refreshImages(config,args[args.indexOf('--image-refresh-file')+1]);process.exit(0);
@@ -157,6 +161,7 @@ try {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await page.waitForTimeout(config.discoveryWaitMs);
     }
+    if(stableRounds<config.discoveryStableRounds){const error=new Error('listing discovery did not close');error.failureCode='DISCOVERY_SCROLL_LIMIT';throw error;}
   }
 
   if (fixedUrls) {
@@ -177,6 +182,11 @@ try {
     .sort();
   if (urls.length === 0) throw new Error("no product URLs discovered");
   if (urls.length > maxProducts) throw new Error("discovered product limit exceeded");
+
+  if(!fixedUrls&&!seedUrl)await fs.writeFile(path.join(artifactDir,'discovered-urls.json'),JSON.stringify(urls));
+  if(discoverOnly){
+   await fs.writeFile(summaryFile,JSON.stringify([{brand:'chanel',country:'KR',parentModel:'한국 공식 목록 대조',variantCode:'DISCOVERY',price:null,currency:'KRW',status:`DISCOVERED_${urls.length}`,officialUrl:config.listingUrls[0]}]));
+  }else{
 
   const queuedUrls = new Set(urls);
   for (let index = 0; index < urls.length; index += 1) {
@@ -251,7 +261,9 @@ try {
       for (const linkedUrl of (fixedUrls ? [] : extracted.productLinks)) {
         let linkedCode;
         try { linkedCode = normalizeProductCode(new URL(linkedUrl).pathname.match(/\/fashion\/p\/([^/]+)\//)?.[1]); } catch { continue; }
-        if (!linkedCode || styleCodeOf(linkedCode) !== styleCode || queuedUrls.has(linkedUrl)) continue;
+        const linkedStyle=styleCodeOf(linkedCode??'');
+        if (!linkedCode || (linkedStyle!==styleCode&&!/^(?:AS\d{4}|A\d{5})$/.test(linkedStyle??'')) || queuedUrls.has(linkedUrl)) continue;
+        if(new URL(linkedUrl).origin!=='https://www.chanel.com'||!new URL(linkedUrl).pathname.startsWith(config.referenceDetailPrefix))throw new Error('linked country mismatch');
         if (urls.length >= maxProducts) throw new Error("expanded product limit exceeded");
         queuedUrls.add(linkedUrl);
         urls.push(linkedUrl);
@@ -272,7 +284,7 @@ try {
 
       stage = "IMAGE";
       // Foreign markets attach prices to Korean variants; never recollect/store their images.
-      const image = config.country==='KR'?await downloadAndOptimizeImage({ request: imageRequest }, imageUrl, artifactDir):{};
+      const image = config.country==='KR'&&!auditVariants?await downloadAndOptimizeImage({ request: imageRequest }, imageUrl, artifactDir):{};
       const checkedAt = new Date().toISOString();
       const material = typeof product.material === "string" ? product.material.trim() : null;
       const color = typeof product.color === "string" ? product.color.trim() : null;
@@ -305,6 +317,7 @@ try {
     throw incompleteError;
   }
   if (records.length === 0&&!probeOnly) throw new Error("no valid product records");
+  if(auditVariants)await fs.writeFile(path.join(artifactDir,'discovered-urls.json'),JSON.stringify(records.map(row=>row.officialUrl)));
   await fs.writeFile(path.join(artifactDir, "records.json"), JSON.stringify(records), "utf8");
   await fs.writeFile(path.join(runDir, "failures.json"), JSON.stringify(failures), "utf8");
   const summaries=probeOnly?probes:records.map((record) => ({
@@ -314,6 +327,7 @@ try {
   for(let offset=0;offset<summaries.length;offset+=25){
    const file=offset===0?summaryFile:path.join(runDir,`summary-${offset/25}.json`);
    await fs.writeFile(file,JSON.stringify(summaries.slice(offset,offset+25)),'utf8');
+  }
   }
   }
 } catch (error) {

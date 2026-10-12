@@ -34,6 +34,8 @@ try{
   for(const name of fs.readdirSync(path.join(inspected,'confirmed')).filter(n=>/^summary(?:-\d+)?\.json$/.test(n))){const file=path.join(inspected,'confirmed',name);run('scripts/crawl-output-guard.sh',[file]);bags.push(...JSON.parse(fs.readFileSync(file)).filter(row=>candidates.has(row.variantCode)&&row.country==='KR'&&row.currency==='KRW'&&row.status==='confirmed'&&isPradaBag(row.parentModel)));}
   const selected=[...new Map(bags.map(row=>[row.variantCode,row])).values()],expected=Number(report.find(row=>row.status.startsWith('CONFIRMED_BAG_NAMES_'))?.status.split('_').at(-1));
   if(selected.length!==expected)throw Error('confirmed bag count mismatch');
+  const allBags=Number(report.find(row=>row.status.startsWith('VALID_BAG_NAMES_'))?.status.split('_').at(-1));
+  if(allBags!==selected.length)throw Error('unpriced bag candidates remain unresolved');
   const known=new Set((await references()).map(row=>row.normalized_code)),missing=selected.filter(row=>!known.has(row.variantCode));
   for(const row of missing)targets.add(row.variantCode);
   if(targets.size>500)throw Error('linked target limit exceeded');

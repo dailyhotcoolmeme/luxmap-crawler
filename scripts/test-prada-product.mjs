@@ -16,6 +16,9 @@ assert.equal(parsePradaProduct(fixture('test').replace(',"priceCurrency":"KRW"',
 const linkedPrice=fixture('test').replace('"priceCurrency":"KRW"',`"url":"${url}"`);
 assert.equal(parsePradaProduct(linkedPrice,url,{...config,referenceDetailPrefix:'/kr/ko/p/'},map).price,6000000);
 assert.equal(parsePradaProduct(linkedPrice,url,{country:'JP',currency:'JPY',referenceDetailPrefix:'/jp/ja/p/'},map).price,null);
+const noImage=fixture('미디엄 가죽 토트백').replace(/"image"\s*:\s*[^,}]+,?/, '');
+assert.throws(()=>parsePradaProduct(noImage,url,config,map),/reviewed image host required/);
+assert.equal(parsePradaProduct(noImage,url,config,map,{requireImage:false}).price,6000000);
 const encoded=fixture('프라다 갤러리아').replace(/(<script[^>]*>)([\s\S]*?)(<\/script>)/,(_,open,json,close)=>open+json.replaceAll('"','&quot;')+close);
 assert.equal(parsePradaProduct(encoded,url,config,map).price,6000000);
 assert.notEqual(parsePradaProduct(fixture('리에디션 2000'),url,config,map).modelKey,parsePradaProduct(fixture('리에디션 2005'),url,config,map).modelKey);

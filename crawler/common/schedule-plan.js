@@ -13,6 +13,7 @@ export function schedulePlan(schedule, {smoke=false}={}) {
     if(!korean)throw new Error('Korean job required for every brand');
     return [
       ...(!smoke?[{...korean,args:['--discover-reference'],phase:'discover'}]:[]),
+      ...(!smoke?[{...korean,args:['--audit-reference'],phase:'audit'}]:[]),
       ...[korean,...jobs.filter(job=>job!==korean)].map(job=>({...job,args:['--refresh',...(smoke?['--limit','1']:[])],phase:'refresh'}))
     ];
   });

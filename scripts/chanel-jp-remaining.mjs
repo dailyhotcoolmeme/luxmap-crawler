@@ -22,6 +22,11 @@ const countryUrl=url=>{
  return source.href;
 };
 fs.mkdirSync(dir,{recursive:true});
+if(process.argv.includes('--audit-reference')){
+ if(country!=='kr')throw new Error('Korean reference audit required');
+ const result=spawnSync(process.execPath,[path.join(root,'scripts/audit-chanel-catalog.mjs')],{cwd:root,env:process.env,stdio:'ignore',timeout:2*60*60*1000,killSignal:'SIGTERM'});
+ process.exit(result.status??1);
+}
 // Discovery is always Korean-only, through the same guarded collection/ingest path.
 if(process.argv.includes('--discover-reference')){
  if(country!=='kr')throw new Error('foreign discovery prohibited');

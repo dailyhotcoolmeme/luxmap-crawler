@@ -6,6 +6,10 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const rows=[];
 for(const job of schedule.jobs){
+ if(job.country==='kr')for(const name of ['summary.json','report/summary.json']){
+  const file=path.join(root,'crawler/completeness',job.brand,name);
+  if(fs.existsSync(file)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(file)));
+ }
  if(job.brand==='prada'){
   const report=path.join(root,'crawler/prada-progress',job.country,'report/summary.json');
   const progress=path.join(root,'crawler/prada-progress',job.country,'summary.json');

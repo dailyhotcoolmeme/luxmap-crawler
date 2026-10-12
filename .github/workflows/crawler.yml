@@ -37,6 +37,8 @@ jobs:
       - name: Check platform and token safeguards
         run: |
           scripts/token-safety-gate.sh > /dev/null
+          node scripts/test-catalog-completeness.mjs
+          node scripts/test-crawler-schedule.mjs
           test -x '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
           /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)' /usr/bin/true
           mkdir -p app crawler/service

@@ -7,14 +7,15 @@ const plan=fullPlan.filter(job=>job.brand==='chanel');
 for(const brand of new Set(schedule.jobs.map(job=>job.brand))){
  const jobs=fullPlan.filter(job=>job.brand===brand);
  assert.equal(jobs[0].country,'kr');assert.equal(jobs[0].phase,'discover');
- assert.equal(jobs[1].country,'kr');assert.equal(jobs[1].phase,'refresh');
- assert.equal(jobs.length,schedule.jobs.filter(job=>job.brand===brand).length+1);
+ assert.equal(jobs[1].country,'kr');assert.equal(jobs[1].phase,'audit');
+ assert.equal(jobs[2].country,'kr');assert.equal(jobs[2].phase,'refresh');
+ assert.equal(jobs.length,schedule.jobs.filter(job=>job.brand===brand).length+2);
 }
-assert.deepEqual(plan.map(j=>`${j.country}:${j.phase}`),['kr:discover','kr:refresh','jp:refresh','fr:refresh','it:refresh','es:refresh','us:refresh','sg:refresh','hk:refresh']);
+assert.deepEqual(plan.map(j=>`${j.country}:${j.phase}`),['kr:discover','kr:audit','kr:refresh','jp:refresh','fr:refresh','it:refresh','es:refresh','us:refresh','sg:refresh','hk:refresh']);
 let korean=['old'],foreign={};
 assert.equal(executePlan(plan,job=>{
  if(job.phase==='discover')korean.push('new');
- else foreign[job.country]=[...korean];
+ else if(job.phase==='refresh')foreign[job.country]=[...korean];
  return {status:0};
 }),0);
 for(const country of ['jp','fr','it','es','us','sg','hk'])assert.deepEqual(foreign[country],['old','new']);
@@ -32,6 +33,9 @@ for(const failure of [{status:1},{status:78},{status:null,signal:'SIGTERM'}]){
 assert.equal(schedulePlan(schedule,{smoke:true}).length,schedule.jobs.length);
 assert.ok(schedulePlan(schedule,{smoke:true}).every(job=>job.phase==='refresh'&&job.args.includes('--limit')));
 const visited=[];assert.equal(executePlan(fullPlan,job=>{visited.push(`${job.brand}/${job.country}`);return {status:job.brand==='chanel'?1:0};}),1);
-assert.deepEqual(visited.filter(id=>id.startsWith('chanel/')),['chanel/kr']);assert.equal(visited.filter(id=>id.startsWith('prada/')).length,9);
+assert.deepEqual(visited.filter(id=>id.startsWith('chanel/')),['chanel/kr']);assert.equal(visited.filter(id=>id.startsWith('prada/')).length,10);
+const auditVisited=[];
+assert.equal(executePlan(plan,job=>{auditVisited.push(job.phase);return {status:job.phase==='audit'?1:0};}),1);
+assert.deepEqual(auditVisited,['discover','audit']);
 let stopped=0;assert.equal(executePlan(fullPlan,()=>{stopped++;return {status:78};}),1);assert.equal(stopped,1);
 console.log('PASS: Korean-first discovery, new product propagation, country addition and failure stops.');

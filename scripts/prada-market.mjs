@@ -32,11 +32,13 @@ function writeSummary(rows,phase){
  for(let i=0;i<summary.length;i+=25){const file=path.join(state,i===0?'summary.json':`summary-${i/25}.json`);fs.writeFileSync(file,JSON.stringify(summary.slice(i,i+25)));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0)throw new Error('progress summary blocked');}
 }
 async function verify(){
- const rows=await references(),markets=[];
+ let rows=await references();const markets=[];
+ const scopeIndex=process.argv.indexOf('--reference-codes-file');
+ if(scopeIndex>=0){const selected=JSON.parse(fs.readFileSync(process.argv[scopeIndex+1]));if(!Array.isArray(selected)||!selected.length||selected.length>500||selected.some(code=>typeof code!=='string'||!/^[A-Z0-9]+$/.test(code)))throw new Error('invalid verification scope');const codes=new Set(selected);rows=rows.filter(row=>codes.has(row.normalized_code));if(rows.length!==codes.size)throw new Error('verification reference missing');}
  for(let offset=0;;offset+=500){const batch=await query(`market_products?country_code=eq.${config.country}&select=variant_id,official_product_code,current_price,currency_code,official_url&order=id&limit=500&offset=${offset}`);markets.push(...batch);if(batch.length<500)break;}
  const summaries=rows.map(row=>{const market=markets.find(item=>item.variant_id===row.id);const valid=market&&market.official_product_code===row.normalized_code&&market.currency_code===config.currency&&market.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`)&&decodeURIComponent(new URL(market.official_url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()===row.normalized_code;return {brand:'prada',country:config.country,parentModel:'한국 기준',variantCode:row.normalized_code,price:valid?Number(market.current_price)||null:null,currency:config.currency,status:valid?(market.current_price==null?'price_unavailable':'confirmed'):'unprocessed',officialUrl:market?.official_url?.length<=500?market.official_url:config.listingUrls[0]};});
  let discoveryMissing=0;
- if(country==='kr'){
+ if(country==='kr'&&scopeIndex<0){
   const runs=path.join(root,'crawler/runs/prada/kr');const discovery=fs.readdirSync(runs).sort().reverse().find(name=>fs.existsSync(path.join(runs,name,'artifacts/discovered-urls.json')));
   if(!discovery)throw new Error('discovery baseline missing');const urls=JSON.parse(fs.readFileSync(path.join(runs,discovery,'artifacts/discovered-urls.json')));const codes=new Set(rows.map(row=>row.normalized_code));discoveryMissing=urls.filter(url=>!codes.has(decodeURIComponent(new URL(url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase())).length;
  }
@@ -48,20 +50,30 @@ async function verify(){
  if(unresolved){const alert={brand:'prada',country:config.country,parentModel:'한국 기준 해외 가격',variantCode:'TOTAL',price:null,currency:config.currency,status:`UNRESOLVED_PRICES_${unresolved}`,officialUrl:config.listingUrls[0]};const result=await reportCrawlFailure(alert,{queuePath:path.join(state,'alert-queue.json'),fetcher:async(url,options)=>{if(url!=='https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/operations_alerts?on_conflict=dedupe_key')throw new Error('unapproved alert destination');const entries=JSON.parse(options.body);for(const entry of entries){const existing=await query(`operations_alerts?dedupe_key=eq.${encodeURIComponent(entry.dedupe_key)}&select=dedupe_key&limit=1`);if(!existing.length)await query('operations_alerts','POST',[entry]);}return {ok:true};}});if(!result.stored)throw Object.assign(new Error('unresolved alert not delivered'),{failureCode:'ALERT_TRANSPORT_FAILED'});}
 }
 try{
- if(process.argv.includes('--verify-only')){
+ if(process.argv.includes('--audit-reference')){
+  if(country!=='kr')throw new Error('Korean reference audit required');
+  const result=spawnSync(process.execPath,[path.join(root,'scripts/audit-prada-catalog.mjs')],{cwd:root,env:process.env,stdio:'ignore',timeout:2*60*60000});
+  if(result.status!==0){process.exitCode=result.status===78?78:1;throw Object.assign(new Error('independent reference audit incomplete'),{failureCode:'INDEPENDENT_AUDIT_INCOMPLETE'});}
+ }else if(process.argv.includes('--verify-only')){
   await verify();
  }else if(process.argv.includes('--linked-reference')){
   if(country!=='kr')throw new Error('Korean linked reference only');
   const result=spawnSync(process.execPath,[path.join(root,'scripts/collect-prada-linked-bags.mjs'),'--approved-cached-candidates'],{cwd:root,env:process.env,stdio:'ignore',timeout:30*60000});
   if(result.status!==0)throw Object.assign(new Error('linked reference failed'),{failureCode:'LINKED_REFERENCE_FAILED'});
+ }else if(process.argv.includes('--ingest-reference-urls')){
+  if(country!=='kr')throw new Error('foreign reference ingestion forbidden');
+  const file=process.argv[process.argv.indexOf('--ingest-reference-urls')+1];
+  const urls=JSON.parse(fs.readFileSync(file));
+  if(!Array.isArray(urls)||!urls.length||urls.length>25||urls.some(value=>{const url=new URL(value);return url.origin!=='https://www.prada.com'||!url.pathname.startsWith(config.referenceDetailPrefix)||!/^[A-Z0-9_]+$/.test(decodeURIComponent(url.pathname.split('/').at(-1)));}))throw new Error('invalid scoped Korean URLs');
+  for(let i=0;i<urls.length;i+=8){const batch=path.join(state,'batch-urls.json');fs.writeFileSync(batch,JSON.stringify(urls.slice(i,i+8)));pipeline(['--urls-file',batch]);}
  }else if(process.argv.includes('--discover-reference')){
   if(country!=='kr')throw new Error('foreign discovery forbidden');
   const run=pipeline(['--crawl-only','--discover']);
   let urls=JSON.parse(fs.readFileSync(path.join(run,'artifacts/discovered-urls.json')));
   if(process.argv.includes('--remaining')){const existing=new Set((await references()).map(row=>row.normalized_code));urls=urls.filter(url=>!existing.has(decodeURIComponent(new URL(url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()));}
   for(let i=0;i<urls.length;i+=8){const file=path.join(state,'batch-urls.json');let batch=urls.slice(i,i+8);writeSummary([{normalized_code:'DISCOVERY',official_url:config.listingUrls[0]}],`INGESTING_${i}_OF_${urls.length}`);const extra=[];if(process.argv.includes('--remaining')){const existing=(await references()).map(row=>row.normalized_code),codes=new Set(existing);batch=batch.filter(url=>!codes.has(decodeURIComponent(new URL(url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()));if(!batch.length)continue;const excluded=path.join(state,'existing-codes.json');fs.writeFileSync(excluded,JSON.stringify(existing));extra.push('--exclude-codes-file',excluded);}fs.writeFileSync(file,JSON.stringify(batch));pipeline(['--urls-file',file,'--expand-variants',...extra]);}
-  const linked=spawnSync(process.execPath,[path.join(root,'scripts/collect-prada-linked-bags.mjs')],{cwd:root,env:process.env,stdio:'ignore',timeout:30*60000});
-  if(linked.status!==0)throw Object.assign(new Error('linked reference incomplete'),{failureCode:'LINKED_REFERENCE_FAILED'});
+  // The mandatory audit phase discovers independent families before traversing
+  // old detail links; a failed linked inspection cannot masquerade as complete.
  }else{
   let rows=await references();if(!rows.length)throw new Error('Korean reference missing');
   const codesIndex=process.argv.indexOf('--reference-codes-file');
@@ -69,7 +81,7 @@ try{
   const resolveOnly=process.argv.includes('--resolve-unavailable');if(resolveOnly&&country==='kr')throw new Error('foreign resolution only');
   if(process.argv.includes('--remaining')){const markets=[];for(let offset=0;;offset+=500){const page=await query(`market_products?country_code=eq.${config.country}&select=variant_id,official_product_code,current_price,currency_code,official_url&limit=500&offset=${offset}&order=id`);markets.push(...page);if(page.length<500)break;}rows=rows.filter(row=>!markets.some(m=>m.variant_id===row.id&&m.official_product_code===row.normalized_code&&m.currency_code===config.currency&&m.current_price!=null&&m.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`)));}
   const limitIndex=process.argv.indexOf('--limit');let selected=limitIndex>=0?rows.slice(0,Number(process.argv[limitIndex+1])):rows;
-  let index=new Map(),familyByStyle=new Map();if(country!=='kr'&&selected.length){writeSummary([{normalized_code:'INDEX',official_url:config.listingUrls[0]}],'BUILDING_PRICE_INDEX');const run=pipeline(['--crawl-only','--build-price-index']);index=new Map(JSON.parse(fs.readFileSync(path.join(run,'artifacts/price-url-index.json'))));
+  let index=new Map(),familyByStyle=new Map();if(country!=='kr'&&selected.length){writeSummary([{normalized_code:'INDEX',official_url:config.listingUrls[0]}],'BUILDING_PRICE_INDEX');const run=pipeline(['--crawl-only',process.argv.includes('--independent-index')?'--sitemap-price-index':'--build-price-index']);index=new Map(JSON.parse(fs.readFileSync(path.join(run,'artifacts/price-url-index.json'))));
    const cached=process.argv.includes('--cached-options');if(cached){const file=path.join(state,'cached-option-index.json');if(!fs.existsSync(file))throw new Error('cached option index missing');for(const[code,url]of JSON.parse(fs.readFileSync(file))){const target=new URL(url);if(target.origin!=='https://www.prada.com'||!target.pathname.startsWith(config.referenceDetailPrefix)||decodeURIComponent(target.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()!==code)throw new Error('cached exact URL invalid');index.set(code,url);}}
    const missing=selected.filter(row=>!index.has(row.normalized_code)),styles=new Set(missing.map(row=>row.normalized_code.slice(0,6)));
    if(missing.length){
