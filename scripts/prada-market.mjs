@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {catalogTargetBatches} from '../crawler/common/catalog-target-batches.js';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
@@ -90,8 +91,19 @@ try{
     for(const profile of profiles){if(profile.product_models?.model_key&&!profile.product_models.model_key.startsWith('unreviewed-'))familyByStyle.set(profile.style_code,profile.product_models.model_key);if((process.argv.includes('--family-options')||(!process.argv.includes('--limit')&&codesIndex<0))&&families.has(profile.product_models?.model_key))styles.add(profile.style_code);}
    }
    const sources=missing.length&&!cached?[...new Set([...index].filter(([code])=>process.argv.includes('--deep-options')||styles.has(code.slice(0,6))).map(([,url])=>url))]:[];
-   const targets=path.join(state,'option-targets.json');fs.writeFileSync(targets,JSON.stringify(missing.map(row=>row.normalized_code)));
-   for(let i=0;i<sources.length;i+=20){writeSummary([{normalized_code:'OPTIONS',official_url:config.listingUrls[0]}],`CHECKING_OPTIONS_${i}_OF_${sources.length}`);const file=path.join(state,'option-sources.json');fs.writeFileSync(file,JSON.stringify(sources.slice(i,i+20)));const probe=pipeline(['--crawl-only','--probe-price-options','--urls-file',file,'--targets-file',targets]);for(const [code,url]of JSON.parse(fs.readFileSync(path.join(probe,'artifacts/price-option-index.json'))))if(!index.has(code))index.set(code,url);}
+   const targets=path.join(state,'option-targets.json');
+   for(let i=0;i<sources.length;i+=20){
+    writeSummary([{normalized_code:'OPTIONS',official_url:config.listingUrls[0]}],`CHECKING_OPTIONS_${i}_OF_${sources.length}`);
+    const file=path.join(state,'option-sources.json');fs.writeFileSync(file,JSON.stringify(sources.slice(i,i+20)));
+    // A growing Korean catalog must not exceed the reviewed 500-target bound.
+    // Partition the work; never truncate it or weaken the crawler's guard.
+    const unresolved=missing.filter(row=>!index.has(row.normalized_code));
+    for(const codes of catalogTargetBatches(unresolved.map(row=>row.normalized_code))){
+     fs.writeFileSync(targets,JSON.stringify(codes));
+     const probe=pipeline(['--crawl-only','--probe-price-options','--urls-file',file,'--targets-file',targets]);
+     for(const [code,url]of JSON.parse(fs.readFileSync(path.join(probe,'artifacts/price-option-index.json'))))if(!index.has(code))index.set(code,url);
+    }
+   }
    const resolution=selected.map(row=>({brand:'prada',country:config.country,parentModel:'미확인 공식 옵션 보완',variantCode:row.normalized_code,price:null,currency:config.currency,status:index.has(row.normalized_code)?'EXACT_OFFICIAL_PATH_FOUND':styles.has(row.normalized_code.slice(0,6))&&sources.some(url=>new URL(url).pathname.split('/').at(-1).startsWith(row.normalized_code.slice(0,6)))?'EXACT_OPTION_NOT_FOUND':'NO_MATCHING_STYLE_LISTED',officialUrl:index.get(row.normalized_code)??config.listingUrls[0]}));
    const folder=path.join(state,'resolution');fs.mkdirSync(folder,{recursive:true});for(let i=0;i<resolution.length;i+=25){const file=path.join(folder,i===0?'summary.json':`summary-${i/25}.json`);fs.writeFileSync(file,JSON.stringify(resolution.slice(i,i+25)));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status)throw new Error('resolution summary blocked');}
    if(resolveOnly)selected=selected.filter(row=>index.has(row.normalized_code));
