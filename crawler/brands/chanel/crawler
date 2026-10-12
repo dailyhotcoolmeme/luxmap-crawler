@@ -289,6 +289,10 @@ try {
         ...image, checkedAt
       });
     } catch (error) {
+      if (/^(IMAGE_|OFFLINE_)[A-Z_]+$/.test(error?.message || '')) {
+        error.failureCode = error.message;
+        throw error;
+      }
       if (/product limit exceeded/i.test(error instanceof Error ? error.message : "")) throw error;
       failures.push({ officialUrl, failureCode: classifyFailure(error, stage) });
     }

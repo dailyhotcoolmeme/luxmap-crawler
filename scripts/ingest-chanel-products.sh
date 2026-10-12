@@ -103,14 +103,19 @@ while [ "$index" -lt "$count" ]; do
       --data-binary "@$image_file" \
       "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/luxury-media/objects/$object_key")
     case "$upload_code" in 200|201|204) ;; *) echo 'FAILED: IMAGE_STORAGE_UPLOAD' >&2; exit 1;; esac
-    verified_image=$(mktemp)
-    verify_code=$(curl -sS --max-time 60 -o "$verified_image" -w '%{http_code}' \
-      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-      "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/luxury-media/objects/$object_key")
-    [ "$verify_code" = 200 ] && [ "$(shasum -a 256 "$verified_image" | cut -d ' ' -f 1)" = "$image_sha" ] || {
-      echo 'FAILED: IMAGE_STORAGE_VERIFY' >&2; exit 1;
-    }
   fi
+  verified_image=$(mktemp)
+  verify_code=$(curl -sS --max-time 60 -o "$verified_image" -w '%{http_code}' \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/luxury-media/objects/$object_key")
+  [ "$verify_code" = 200 ] && [ "$(shasum -a 256 "$verified_image" | cut -d ' ' -f 1)" = "$image_sha" ] || {
+    echo 'FAILED: IMAGE_STORAGE_VERIFY' >&2; exit 1;
+  }
+  public_code=$(curl -sS --max-time 60 -o "$verified_image" -w '%{http_code}' \
+    "https://luxury-assets.dailyhotcoolmeme.workers.dev/media/$object_key")
+  [ "$public_code" = 200 ] && [ "$(shasum -a 256 "$verified_image" | cut -d ' ' -f 1)" = "$image_sha" ] || {
+    echo 'FAILED: IMAGE_PUBLIC_VERIFY' >&2; exit 1;
+  }
 
   response=$(mktemp)
   payload=$(jq -nc --arg slug "$INGEST_BRAND" --arg ko "$BRAND_KO" --arg original "$BRAND_ORIGINAL" '{slug:$slug,name_ko:$ko,name_original:$original,active:true}')
