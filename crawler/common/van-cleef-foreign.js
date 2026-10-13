@@ -26,6 +26,23 @@ export async function collectVanCleefPrices(cfg){
  const context=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:30000}),rows=[],records=[];let calls=0;
  const row=(status,code='RUN',url=cfg.entryUrl,price=null)=>({brand:cfg.brand,country:cfg.country,parentModel:'한국 상품 공식 국가 가격',variantCode:code,price,currency:cfg.currency,status,officialUrl:url});
  const save=()=>fs.writeFile(path.join(run,'summary.json'),JSON.stringify(rows),{mode:0o600});
+ let sitemapUrls;
+ async function sitemapReference(code){
+  if(!sitemapUrls){
+   const robots=await get('https://www.vancleefarpels.com/robots.txt'),queue=[...robots.html.matchAll(/^Sitemap:\s*(https:\/\/\S+)/gim)].map(m=>m[1]),seen=new Set(),found=new Set();
+   if(!queue.length)throw Error('SITEMAP_NOT_DECLARED');
+   while(queue.length){const address=queue.shift();if(seen.has(address))continue;if(seen.size>=20)throw Error('DISCOVERY_LIMIT');seen.add(address);const xml=(await get(address)).html;
+    const children=[...xml.matchAll(/<(?:\w+:)?loc[^>]*>([\s\S]*?)<\/(?:\w+:)?loc>/gi)].map(m=>m[1].replace(/<!\[CDATA\[|\]\]>/g,'').trim().replaceAll('&amp;','&'));
+    if(/<sitemapindex[\s>]/i.test(xml)){const local=children.filter(url=>{try{return new URL(url).pathname.startsWith(`/${cfg.country.toLowerCase()}/`);}catch{return false;}});queue.push(...(local.length?local:children));}
+    else if(/<urlset[\s>]/i.test(xml)){for(const url of children){const u=new URL(url);if(u.protocol==='https:'&&cfg.allowedHosts.includes(u.hostname)&&u.pathname.startsWith(`/${cfg.country.toLowerCase()}/`)&&new RegExp(cfg.productPathPattern,'i').test(u.pathname))found.add(u.href);}}
+    else throw Error('SITEMAP_FORMAT');
+    if(found.size>10000)throw Error('CANDIDATE_LIMIT');
+   }
+   sitemapUrls=[...found];rows.push(row(`COUNTRY_SITEMAP_URLS_${found.size}`));await save();
+  }
+  const matches=sitemapUrls.filter(url=>referenceCode(url,cfg.brand)?.toUpperCase()===code),preferred=matches.filter(url=>new URL(url).pathname.startsWith(cfg.localePrefix));
+  if(preferred.length===1)return preferred[0];if(matches.length===1)return matches[0];throw Error(matches.length?'COUNTRY_SITEMAP_CONFLICT':'COUNTRY_SITEMAP_REFERENCE_MISSING');
+ }
  async function get(url){
   const original=new URL(url),originalCode=referenceCode(url,cfg.brand)?.toUpperCase();let current=url,r;
   for(let redirect=0;redirect<=2;redirect++){
@@ -46,7 +63,7 @@ export async function collectVanCleefPrices(cfg){
   if(offset>=targets.length)throw Error('OFFSET_OUT_OF_RANGE');
   const batch=targets.slice(offset,offset+(sample?1:cfg.maxProductsPerRun));let failed=0;if(sample)rows.push(row('SAMPLE_NOT_FULL_CATALOG'));if(repair)rows.push(row('TARGETED_REPAIR_NOT_FULL_CATALOG'));
   for(const krUrl of batch){let url=cfg.entryUrl;const code=referenceCode(krUrl,cfg.brand).toUpperCase();
-   try{const kr=await get(krUrl);url=localizedReference(kr.html,kr.url,cfg);const foreign=await get(url);url=foreign.url;const p=parseReferenceProduct(foreign.html,url,cfg);delete p.image;records.push(p);rows.push(row(p.price===null?'PRICE_UNPUBLISHED':'COUNTRY_PRICE_READY',code,url,p.price));}
+   try{const kr=await get(krUrl);try{url=localizedReference(kr.html,kr.url,cfg);}catch(e){if(e.message!=='COUNTRY_REFERENCE_UNPUBLISHED')throw e;url=await sitemapReference(code);}const foreign=await get(url);url=foreign.url;const p=parseReferenceProduct(foreign.html,url,cfg);delete p.image;records.push(p);rows.push(row(p.price===null?'PRICE_UNPUBLISHED':'COUNTRY_PRICE_READY',code,url,p.price));}
    catch(e){if(/BLOCKED|LIMIT|UNAUTHORIZED|SANDBOX|GUARD/.test(e.message))throw e;failed++;rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'PRODUCT_REQUEST_FAILED',code,e.officialUrl??url));}
    await save();
   }

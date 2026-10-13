@@ -21,7 +21,7 @@ for(const country of countries){
    if(!Array.isArray(missing)||missing.some(c=>typeof c!=='string'||!/^VC[A-Z0-9]{8}$/.test(c))||new Set(missing).size!==missing.length)throw Error('REPAIR_CODES_INVALID');
    if(!missing.length){report('ALL_PUBLIC_REFERENCES_VERIFIED');continue;}
    // Bounded one attempt per missing code. Repeated heartbeats do not re-fetch failures.
-   const attemptFile=path.join(folder,'repair-attempts.json');let attempted=[];try{attempted=JSON.parse(fs.readFileSync(attemptFile));}catch{}
+   const attemptFile=path.join(folder,'repair-attempts-sitemap.json');let attempted=[];try{attempted=JSON.parse(fs.readFileSync(attemptFile));}catch{}
    if(missing.some(c=>attempted.includes(c)))throw Error('REPAIR_ALREADY_ATTEMPTED');
    for(let i=0;i<missing.length;i+=25){
     const codes=missing.slice(i,i+25),file=path.join(folder,'repair-codes.json');fs.writeFileSync(file,JSON.stringify(codes),{mode:0o600});attempted.push(...codes);fs.writeFileSync(attemptFile,JSON.stringify(attempted),{mode:0o600});report('TARGETED_REPAIR_RUNNING');
