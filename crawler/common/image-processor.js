@@ -5,12 +5,13 @@ import {createReadStream,createWriteStream} from 'node:fs';
 import {createInterface} from 'node:readline';
 import {finished} from 'node:stream/promises';
 import sharp from 'sharp';
+import {celineOriginalImageUrl} from './celine-image-url.js';
 
 const root=path.resolve(import.meta.dirname,'../..');
 export const IMAGE_PROCESSING_VERSION='original-cutout-v1';
 let inputStream,outputStream,lines,waiting,ready,closed=false;
 let jobQueue=Promise.resolve();
-export function originalImageUrl(imageUrl){
+export function originalImageUrl(imageUrl,expectedCode){
  const url=new URL(imageUrl);
  if(url.protocol!=='https:'||url.username||url.password)throw Error('IMAGE_URL');
  if(['www.prada.com','wsp-cdn.pradagroup.net'].includes(url.hostname)){
@@ -23,6 +24,15 @@ export function originalImageUrl(imageUrl){
   // Retain only the official asset revision; remove transformation parameters.
   const revision=url.searchParams.get('v');url.search='';
   if(revision&&/^\d{1,6}$/.test(revision))url.searchParams.set('v',revision);
+ }else if(url.hostname==='www.vancleefarpels.com'){
+  if(!/^\/content\/dam\/rcq\/vca\/.+\.(png|jpg|jpeg)$/i.test(url.pathname))throw Error('IMAGE_SOURCE_PATH');
+  url.search='';
+ }else if(url.hostname==='media.rolex.com'){
+  const match=url.pathname.match(/^\/image\/upload\/(?:[^/]+\/)*?(v\d+\/[a-f0-9]+\/catalogue\/\d{4}\/upright-c\/m[0-9a-z]+-\d+)$/i);
+  if(!match||!expectedCode||match[1].split('/').at(-1).replace(/[^a-z0-9]/gi,'').toUpperCase()!==expectedCode)throw Error('IMAGE_SOURCE_PATH');
+  url.pathname=`/image/upload/${match[1]}`;url.search='';
+ }else if(url.hostname==='image.celine.com'){
+  return celineOriginalImageUrl(imageUrl,expectedCode);
  }else if(!['www.chanel.com','puls-img.chanel.com'].includes(url.hostname))throw Error('IMAGE_SOURCE_HOST');
  return url.href;
 }
@@ -63,9 +73,9 @@ export async function closeImageProcessor(){
  await finished(outputStream).catch(()=>{});
  lines?.close();
 }
-export async function downloadAndOptimizeImage(context,imageUrl,artifactDir){
+export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expectedCode){
  await startWorker();
- const sourceImageUrl=originalImageUrl(imageUrl);
+ const sourceImageUrl=originalImageUrl(imageUrl,expectedCode);
  let response;
  for(let attempt=0;attempt<3;attempt++){
   try{response=await context.request.get(sourceImageUrl,{timeout:30000,maxRedirects:0});break;}
@@ -85,7 +95,7 @@ export async function downloadAndOptimizeImage(context,imageUrl,artifactDir){
   const result=await resultPromise;
   if(!result.ok)throw Error(result.code??'IMAGE_MASK_FAILED');
  });
- jobQueue=job;
+ jobQueue=job.catch(()=>{});
  await job;
  const output=await fs.readFile(temp),info=await sharp(output).metadata();
  if(info.width!==960||info.height!==960||!info.hasAlpha||output.length>4*1024*1024)throw Error('IMAGE_OUTPUT_INVALID');

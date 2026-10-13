@@ -16,6 +16,12 @@ assert.throws(()=>originalImageUrl('https://bottega-veneta.dam.kering.com/api/im
 assert.equal(originalImageUrl('https://bottega-veneta.dam.kering.com/m/b83c6b1f41bacc0/eCom-766016VCPP19211_A.jpg?v=2&crop=1'),'https://bottega-veneta.dam.kering.com/m/b83c6b1f41bacc0/eCom-766016VCPP19211_A.jpg?v=2');
 assert.throws(()=>originalImageUrl('http://www.chanel.com/a.jpg'));
 assert.throws(()=>originalImageUrl('https://www.prada.com/not-an-asset.jpg'));
+const celineSource='https://image.celine.com/asset/e5c1f509-247b-40bf-85a4-682a6471d1c0/L10BF5B53-33VI_1_WI26_W_V1.jpg';
+assert.equal(originalImageUrl(celineSource,'L10BF5B5333VI'),celineSource);
+assert.throws(()=>originalImageUrl(celineSource));
+assert.throws(()=>originalImageUrl(celineSource,'L10BF5B5338NO'));
+assert.throws(()=>originalImageUrl(celineSource+'?width=200','L10BF5B5333VI'));
+assert.throws(()=>originalImageUrl(celineSource.replace('/asset/','/resize/'),'L10BF5B5333VI'));
 const python=path.join(root,'.image-runtime/venv/bin/python'),worker=path.join(root,'crawler/common/cutout-worker.py'),model=path.join(root,'.image-runtime/u2net.onnx');
 const isolated=spawnSync('/usr/bin/sandbox-exec',['-p','(version 1)(allow default)(deny network*)',python,'-I',worker,model],{input:'',encoding:'utf8',timeout:30000,env:{PATH:process.env.PATH}});
 assert.equal(isolated.status,0);assert.equal(JSON.parse(isolated.stdout).ready,true);

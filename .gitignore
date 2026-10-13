@@ -15,3 +15,5 @@ crawler/*-remaining/
 *.key
 *.pem
 .ci-report/
+crawler/onboarding/
+crawler/brands/*/.reference-index.json

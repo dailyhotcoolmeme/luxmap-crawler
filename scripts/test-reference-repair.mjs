@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {selectRepairUrls} from '../crawler/common/reference-repair.js';
+const cfg={brand:'van-cleef-arpels',allowedHosts:['www.vancleefarpels.com'],localePrefix:'/kr/ko/',productPathPattern:'/collections/jewelry/[^/]+/vc[a-z0-9]{8}-[^/]+\\.html$',maxProductsPerRun:25};
+const url='https://www.vancleefarpels.com/kr/ko/collections/jewelry/alhambra/vcara42400-sample.html';
+const now=Date.now(),index={checkedAt:new Date(now).toISOString(),urls:[url]};
+assert.deepEqual(selectRepairUrls(index,['VCARA42400'],cfg,now),[url]);
+for(const codes of [[],['VCARA42400','VCARA42400'],['vcara42400'],['VCARA42401'],['https://example.com']])assert.throws(()=>selectRepairUrls(index,codes,cfg,now));
+assert.throws(()=>selectRepairUrls(index,['VCARA42400'],cfg,now+86400001),/STALE/);
+assert.throws(()=>selectRepairUrls({...index,checkedAt:'invalid'},['VCARA42400'],cfg,now),/STALE/);
+assert.throws(()=>selectRepairUrls({...index,urls:[url,url]},['VCARA42400'],cfg,now),/MISMATCH/);
+assert.throws(()=>selectRepairUrls({...index,urls:[url.replace('/kr/ko/','/us/en/')]},['VCARA42400'],cfg,now),/MISMATCH/);
+assert.throws(()=>selectRepairUrls({...index,urls:[url.replace('www.vancleefarpels.com','example.com')]},['VCARA42400'],cfg,now),/MISMATCH/);
+console.log('PASS: bounded exact Korean reference repair, stale/duplicate/foreign scope rejection');

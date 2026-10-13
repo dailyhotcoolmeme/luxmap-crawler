@@ -16,7 +16,7 @@ on:
         required: true
         default: all
         type: choice
-        options: [all, bottega-veneta]
+        options: [all, bottega-veneta, van-cleef-arpels]
 permissions:
   contents: read
 concurrency:

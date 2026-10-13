@@ -12,7 +12,8 @@ for(const job of schedule.jobs){
  const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',job.brand,'countries',job.country)));
  const listingUrls=config.listingUrls??(job.brand==='bottega-veneta'?config.probeListingUrls:null);
  const priceOnly=job.brand==='bottega-veneta'&&job.country!=='kr'&&config.browserMode==='http'&&config.maxImagesPerProduct===0&&config.entryUrl===`https://www.bottegaveneta.com${config.localePrefix.replace(/\/$/,'')}`;
- if(config.country!==job.country.toUpperCase()||!Array.isArray(config.allowedHosts)||!config.allowedHosts.length||(!priceOnly&&(!Array.isArray(listingUrls)||!listingUrls.length)))throw new Error('invalid country configuration');
+ const officialSitemap=job.brand==='van-cleef-arpels'&&job.country==='kr'&&config.category==='jewelry'&&config.browserMode==='http'&&config.entryUrl==='https://www.vancleefarpels.com/kr/ko/'&&config.localePrefix==='/kr/ko/'&&config.allowedHosts.length===1&&config.allowedHosts[0]==='www.vancleefarpels.com'&&config.maxDiscoveryPages===20&&config.maxProductsPerRun===25;
+ if(config.country!==job.country.toUpperCase()||!Array.isArray(config.allowedHosts)||!config.allowedHosts.length||(!priceOnly&&!officialSitemap&&(!Array.isArray(listingUrls)||!listingUrls.length)))throw new Error('invalid country configuration');
  if(job.brand==='chanel'&&(!/^\/[a-z]{2}(?:-[a-z]{2})?\/[a-z]+\/p\/$/.test(config.referenceDetailPrefix)||!new RegExp(config.detailPathPattern).test(`${config.referenceDetailPrefix}A01112/`)))throw new Error('invalid Korean reference mapping');
 }
 // Foreign coverage is an execution result, never a prerequisite for registering a country.

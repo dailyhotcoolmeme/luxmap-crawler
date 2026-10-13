@@ -13,6 +13,12 @@ case "$INGEST_BRAND" in
   chanel) BRAND_KO='샤넬'; BRAND_ORIGINAL='CHANEL' ;;
   prada) BRAND_KO='프라다'; BRAND_ORIGINAL='PRADA' ;;
   bottega-veneta) BRAND_KO='보테가 베네타'; BRAND_ORIGINAL='BOTTEGA VENETA' ;;
+  van-cleef-arpels|rolex)
+    [ "${LUXURY_REFERENCE_ADAPTER:-}" = 'jewelry-watch-v1' ] || { echo 'BLOCKED: reference adapter required.' >&2; exit 78; }
+    if [ "$INGEST_BRAND" = rolex ]; then BRAND_KO='롤렉스'; BRAND_ORIGINAL='ROLEX'; else BRAND_KO='반클리프 아펠'; BRAND_ORIGINAL='VAN CLEEF & ARPELS'; fi ;;
+  celine)
+    [ "${LUXURY_CELINE_ADAPTER:-}" = 'validated-four-v1' ] || { echo 'BLOCKED: Celine partial adapter required.' >&2; exit 78; }
+    BRAND_KO='셀린느'; BRAND_ORIGINAL='CELINE' ;;
   *) echo 'BLOCKED: unreviewed reference brand.' >&2; exit 2 ;;
 esac
 if ! jq -e 'length > 0 and all(.[]; .country == "KR" and .currency == "KRW" and (.normalizedCode | type == "string" and length > 0) and (.modelKey | type == "string" and length > 0))' "$RECORDS_FILE" >/dev/null; then

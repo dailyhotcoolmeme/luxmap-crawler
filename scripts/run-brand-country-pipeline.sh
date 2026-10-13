@@ -24,6 +24,17 @@ for option in "$@"; do
   fi
 done
 
+# This explicit partial-artifact mode is never a scheduled full-catalog run.
+CELINE_PARTIAL_RUN=''
+if [ "$BRAND/$COUNTRY" = 'celine/kr' ]; then
+  [ "$#" -eq 2 ] && [ "$1" = '--ingest-validated-run' ] || { echo 'BLOCKED: Celine requires an explicit validated partial run.' >&2; exit 78; }
+  CELINE_PARTIAL_RUN=$(CDPATH= cd -- "$2" && pwd -P)
+  case "$CELINE_PARTIAL_RUN" in "$PROJECT_DIR"/crawler/runs/celine/kr/*) ;; *) echo 'BLOCKED: Celine run scope.' >&2; exit 78;; esac
+  "$PROJECT_DIR/scripts/crawl-preflight.sh" >/dev/null
+  "$PROJECT_DIR/scripts/crawl-output-guard.sh" "$CELINE_PARTIAL_RUN/summary.json" >/dev/null
+  jq -e 'any(.[]; .status == "PARTIAL_REFERENCE_4_OF_424") and any(.[]; .status == "UNPROCESSED_420")' "$CELINE_PARTIAL_RUN/summary.json" >/dev/null || exit 78
+fi
+
 # A scheduled run has no interactive shell environment. Reuse an existing
 # credential only; never save secrets or put them into the launchd plist.
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
@@ -43,6 +54,8 @@ case "$BRAND/$COUNTRY" in
   chanel/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-products.sh" ;;
   prada/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-products.sh" ;;
   bottega-veneta/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-products.sh" ;;
+  celine/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-celine-products.mjs" ;;
+  van-cleef-arpels/kr|rolex/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-jewelry-watch.mjs" ;;
   bottega-veneta/jp|bottega-veneta/fr|bottega-veneta/it|bottega-veneta/es|bottega-veneta/us|bottega-veneta/sg|bottega-veneta/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-bottega-country.mjs" ;;
   prada/jp|prada/fr|prada/it|prada/es|prada/us|prada/sg|prada/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;
   chanel/jp|chanel/fr|chanel/it|chanel/es|chanel/us|chanel/sg|chanel/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;
@@ -62,6 +75,7 @@ for option in "$@"; do
  fi
 done
 SERVICE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+PUBLIC_KEY=${SUPABASE_ANON_KEY:-${EXPO_PUBLIC_SUPABASE_KEY:-}}
 if [ -z "$SERVICE_KEY" ]; then
 ACCESS_TOKEN=$(security find-generic-password -s 'carrywise.supabase.access-token' -a 'carrywise-project' -w 2>/dev/null) || \
   ACCESS_TOKEN=$(security find-generic-password -s 'carrywise.supabase.access-token' -a 'carrywise-project' -w \
@@ -72,14 +86,27 @@ KEYS_JSON=$(SUPABASE_ACCESS_TOKEN="$ACCESS_TOKEN" supabase projects api-keys --p
   echo 'FAILED: DATABASE_API_UNAVAILABLE' >&2; exit 1;
 }
 SERVICE_KEY=$(printf '%s' "$KEYS_JSON" | jq -r '.[] | select(.name=="service_role") | .api_key')
+PUBLIC_KEY=$(printf '%s' "$KEYS_JSON" | jq -r '.[] | select(.name=="anon") | .api_key')
 [ -n "$SERVICE_KEY" ] || { echo 'FAILED: DATABASE_CREDENTIAL_UNAVAILABLE' >&2; exit 1; }
 unset ACCESS_TOKEN KEYS_JSON
 fi
 
-LUXURY_PIPELINE_GUARD=enabled "$PROJECT_DIR/scripts/run-crawler.sh" "$BRAND" "$COUNTRY" "$@"
-RUN_DIR=$(find "$PROJECT_DIR/crawler/runs/$BRAND/$COUNTRY" -mindepth 1 -maxdepth 1 -type d -print | sort | tail -n 1)
+REFERENCE_EXIT=0
+if [ -n "$CELINE_PARTIAL_RUN" ]; then
+ RUN_DIR="$CELINE_PARTIAL_RUN"
+else
+ if LUXURY_PIPELINE_GUARD=enabled "$PROJECT_DIR/scripts/run-crawler.sh" "$BRAND" "$COUNTRY" "$@"; then :; else
+  REFERENCE_EXIT=$?
+  case "$BRAND/$COUNTRY/$REFERENCE_EXIT" in van-cleef-arpels/kr/2|rolex/kr/2) ;; *) exit "$REFERENCE_EXIT";; esac
+ fi
+ RUN_DIR=$(find "$PROJECT_DIR/crawler/runs/$BRAND/$COUNTRY" -mindepth 1 -maxdepth 1 -type d -print | sort | tail -n 1)
+fi
 RECORD_FILE="$RUN_DIR/artifacts/records.json"
 [ -f "$RECORD_FILE" ] || { echo "BLOCKED: validated records missing." >&2; exit 1; }
+if [ "$REFERENCE_EXIT" -eq 2 ]; then
+ "$PROJECT_DIR/scripts/crawl-output-guard.sh" "$RUN_DIR/summary.json" >/dev/null
+ jq -e 'any(.[];.status|startswith("BATCH_FAILED_")) and any(.[];.status|startswith("NEXT_OFFSET_"))' "$RUN_DIR/summary.json" >/dev/null || exit 78
+fi
 
 if [ "$BRAND" = bottega-veneta ] && [ "$COUNTRY" != kr ] && jq -e 'type == "array" and length == 0' "$RECORD_FILE" >/dev/null; then
   node --input-type=module -e '
@@ -95,8 +122,16 @@ if [ "$BRAND" = bottega-veneta ] && [ "$COUNTRY" != kr ] && jq -e 'type == "arra
 fi
 
 storage_stage() {
- [ "$BRAND" = bottega-veneta ] || return 0
+ [ "$BRAND" = bottega-veneta ] || [ "$BRAND" = celine ] || return 0
  mkdir -p "$RUN_DIR/storage-report"
+ if [ "$BRAND" = celine ]; then
+  stage_temp=$(mktemp "$RUN_DIR/storage-report/.stage-XXXXXX")
+  if [ ! -f "$RUN_DIR/storage-report/summary.json" ]; then printf '[]' >"$RUN_DIR/storage-report/summary.json"; fi
+  jq --arg status "PARTIAL_$1" '. + [{brand:"celine",country:"KR",parentModel:"중앙 부분 적재 단계",variantCode:"RUN",price:null,currency:"KRW",status:$status,officialUrl:"https://www.celine.com/ko-kr/여성/핸드백/"}]' "$RUN_DIR/storage-report/summary.json" >"$stage_temp"
+  "$PROJECT_DIR/scripts/crawl-output-guard.sh" "$stage_temp" >/dev/null
+  mv "$stage_temp" "$RUN_DIR/storage-report/summary.json"
+  return 0
+ fi
  jq -nc --arg brand "$BRAND" --arg country "$(printf '%s' "$COUNTRY" | tr '[:lower:]' '[:upper:]')" --arg status "$1" \
   --slurpfile config "$PROJECT_DIR/crawler/brands/$BRAND/countries/$COUNTRY" \
   '[{brand:$brand,country:$country,parentModel:"중앙 적재 단계",variantCode:"RUN",price:null,currency:$config[0].currency,status:$status,officialUrl:$config[0].entryUrl}]' \
@@ -109,17 +144,19 @@ storage_stage INGEST_STARTING
 env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   LUXURY_PIPELINE_GUARD=enabled \
   SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" \
+  SUPABASE_ANON_KEY="$PUBLIC_KEY" \
   CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:?missing Cloudflare token}" \
   CLOUDFLARE_ACCOUNT_ID='4c0f5d706177b84ade4d424a08ec46e8' \
   LUXURY_SERVICE_STATE_DIR="${LUXURY_SERVICE_STATE_DIR:-}" \
   LUXURY_MARKET_COUNTRY="$COUNTRY" \
   LUXURY_INGEST_BRAND="$BRAND" \
+  LUXURY_PARTIAL_REFERENCE_MODE="$(if [ -n "$CELINE_PARTIAL_RUN" ]; then printf 'celine-four-v1'; fi)" \
   WRANGLER_SEND_METRICS=false \
   node "$PROJECT_DIR/scripts/network-isolate.mjs" \
   '["nxgnbrdxxmlhtcnymqsl.supabase.co","api.cloudflare.com","4c0f5d706177b84ade4d424a08ec46e8.r2.cloudflarestorage.com","luxury-assets.dailyhotcoolmeme.workers.dev"]' 0 \
   "$INGEST_SCRIPT" "$RECORD_FILE"
 storage_stage INGEST_VERIFIED
-unset ACCESS_TOKEN KEYS_JSON SERVICE_KEY
+unset ACCESS_TOKEN KEYS_JSON SERVICE_KEY PUBLIC_KEY
 storage_stage CREDENTIALS_CLEARED
 
 find "$RUN_DIR/raw" "$RUN_DIR/browser-profile" -type f -exec chmod 000 {} + 2>/dev/null || true
@@ -127,4 +164,11 @@ find "$RUN_DIR" -maxdepth 1 -type f -name '*.log' -exec chmod 000 {} + 2>/dev/nu
 node "$PROJECT_DIR/scripts/cleanup-image-originals.mjs" "$RECORD_FILE"
 storage_stage ORIGINALS_CLEANED
 chmod 000 "$RECORD_FILE" 2>/dev/null || true
-echo "PASS: $BRAND/$COUNTRY crawl and storage completed through guarded pipeline."
+if [ -n "$CELINE_PARTIAL_RUN" ]; then
+ echo 'PASS: Celine KR partial storage verified for 4 records; 420 candidates remain unresolved.'
+elif [ "$REFERENCE_EXIT" -eq 2 ]; then
+ echo "PARTIAL: $BRAND/$COUNTRY validated records stored; unresolved references remain."
+ exit 2
+else
+ echo "PASS: $BRAND/$COUNTRY crawl and storage completed through guarded pipeline."
+fi

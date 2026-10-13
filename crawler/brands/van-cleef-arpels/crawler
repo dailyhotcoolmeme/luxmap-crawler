@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+import {probeOfficialSite} from '../../common/official-site-probe.js';
+import {collectReference} from '../../common/jewelry-watch-collection.js';
+if(process.argv.some(v=>v.startsWith('--probe-')))await probeOfficialSite();else await collectReference();

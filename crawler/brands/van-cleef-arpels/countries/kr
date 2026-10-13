@@ -1,0 +1,8 @@
+{
+  "brand":"van-cleef-arpels","country":"KR","currency":"KRW",
+  "category":"jewelry","entryUrl":"https://www.vancleefarpels.com/kr/ko/",
+  "localePrefix":"/kr/ko/","allowedHosts":["www.vancleefarpels.com"],
+  "browserMode":"http","productPathPattern":"/collections/jewelry/[^/]+/vc[a-z0-9]{8}-[^/]+\\.html$",
+  "maxProductsPerRun":25,"maxRequestsPerRun":80,"maxDiscoveryPages":20,
+  "maxResponseBytes":8388608,"maxCandidates":10000,"maxImagesPerProduct":1
+}

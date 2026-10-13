@@ -8,11 +8,13 @@
   "referenceCountry": "KR",
   "discoverReferenceProducts": true,
   "referenceAudits": {
+    "van-cleef-arpels": "scripts/audit-van-cleef-catalog.mjs",
     "chanel": "scripts/audit-chanel-catalog.mjs",
     "prada": "scripts/audit-prada-catalog.mjs",
     "bottega-veneta": "scripts/audit-bottega-catalog.mjs"
   },
   "jobs": [
+    {"brand":"van-cleef-arpels","country":"kr","adapter":"scripts/van-cleef-market.mjs"},
     {"brand":"chanel","country":"kr","adapter":"scripts/chanel-jp-remaining.mjs"},
     {"brand":"chanel","country":"jp","adapter":"scripts/chanel-jp-remaining.mjs"},
     {"brand":"chanel","country":"fr","adapter":"scripts/chanel-jp-remaining.mjs"},

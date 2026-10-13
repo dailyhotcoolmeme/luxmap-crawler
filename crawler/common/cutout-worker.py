@@ -38,6 +38,21 @@ def verify_runtime(model):
 
 
 def make_cutout(original, session, np, Image):
+    # Official PNG alpha is source evidence, not a generated mask. Preserve it
+    # rather than discarding transparency and segmenting hidden RGB pixels.
+    if original.mode == "RGBA" and original.getchannel("A").getextrema()[0] < 255:
+        mask = original.getchannel("A")
+        if mask.getextrema()[1] == 0:
+            raise RuntimeError("EMPTY_MASK")
+        bounds = mask.point(lambda value: 255 if value > 16 else 0).getbbox()
+        if bounds is None:
+            raise RuntimeError("EMPTY_BOUNDS")
+        cutout = original.crop(bounds)
+        cutout.thumbnail((820, 820), Image.Resampling.LANCZOS)
+        centered = Image.new("RGBA", (960, 960), (0, 0, 0, 0))
+        centered.alpha_composite(cutout, ((960-cutout.width)//2, (960-cutout.height)//2))
+        return centered
+    original = original.convert("RGB")
     pixels = np.asarray(original.resize((320, 320), Image.Resampling.LANCZOS), dtype=np.float32)
     pixels /= max(float(pixels.max()), 1e-6)
     pixels = (pixels - np.array([.485, .456, .406], dtype=np.float32)) / np.array([.229, .224, .225], dtype=np.float32)
@@ -88,7 +103,7 @@ def main():
             with Image.open(source) as image:
                 if image.width*image.height > 24000000 or min(image.size) < 200:
                     raise RuntimeError("PIXEL_LIMIT")
-                original = ImageOps.exif_transpose(image).convert("RGB")
+                original = ImageOps.exif_transpose(image).convert("RGBA")
             result = make_cutout(original, session, np, Image)
             result.save(destination, "WEBP", quality=86, method=4)
             with Image.open(destination) as stored:
@@ -98,6 +113,8 @@ def main():
         except Exception as error:
             code = str(error) if isinstance(error, RuntimeError) else "CUTOUT_FAILED"
             print(json.dumps({"ok": False, "code": code[:40]}), flush=True)
+            if code in ("MASK_RANGE", "EMPTY_MASK", "EMPTY_BOUNDS"):
+                continue
             return 1
     return 0
 
