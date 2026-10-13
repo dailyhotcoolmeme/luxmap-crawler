@@ -19,7 +19,7 @@ export async function collectVanCleefPrices(cfg){
  if(process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled')throw Error('GUARDED_RUN_REQUIRED');
  const args=process.argv.slice(2),sample=args.length===6&&args[4]==='--limit'&&args[5]==='1',repair=args[2]==='--reference-codes-file'&&args.length===4;if((args.length!==4&&!sample)||(!repair&&(args[2]!=='--prices-offset'||!/^\d+$/.test(args[3]))))throw Error('BATCH_REQUIRED');
  const offset=repair?0:Number(args[3]),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..');
- const index=JSON.parse(await fs.readFile(path.join(root,'crawler/brands/van-cleef-arpels/.reference-index.json')));
+ let index;try{index=JSON.parse(await fs.readFile(path.join(root,'crawler/brands/van-cleef-arpels/.reference-index.json')));}catch(e){if(!sample||e.code!=='ENOENT')throw e;index=JSON.parse(await fs.readFile(path.join(root,'crawler/brands/van-cleef-arpels/.reference-sample-index.json')));}
  if(Date.now()-Date.parse(index.checkedAt)>86400000)throw Error('REFERENCE_INDEX_STALE');
  let targets=index.urls;
  if(repair){const file=await fs.realpath(args[3]),folder=await fs.realpath(path.join(root,'crawler/onboarding/van-cleef-arpels/foreign',cfg.country.toLowerCase()));if(!file.startsWith(folder+path.sep)||(await fs.stat(file)).size>4096)throw Error('REPAIR_SCOPE_INVALID');const korean=JSON.parse(await fs.readFile(path.join(root,'crawler/brands/van-cleef-arpels/countries/kr')));targets=selectRepairUrls(index,JSON.parse(await fs.readFile(file)),korean);}

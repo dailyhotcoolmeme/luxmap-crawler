@@ -17,3 +17,4 @@ crawler/*-remaining/
 .ci-report/
 crawler/onboarding/
 crawler/brands/*/.reference-index.json
+crawler/brands/*/.reference-sample-index.json

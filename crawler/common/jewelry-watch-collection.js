@@ -53,7 +53,7 @@ export async function collectReference(){
     if(found.size>cfg.maxCandidates)throw Error('CANDIDATE_LIMIT');
    }
    urls=[...found].sort();if(!urls.length)throw Error('REFERENCE_EMPTY');
-   if(!sample)await fs.writeFile(indexFile,JSON.stringify({checkedAt:new Date().toISOString(),urls}),{mode:0o600});
+   await fs.writeFile(sample?path.join(root,'crawler/brands',cfg.brand,'.reference-sample-index.json'):indexFile,JSON.stringify({checkedAt:new Date().toISOString(),urls}),{mode:0o600});
   }else{const index=JSON.parse(await fs.readFile(indexFile));if(Date.now()-Date.parse(index.checkedAt)>86400000)throw Error('REFERENCE_INDEX_STALE');urls=index.urls;}
   if(offset>=urls.length)throw Error('OFFSET_OUT_OF_RANGE');
   rows.push(row(`DISCOVERED_${urls.length}`),row(`BATCH_OFFSET_${offset}`));await save();
