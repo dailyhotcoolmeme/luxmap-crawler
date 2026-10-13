@@ -7,8 +7,9 @@ import {listingTiles} from './official-listing-tiles.js';
 export async function probeOfficialSite({contextFactory=options=>request.newContext(options)}={}){
  if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled')throw Error('ISOLATED_PIPELINE_REQUIRED');
  const args=process.argv.slice(2);
- if(args.length!==3||args[0]!=='--country-config'||!['--probe-source','--probe-listing-source','--probe-browser-source'].includes(args[2]))throw Error('READ_ONLY_PROBE_REQUIRED');
- const listingOnly=args[2]==='--probe-listing-source';
+ if(args.length!==3||args[0]!=='--country-config'||!['--probe-source','--probe-listing-source','--probe-browser-source','--probe-direct-listing-source'].includes(args[2]))throw Error('READ_ONLY_PROBE_REQUIRED');
+ const directListing=args[2]==='--probe-direct-listing-source';
+ const listingOnly=args[2]==='--probe-listing-source'||directListing;
  const browserMode=args[2]==='--probe-browser-source';
  const cfg=JSON.parse(await fs.readFile(args[1])),run=process.env.CRAWL_RUN_DIR;
  let browser,browserPage,browserBlock=null,documentRequests=0;
@@ -47,6 +48,7 @@ export async function probeOfficialSite({contextFactory=options=>request.newCont
    const body=await r.body();if(body.length>8*1024*1024)throw Error('RESPONSE_LIMIT');
    await fs.writeFile(path.join(run,'raw',`${calls}.source`),body,{mode:0o600});
    const text=body.toString('utf8');
+   if(directListing&&/captcha|challenge|datadome|perimeterx|incapsula|access denied/i.test(text)&&!/["']@type["']\s*:\s*["']Product["']/.test(text))throw Error('ACCESS_BLOCKED');
    if(browserMode&&(/<title[^>]*>\s*(?:just a moment|access denied|attention required|security check)/i.test(text)||/cf-chl|challenge-platform|px-captcha/i.test(text)))throw Error('ACCESS_BLOCKED');
    return {url:browserMode?r.url():url,text};
   }throw Error('REDIRECT_LIMIT');
@@ -58,7 +60,7 @@ export async function probeOfficialSite({contextFactory=options=>request.newCont
   const localSitemaps=sitemaps.filter(url=>new URL(url).pathname.startsWith(cfg.localePrefix.replace(/\/$/,'')));
   if(localSitemaps.length)sitemaps=localSitemaps;
   records.push(summary(`DECLARED_SITEMAPS_${sitemaps.length}`));
-  const home=await get(cfg.entryUrl);
+  const home=directListing?{url:cfg.entryUrl,text:''}:await get(cfg.entryUrl);
   for(const match of home.text.matchAll(/href\s*=\s*["']([^"']+)["']/gi))try{
    const u=new URL(match[1].replace(/&amp;/g,'&'),home.url);
    if(u.protocol==='https:'&&cfg.allowedHosts.includes(u.hostname)&&u.pathname.startsWith(cfg.localePrefix))links.add(u.href);
@@ -142,6 +144,7 @@ export async function probeOfficialSite({contextFactory=options=>request.newCont
   await fs.mkdir(path.join(run,'artifacts'),{recursive:true});
   await fs.writeFile(path.join(run,'artifacts','source-index.json'),JSON.stringify({sitemaps,links:[...links],entryUrl:home.url}),{mode:0o600});
   if(listingOnly)await fs.writeFile(path.join(run,'artifacts','listing-source-products.json'),JSON.stringify(listingProducts),{mode:0o600});
+  if(directListing&&!listingProducts.length){records.push(summary('DIRECT_LISTING_PRICE_MISSING'));process.exitCode=1;}
  }catch(error){
   const status=/^(ACCESS_BLOCKED|UNAUTHORIZED_URL|REQUEST_LIMIT|RESPONSE_LIMIT|REDIRECT_LIMIT|HTTP_\d{3})$/.test(error.message)?error.message:'SOURCE_REQUEST_FAILED';
   records.push(summary(status));
