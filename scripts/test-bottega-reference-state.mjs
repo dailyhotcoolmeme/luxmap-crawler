@@ -1,0 +1,7 @@
+import assert from 'node:assert/strict';
+import {referenceState,validateReferenceMarkets} from '../crawler/common/bottega-reference-state.js';
+const row={normalizedCode:'796569V5ZZ14300',sourceProductId:'814400222',country:'KR',currency:'KRW',priceStatus:'confirmed',price:123,checkedAt:'2026-10-13T00:00:00Z',officialUrl:'https://www.bottegaveneta.com/ko-kr/bag-796569V5ZZ14300.html',sourceImageUrl:'https://bottega-veneta.dam.kering.com/m/abcd/eCom-796569V5ZZ14300_A.jpg',officialCategories:['Bags'],modelKey:'parachute',parentModel:'파라슈트',productName:'파라슈트',colorDisplay:'블루',proofFile:'/private/raw/1.source',unexpected:'do not persist'};
+const state=referenceState([row]);assert.equal(state.records[0].proofFile,undefined);assert.equal(state.records[0].unexpected,undefined);
+const variants=[{normalized_code:row.normalizedCode,market_products:[{country_code:'KR',official_product_code:row.normalizedCode,currency_code:'KRW',current_price:123,official_url:row.officialUrl}]}];assert.equal(validateReferenceMarkets(state,variants).length,1);
+assert.throws(()=>referenceState([row,row]),/INVALID/);assert.throws(()=>referenceState([{...row,country:'JP'}]),/INVALID/);assert.throws(()=>validateReferenceMarkets(state,[]),/DB_MISMATCH/);assert.throws(()=>validateReferenceMarkets(state,[{...variants[0],market_products:[{...variants[0].market_products[0],current_price:124}]}]),/DB_MISMATCH/);
+console.log('PASS: portable KR state excludes raw/private fields and requires exact actual KR prices and links.');

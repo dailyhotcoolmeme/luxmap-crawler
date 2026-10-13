@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {storeBottegaMarkets} from '../crawler/common/bottega-market-store.js';
+const config={brand:'bottega-veneta',country:'JP',currency:'JPY',localePrefix:'/ja-jp/'},row={normalizedCode:'874957V5ZZ14303',country:'JP',currency:'JPY',price:649000,priceStatus:'confirmed',checkedAt:'2026-10-13T00:00:00Z',productName:'ミニ アンディアーモ',officialUrl:'https://www.bottegaveneta.com/ja-jp/mini-874957V5ZZ14303.html'};
+let writes=0;
+await assert.rejects(storeBottegaMarkets([{...row,currency:'USD'}],config,async()=>{writes++;}),/INVALID_COUNTRY_RECORD/);assert.equal(writes,0);
+await assert.rejects(storeBottegaMarkets([row],config,async()=>[]),/UNMATCHED_REFERENCE/);assert.equal(writes,0);
+const variant={id:'v',normalized_code:row.normalizedCode,brands:{slug:'bottega-veneta'}};
+await assert.rejects(storeBottegaMarkets([row],config,async(url,method)=>{if(method==='POST')writes++;return url.startsWith('product_variants?')?[variant]:[];}),/KR_REFERENCE_MISSING/);assert.equal(writes,0);
+let saved;
+const count=await storeBottegaMarkets([row],config,async(url,method,body)=>{if(url.startsWith('product_variants?'))return[variant];if(url.includes('country_code=eq.KR'))return[{variant_id:'v',official_product_code:row.normalizedCode}];if(method==='POST'&&url.startsWith('market_products?')){writes++;saved={...body[0],id:'m'};return[saved];}if(url.includes('price_history(amount)'))return[{id:'m',price_history:[{amount:649000}]}];if(url.includes('country_code=eq.JP'))return saved?[saved]:[];throw Error('unexpected query');});assert.equal(count,1);assert.equal(writes,1);
+console.log('PASS: exact foreign currency, reference and KR linkage are required before verified writes.');

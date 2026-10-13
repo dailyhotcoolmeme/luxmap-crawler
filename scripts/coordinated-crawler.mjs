@@ -9,7 +9,7 @@ if(!key)throw new Error('server credential required');
 const source=process.env.GITHUB_ACTIONS==='true'?'github':'local';
 const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const owner=`${source}:${randomUUID()}`;
-const partial=process.argv.includes('--smoke')||process.argv.includes('--countries');
+const partial=process.argv.includes('--smoke')||process.argv.includes('--countries')||process.argv.includes('--brands');
 const rpc=async(name,args)=>{
  const response=await fetch(`https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw new Error('coordination request failed');
@@ -23,7 +23,8 @@ if(!acquired){
   if(!response.ok)process.exit(3);
   const [state]=await response.json();
   if(state?.failed_day!==day||!state.failed_sources?.includes('github')||Date.parse(state.lease_until)>Date.now())process.exit(3);
-  const result=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),['chanel','kr','--crawl-only','--probe-listing','--max-products','1','--navigation-retries','0'],{cwd:root,env:process.env,stdio:'ignore',timeout:90000,killSignal:'SIGTERM'});
+  const brandIndex=process.argv.indexOf('--brands'),bottegaOnly=brandIndex>=0&&process.argv[brandIndex+1]==='bottega-veneta';
+  const result=bottegaOnly?spawnSync(process.execPath,[path.join(root,'scripts/bottega-market.mjs'),'kr','--readonly-smoke'],{cwd:root,env:process.env,stdio:'ignore',timeout:90000,killSignal:'SIGTERM'}):spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),['chanel','kr','--crawl-only','--probe-listing','--max-products','1','--navigation-retries','0'],{cwd:root,env:process.env,stdio:'ignore',timeout:90000,killSignal:'SIGTERM'});
   process.exit(result.status??1);
  }
  console.log('SKIPPED: active lease or completed daily run.');process.exit(3);

@@ -8,6 +8,8 @@ if(process.env.LUXURY_SERVICE_GUARD!=='enabled')throw new Error('scheduled servi
 if(spawnSync(process.execPath,[path.join(root,'scripts/crawler-schedule-check.mjs')],{stdio:'ignore'}).status!==0)throw new Error('invalid schedule');
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 let plan=schedulePlan(schedule,{smoke:process.argv.includes('--smoke')});
+const brandSelection=process.argv.indexOf('--brands');
+if(brandSelection>=0){const brands=String(process.argv[brandSelection+1]??'').split(',');if(!brands.length||brands.some(brand=>!schedule.jobs.some(job=>job.brand===brand)))throw Error('invalid targeted brands');plan=plan.filter(job=>brands.includes(job.brand));}
 const selection=process.argv.indexOf('--countries');
 if(selection>=0){
  const countries=String(process.argv[selection+1]??'').split(',');

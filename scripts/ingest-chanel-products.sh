@@ -12,6 +12,7 @@ INGEST_BRAND=${LUXURY_INGEST_BRAND:-chanel}
 case "$INGEST_BRAND" in
   chanel) BRAND_KO='샤넬'; BRAND_ORIGINAL='CHANEL' ;;
   prada) BRAND_KO='프라다'; BRAND_ORIGINAL='PRADA' ;;
+  bottega-veneta) BRAND_KO='보테가 베네타'; BRAND_ORIGINAL='BOTTEGA VENETA' ;;
   *) echo 'BLOCKED: unreviewed reference brand.' >&2; exit 2 ;;
 esac
 if ! jq -e 'length > 0 and all(.[]; .country == "KR" and .currency == "KRW" and (.normalizedCode | type == "string" and length > 0) and (.modelKey | type == "string" and length > 0))' "$RECORDS_FILE" >/dev/null; then
@@ -151,12 +152,21 @@ while [ "$index" -lt "$count" ]; do
   if jq -e '.[0].current_price != null' "$old_market" >/dev/null && jq -e '.price == null' "$record" >/dev/null; then
     payload=$(printf '%s' "$payload" | jq 'del(.current_price,.price_status)')
   fi
+  stale_price=false
+  if jq -e --arg checked "$checked" '.[0].price_checked_at != null and .[0].price_checked_at > $checked' "$old_market" >/dev/null; then
+    stale_price=true
+    payload=$(printf '%s' "$payload" | jq 'del(.current_price,.price_status,.price_checked_at)')
+  fi
+  if jq -e --arg checked "$checked" '.[0].page_checked_at != null and .[0].page_checked_at > $checked' "$old_market" >/dev/null; then
+    payload=$(printf '%s' "$payload" | jq 'del(.page_checked_at,.last_seen_at)')
+  fi
   market_changed=$(printf '%s' "$payload" | jq --slurpfile old "$old_market" '
     del(.first_seen_at,.last_seen_at,.page_checked_at,.price_checked_at) | to_entries | any(.[]; .value != $old[0][0][.key])')
   request POST 'market_products?on_conflict=variant_id,country_code' "$payload" "$response"
   market_id=$(jq -er '.[0].id' "$response")
 
   current_price=$(jq -r '.price // empty' "$record")
+  if [ "$stale_price" = true ]; then current_price=''; fi
   if [ -n "$current_price" ]; then
     latest=$(mktemp)
     request GET "price_history?market_product_id=eq.$market_id&select=amount&order=observed_at.desc&limit=1" '' "$latest"

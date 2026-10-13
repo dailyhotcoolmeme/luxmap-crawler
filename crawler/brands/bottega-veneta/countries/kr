@@ -1,0 +1,11 @@
+{
+ "brand":"bottega-veneta","country":"KR","currency":"KRW","locale":"ko-KR",
+ "entryUrl":"https://www.bottegaveneta.com/ko-kr","localePrefix":"/ko-kr/",
+ "productPathPattern":"[A-Z0-9]{15}(?:\\.html)?/?$",
+ "requireListingGrid":true,
+ "probeProductUrls":["https://www.bottegaveneta.com/ko-kr/미니-안디아모-블루-로열-874957V5ZZ14303.html"],
+ "probeListingUrls":["https://www.bottegaveneta.com/ko-kr/여성-컬렉션/핸드백-여성","https://www.bottegaveneta.com/ko-kr/여성-컬렉션/핸드백-여성/여성-안디아모-백","https://www.bottegaveneta.com/ko-kr/남성-컬렉션/백"],
+ "allowedHosts":["www.bottegaveneta.com","bottegaveneta.com","bottega-veneta.dam.kering.com"],"browserMode":"http",
+ "maxProductsPerRun":25,"maxImagesPerProduct":1,"navigationTimeoutMs":30000,
+ "maxDiscoveryPages":40,"maxRequestsPerRun":100
+}

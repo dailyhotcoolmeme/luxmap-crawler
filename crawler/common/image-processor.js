@@ -18,6 +18,11 @@ export function originalImageUrl(imageUrl){
   if(url.hostname==='wsp-cdn.pradagroup.net'&&!/\.(jpg|jpeg|png|webp)$/i.test(url.pathname))throw Error('IMAGE_SOURCE_PATH');
   url.pathname=url.pathname.replace(/\/(?:_jcr_content|jcr:content)\/renditions\/.*$/,'');
   url.search='';
+ }else if(url.hostname==='bottega-veneta.dam.kering.com'){
+  if(!/^\/asset\/[a-f0-9-]{36}\/eCom\/[A-Z0-9]{15}_[A-Z0-9_]+\.(?:jpg|jpeg|png)$/i.test(url.pathname)&&!/^\/m\/[a-f0-9]{12,32}\/eCom-[A-Z0-9]{15}_[A-Z0-9_]+\.(?:jpg|jpeg|png)$/i.test(url.pathname))throw Error('IMAGE_SOURCE_PATH');
+  // Retain only the official asset revision; remove transformation parameters.
+  const revision=url.searchParams.get('v');url.search='';
+  if(revision&&/^\d{1,6}$/.test(revision))url.searchParams.set('v',revision);
  }else if(!['www.chanel.com','puls-img.chanel.com'].includes(url.hostname))throw Error('IMAGE_SOURCE_HOST');
  return url.href;
 }
@@ -61,11 +66,16 @@ export async function closeImageProcessor(){
 export async function downloadAndOptimizeImage(context,imageUrl,artifactDir){
  await startWorker();
  const sourceImageUrl=originalImageUrl(imageUrl);
- const response=await context.request.get(sourceImageUrl,{timeout:30000,maxRedirects:0});
+ let response;
+ for(let attempt=0;attempt<3;attempt++){
+  try{response=await context.request.get(sourceImageUrl,{timeout:30000,maxRedirects:0});break;}
+  catch(error){const timeout=/timeout/i.test(error.message??''),reset=/ECONNRESET|socket hang up|connection reset|socket disconnected/i.test(error.message??'');if((timeout||reset)&&attempt<2)continue;throw Error(timeout?'IMAGE_NETWORK_TIMEOUT':reset?'IMAGE_NETWORK_RESET':'IMAGE_REQUEST_FAILED');}
+ }
+ if([403,429].includes(response.status()))throw Error('IMAGE_ACCESS_BLOCKED');
  if(!response.ok()||!/^image\/(jpeg|png|webp)(?:;|$)/i.test(response.headers()['content-type']??''))throw Error('IMAGE_DOWNLOAD_FAILED');
  const source=await response.body();
  if(source.length>12*1024*1024)throw Error('IMAGE_BYTE_LIMIT');
- const metadata=await sharp(source,{limitInputPixels:24000000}).metadata();
+ let metadata;try{metadata=await sharp(source,{limitInputPixels:24000000}).metadata();}catch(error){throw Error(/pixel.*limit/i.test(error.message??'')?'IMAGE_PIXEL_LIMIT':'IMAGE_FORMAT_INVALID');}
  if(!metadata.width||!metadata.height||Math.min(metadata.width,metadata.height)<200)throw Error('IMAGE_PIXEL_LIMIT');
  const id=crypto.randomUUID(),input=path.join(artifactDir,`${id}-original.image`),temp=path.join(artifactDir,`${id}-cutout.webp`);
  await fs.writeFile(input,source,{mode:0o600});

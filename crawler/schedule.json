@@ -9,7 +9,8 @@
   "discoverReferenceProducts": true,
   "referenceAudits": {
     "chanel": "scripts/audit-chanel-catalog.mjs",
-    "prada": "scripts/audit-prada-catalog.mjs"
+    "prada": "scripts/audit-prada-catalog.mjs",
+    "bottega-veneta": "scripts/audit-bottega-catalog.mjs"
   },
   "jobs": [
     {"brand":"chanel","country":"kr","adapter":"scripts/chanel-jp-remaining.mjs"},
@@ -27,6 +28,14 @@
     {"brand":"prada","country":"es","adapter":"scripts/prada-market.mjs"},
     {"brand":"prada","country":"us","adapter":"scripts/prada-market.mjs"},
     {"brand":"prada","country":"sg","adapter":"scripts/prada-market.mjs"},
-    {"brand":"prada","country":"hk","adapter":"scripts/prada-market.mjs"}
+    {"brand":"prada","country":"hk","adapter":"scripts/prada-market.mjs"},
+    {"brand":"bottega-veneta","country":"kr","adapter":"scripts/bottega-market.mjs"},
+    {"brand":"bottega-veneta","country":"jp","adapter":"scripts/bottega-market.mjs"},
+    {"brand":"bottega-veneta","country":"fr","adapter":"scripts/bottega-market.mjs"},
+    {"brand":"bottega-veneta","country":"it","adapter":"scripts/bottega-market.mjs"},
+    {"brand":"bottega-veneta","country":"es","adapter":"scripts/bottega-market.mjs"},
+    {"brand":"bottega-veneta","country":"us","adapter":"scripts/bottega-market.mjs"},
+    {"brand":"bottega-veneta","country":"sg","adapter":"scripts/bottega-market.mjs"},
+    {"brand":"bottega-veneta","country":"hk","adapter":"scripts/bottega-market.mjs"}
   ]
 }

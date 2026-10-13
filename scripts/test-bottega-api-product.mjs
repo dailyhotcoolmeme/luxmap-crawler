@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {validatedBottegaApiProduct,publishedBottegaColorOption} from '../crawler/common/bottega-api-product.js';
+const r={normalizedCode:'874957V5ZZ14303',sourceProductId:'814406067'},cfg={country:'FR',currency:'EUR',localePrefix:'/fr-fr/'},api={product:{id:r.sourceProductId,images:{large:[{url:`https://bottega-veneta.dam.kering.com/m/abcd1234abcd1234/eCom-${r.normalizedCode}_A.jpg`}]},price:{sales:{currency:'EUR',value:3800}},url:`https://www.bottegaveneta.com/fr-fr/mini-${r.normalizedCode}.html`}};
+assert.equal(validatedBottegaApiProduct(api,r,cfg,[r]).price,3800);
+const copy=()=>structuredClone(api);
+let bad=copy();bad.product.images.large[0].url=bad.product.images.large[0].url.replace('4303','4300');assert.equal(validatedBottegaApiProduct(bad,r,cfg,[r]).normalizedCode,r.normalizedCode);
+bad=copy();bad.product.id='814406068';assert.throws(()=>validatedBottegaApiProduct(bad,r,cfg,[r]),/REFERENCE_UNPROVEN/);
+bad=copy();bad.product.url='https://www.bottegaveneta.com/fr-fr/mini-814406067.html';bad.product.images.large[0].url=bad.product.images.large[0].url.replace('4303','4300');assert.throws(()=>validatedBottegaApiProduct(bad,r,cfg,[r]),/REFERENCE_UNPROVEN/);
+assert.throws(()=>validatedBottegaApiProduct(api,r,cfg,[r,{...r,normalizedCode:'874957V5ZZ14300'}]),/REFERENCE_UNPROVEN/);
+bad=copy();bad.product.manufacturerCode='874957V5ZZ14300';assert.throws(()=>validatedBottegaApiProduct(bad,r,cfg,[r]),/REFERENCE_MISMATCH/);
+bad=copy();bad.product.price.sales.currency='USD';assert.throws(()=>validatedBottegaApiProduct(bad,r,cfg,[r]),/INVALID_PRICE/);
+bad=copy();bad.product.url=bad.product.url.replace('/fr-fr/','/en-us/');assert.throws(()=>validatedBottegaApiProduct(bad,r,cfg,[r]),/COUNTRY_URL_MISSING/);
+bad=copy();bad.product.price.sales=null;assert.throws(()=>validatedBottegaApiProduct(bad,r,cfg,[r]),/INVALID_PRICE/);assert.equal(validatedBottegaApiProduct(bad,r,cfg,[r],{allowMissingPrice:true}).price,null);
+const options={product:{variationAttributes:[{id:'color',values:[{id:'4303',url:'/fr-fr/Product-Variation?pid=base&amp;color=4303'},{id:'4300',url:'/fr-fr/Product-Variation?pid=other'}]}]}};assert.equal(publishedBottegaColorOption(options,r,'https://www.bottegaveneta.com/fr-fr/'),'https://www.bottegaveneta.com/fr-fr/Product-Variation?pid=base&color=4303');
+console.log('PASS: API inventory ID needs independent exact manufacturer proof and a real country product URL.');

@@ -11,6 +11,12 @@ on:
         default: smoke
         type: choice
         options: [smoke, full, image-check]
+      brand:
+        description: Optional diagnostic scope (daily schedule always includes all brands)
+        required: true
+        default: all
+        type: choice
+        options: [all, bottega-veneta]
 permissions:
   contents: read
 concurrency:
@@ -55,11 +61,14 @@ jobs:
           LUXURY_SERVICE_GUARD: enabled
           LUXURY_SERVICE_STATE_DIR: ${{ github.workspace }}/crawler/service
           RUN_MODE: ${{ inputs.mode || 'full' }}
+          RUN_BRAND: ${{ inputs.brand || 'all' }}
         run: |
+          set --
+          if [ "$RUN_BRAND" != all ]; then set -- --brands "$RUN_BRAND"; fi
           if [ "$RUN_MODE" = smoke ]; then
-            node scripts/coordinated-crawler.mjs --smoke > /dev/null 2>&1
+            node scripts/coordinated-crawler.mjs --smoke "$@" > /dev/null 2>&1
           else
-            node scripts/coordinated-crawler.mjs > /dev/null 2>&1
+            node scripts/coordinated-crawler.mjs "$@" > /dev/null 2>&1
           fi
       - name: Close owned browser processes
         if: always()

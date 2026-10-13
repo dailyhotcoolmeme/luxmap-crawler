@@ -1,0 +1,15 @@
+#!/usr/bin/env node
+import {probeOfficialSite} from '../../common/official-site-probe.js';
+import {collectBottega} from '../../common/bottega-catalog.js';
+import {collectBottegaMarkets} from '../../common/bottega-market.js';
+import {discoverBottegaCountry} from '../../common/bottega-country-discovery.js';
+import {discoverBottegaCountryListings} from '../../common/bottega-country-listings.js';
+import {probeBottegaReferenceRoute} from '../../common/bottega-reference-route.js';
+import {collectBottegaApiMarkets} from '../../common/bottega-api-market.js';
+if(process.argv.includes('--probe-reference-route'))await probeBottegaReferenceRoute();
+else if(process.argv.includes('--prices-from-published-route'))await collectBottegaApiMarkets();
+else if(process.argv.some(v=>v.startsWith('--probe-')))await probeOfficialSite();
+else if(process.argv.includes('--prices-only'))await collectBottegaMarkets();
+else if(process.argv.includes('--discover-native'))await discoverBottegaCountry();
+else if(process.argv.includes('--discover-country-listings'))await discoverBottegaCountryListings();
+else await collectBottega();

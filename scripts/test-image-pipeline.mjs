@@ -11,6 +11,9 @@ assert.equal(originalImageUrl('https://www.prada.com/content/dam/a.jpg/_jcr_cont
 assert.equal(originalImageUrl('https://wsp-cdn.pradagroup.net/assets/a.jpg?width=200&crop=1'),'https://wsp-cdn.pradagroup.net/assets/a.jpg');
 assert.throws(()=>originalImageUrl('https://wsp-cdn.pradagroup.net/service'));
 assert.throws(()=>originalImageUrl('https://example.com/a.jpg'));
+assert.equal(originalImageUrl('https://bottega-veneta.dam.kering.com/asset/1cd1a53e-9ea7-421d-87e2-749a14cbdc04/eCom/874957V5ZZ14303_A.jpg?v=2&width=200'),'https://bottega-veneta.dam.kering.com/asset/1cd1a53e-9ea7-421d-87e2-749a14cbdc04/eCom/874957V5ZZ14303_A.jpg?v=2');
+assert.throws(()=>originalImageUrl('https://bottega-veneta.dam.kering.com/api/image'));
+assert.equal(originalImageUrl('https://bottega-veneta.dam.kering.com/m/b83c6b1f41bacc0/eCom-766016VCPP19211_A.jpg?v=2&crop=1'),'https://bottega-veneta.dam.kering.com/m/b83c6b1f41bacc0/eCom-766016VCPP19211_A.jpg?v=2');
 assert.throws(()=>originalImageUrl('http://www.chanel.com/a.jpg'));
 assert.throws(()=>originalImageUrl('https://www.prada.com/not-an-asset.jpg'));
 const python=path.join(root,'.image-runtime/venv/bin/python'),worker=path.join(root,'crawler/common/cutout-worker.py'),model=path.join(root,'.image-runtime/u2net.onnx');
@@ -28,7 +31,7 @@ const child=spawn('/bin/sh',['-c','exec /usr/bin/sandbox-exec -p "$1" "$2" -I "$
 try{
  process.env.CRAWL_RUN_DIR=temp;process.env.LUXURY_NETWORK_ISOLATED='enabled';
  const source=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500"><rect width="1200" height="1500" fill="white"/><path d="M450 550 V420 Q600 260 750 420 V550" fill="none" stroke="#111" stroke-width="42"/><rect x="260" y="520" width="680" height="620" rx="60" fill="#171717"/><rect x="280" y="650" width="640" height="12" fill="#555"/></svg>')).png().toBuffer();
- const context={request:{get:async()=>({ok:()=>true,headers:()=>({'content-type':'image/png'}),body:async()=>source})}};
+ const context={request:{get:async()=>({status:()=>200,ok:()=>true,headers:()=>({'content-type':'image/png'}),body:async()=>source})}};
  const [image,second]=await Promise.all([downloadAndOptimizeImage(context,'https://www.prada.com/content/dam/test.png',temp),downloadAndOptimizeImage(context,'https://www.prada.com/content/dam/test2.png',temp)]);
  assert.equal(second.imageProcessingVersion,'original-cutout-v1');assert.notEqual(second.originalImagePath,image.originalImagePath);
  assert.equal(image.imageProcessingVersion,'original-cutout-v1');

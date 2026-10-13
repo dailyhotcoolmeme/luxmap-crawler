@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {validBottegaMarket,recordBottegaFailures,missingBottegaMarkets,recordedEmptyBottegaPriceBatch} from '../crawler/common/bottega-progress.js';
+const code='874957V5ZZ14303',cfg={country:'JP',currency:'JPY',localePrefix:'/ja-jp/'},market={country_code:'JP',official_product_code:code,currency_code:'JPY',current_price:649000,official_url:`https://www.bottegaveneta.com/ja-jp/mini-${code}.html`};
+assert.equal(validBottegaMarket(market,code,cfg),true);
+for(const patch of [{currency_code:'USD'},{country_code:'KR'},{current_price:0},{official_product_code:'874957V5ZZ14300'},{official_url:`https://www.bottegaveneta.com/en-us/mini-${code}.html`},{official_url:`https://other.example/ja-jp/mini-${code}.html`},{official_url:`https://user@www.bottegaveneta.com/ja-jp/mini-${code}.html`}])assert.equal(validBottegaMarket({...market,...patch},code,cfg),false);
+const alias={...market,official_url:'https://www.bottegaveneta.com/ja-jp/mini-123456789.html'};
+assert.equal(validBottegaMarket(alias,code,cfg),false);assert.equal(validBottegaMarket(alias,code,cfg,{sourceProductId:'123456789'}),true);
+const failures=new Map();recordBottegaFailures(failures,[{variantCode:'A',status:'MANUFACTURER_REFERENCE_MISMATCH'}]);recordBottegaFailures(failures,[{variantCode:'B',status:'confirmed'}]);assert.equal(failures.has('A'),true);recordBottegaFailures(failures,[{variantCode:'A',status:'confirmed'}]);assert.equal(failures.size,0);
+const refs=new Set([code,'796569V5ZZ19874']),targets=new Map();assert.equal(missingBottegaMarkets(refs,[{normalized_code:code,market_products:[market]}],cfg,targets).length,1);assert.equal(missingBottegaMarkets(refs,[{normalized_code:code,market_products:[market,market]}],cfg,targets).length,2);
+const failedRow={brand:'bottega-veneta',country:'JP',variantCode:code,price:null,status:'EXACT_REFERENCE_UNPROVEN'};
+assert.equal(recordedEmptyBottegaPriceBatch([],[failedRow],'JP'),true);for(const status of['confirmed','ACCESS_BLOCKED','REQUEST_LIMIT','BROWSER_UNAUTHORIZED_NETWORK','MODEL_API_BLOCKED'])assert.equal(recordedEmptyBottegaPriceBatch([],[{...failedRow,status}],'JP'),false);
+assert.equal(recordedEmptyBottegaPriceBatch([],[{...failedRow,variantCode:'RUN'}],'JP'),false);assert.equal(recordedEmptyBottegaPriceBatch([],[],'JP'),false);
+console.log('PASS: wrong country/code/currency and duplicate links cannot count as complete; failures persist across batches.');

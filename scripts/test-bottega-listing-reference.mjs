@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {resolveBottegaListingReference as resolve} from '../crawler/common/bottega-listing-reference.js';
+const ref={normalizedCode:'796569V5ZZ14300',sourceProductId:'814400222'},url=`https://www.bottegaveneta.com/ko-kr/bag-${ref.normalizedCode}.html`;
+assert.equal(resolve({sku:ref.normalizedCode,url},[]),ref.normalizedCode);
+assert.equal(resolve({sku:ref.sourceProductId,url},[ref]),ref.normalizedCode);
+assert.equal(resolve({sku:ref.sourceProductId,url:'https://www.bottegaveneta.com/ko-kr/bag-814400222.html'},[ref]),ref.normalizedCode);
+assert.equal(resolve({sku:ref.sourceProductId,url},[ref,{...ref,normalizedCode:'796569V5ZZ19874'}]),null);
+assert.equal(resolve({sku:'814400223',url},[ref]),null);
+assert.equal(resolve({sku:ref.normalizedCode,url:url.replace('4300','9874')},[ref]),null);
+console.log('PASS: listing inventory IDs require unique KR mapping and exact official product URL.');
