@@ -9,7 +9,7 @@ for(const job of schedule.jobs){
  if(job.brand==='bottega-veneta'){
   const jobFile=path.join(root,'crawler/bottega-progress',job.country,'summary.json');if(fs.existsSync(jobFile)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[jobFile],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(jobFile)));
   const sampleBase=path.join(root,'crawler/runs/bottega-veneta',job.country),last=fs.existsSync(sampleBase)?fs.readdirSync(sampleBase).sort().at(-1):null;
-  if(last){const file=path.join(sampleBase,last,'summary.json');if(fs.existsSync(file)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(file)).slice(0,25));}
+  if(last){const file=path.join(sampleBase,last,'summary.json');if(fs.existsSync(file)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(file)).slice(0,1));}
   const file=job.country==='kr'?path.join(root,'crawler/completeness/bottega-veneta/summary.json'):path.join(root,'crawler/completeness/bottega-veneta/country-targets',job.country,'progress/summary.json');
   if(fs.existsSync(file)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(file)));
   continue;
