@@ -4,12 +4,17 @@ export function coverageFailure(rows,discoveryMissing=0){
  return null;
 }
 export async function storePradaMarkets(rows,config,query){
+ const vanCleef=config.brand==='van-cleef-arpels';
+ const brandName=vanCleef?'VAN CLEEF & ARPELS':'PRADA';
+ const prefix=vanCleef?config.localePrefix:config.referenceDetailPrefix;
+ const pattern=vanCleef?config.productPathPattern:config.detailPathPattern;
+ const origin=vanCleef?'https://www.vancleefarpels.com':'https://www.prada.com';
  if(!Array.isArray(rows)||!rows.length||rows.length>100)throw new Error('invalid batch');
  const codes=new Set();
- for(const row of rows){const url=new URL(row.officialUrl);if(row.country!==config.country||row.currency!==config.currency||url.origin!=='https://www.prada.com'||!url.pathname.startsWith(config.referenceDetailPrefix)||!new RegExp(config.detailPathPattern).test(url.pathname)||decodeURIComponent(url.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()!==row.normalizedCode||!/^[A-Z0-9]+$/.test(row.normalizedCode)||codes.has(row.normalizedCode)||!['confirmed','price_unavailable','page_not_found'].includes(row.priceStatus)||!Number.isFinite(Date.parse(row.checkedAt))||!(row.price===null||(Number.isFinite(row.price)&&row.price>0))||(row.price!==null&&row.priceStatus!=='confirmed'))throw new Error('invalid country record');codes.add(row.normalizedCode);}
- const variants=await query(`product_variants?normalized_code=in.(${[...codes].join(',')})&brands.name_original=eq.PRADA&select=id,normalized_code,name_original,brands!inner(name_original)&limit=100`);
+ for(const row of rows){const url=new URL(row.officialUrl);const code=vanCleef?url.pathname.match(/\/(VC[A-Z0-9]{8})-[^/]+\.html$/i)?.[1].toUpperCase():decodeURIComponent(url.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase();if(row.country!==config.country||row.currency!==config.currency||url.origin!==origin||!url.pathname.startsWith(prefix)||!new RegExp(pattern).test(url.pathname)||code!==row.normalizedCode||!/^[A-Z0-9]+$/.test(row.normalizedCode)||codes.has(row.normalizedCode)||!['confirmed','price_unavailable','page_not_found'].includes(row.priceStatus)||!Number.isFinite(Date.parse(row.checkedAt))||!(row.price===null||(Number.isFinite(row.price)&&row.price>0))||(row.price!==null&&row.priceStatus!=='confirmed'))throw new Error('invalid country record');codes.add(row.normalizedCode);}
+ const variants=await query(`product_variants?normalized_code=in.(${[...codes].join(',')})&brands.name_original=eq.${encodeURIComponent(brandName)}&select=id,normalized_code,name_original,brands!inner(name_original)&limit=100`);
  const byCode=new Map(variants.map(row=>[row.normalized_code,row]));
- if(variants.length!==rows.length||byCode.size!==rows.length||variants.some(row=>row.brands?.name_original!=='PRADA'))throw new Error('unmatched product code');
+ if(variants.length!==rows.length||byCode.size!==rows.length||variants.some(row=>row.brands?.name_original!==brandName))throw new Error('unmatched product code');
  const ids=variants.map(row=>row.id).join(',');
  const korean=await query(`market_products?variant_id=in.(${ids})&country_code=eq.KR&select=variant_id,official_product_code&limit=100`);
  if(korean.length!==rows.length||new Set(korean.map(row=>row.variant_id)).size!==rows.length||korean.some(row=>!variants.some(v=>v.id===row.variant_id&&v.normalized_code===row.official_product_code)))throw new Error('Korean reference missing');

@@ -1,4 +1,9 @@
 #!/usr/bin/env node
 import {probeOfficialSite} from '../../common/official-site-probe.js';
 import {collectReference} from '../../common/jewelry-watch-collection.js';
-if(process.argv.some(v=>v.startsWith('--probe-')))await probeOfficialSite();else await collectReference();
+import {discoverVanCleefLocales} from '../../common/van-cleef-locales.js';
+import fs from 'node:fs/promises';
+import {collectVanCleefPrices} from '../../common/van-cleef-foreign.js';
+if(process.argv.includes('--discover-locales'))await discoverVanCleefLocales(JSON.parse(await fs.readFile(process.argv[3])));
+else if(process.argv.includes('--prices-offset'))await collectVanCleefPrices(JSON.parse(await fs.readFile(process.argv[3])));
+else if(process.argv.some(v=>v.startsWith('--probe-')))await probeOfficialSite();else await collectReference();

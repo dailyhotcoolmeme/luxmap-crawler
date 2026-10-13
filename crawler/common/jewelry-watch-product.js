@@ -19,8 +19,8 @@ export function parseReferenceProduct(html,url,cfg){
  const p=products[0],offers=products.flatMap(p=>[p.offers].flat()).filter(o=>o?.priceCurrency===cfg.currency),prices=[...new Set(offers.map(o=>Number(String(o.price).replaceAll(',',''))).filter(n=>Number.isFinite(n)&&n>0))];
  if(prices.length>1)throw Error('PRICE_CONFLICT');
  const image=[p.image].flat().map(v=>typeof v==='string'?v:v?.url??v?.contentUrl).find(u=>{try{return cfg.allowedHosts.includes(new URL(u).hostname);}catch{return false;}});
- if(!image)throw Error('OFFICIAL_IMAGE_MISSING');
+ if(!image&&cfg.country==='KR')throw Error('OFFICIAL_IMAGE_MISSING');
  if(typeof p.name!=='string'||!p.name.trim())throw Error('NAME_MISSING');
  const text=v=>typeof v==='string'?v.trim()||null:null;
- return {brand:cfg.brand,category:cfg.category,country:'KR',currency:'KRW',originalCode:String(p.sku),normalizedCode:expected,styleCode:expected,modelKey:`sku-${expected.toLowerCase()}`,parentModel:p.name,productName:p.name,materialDisplay:text(p.material),materialOriginal:text(p.material),colorDisplay:text(p.color),colorOriginal:text(p.color),widthMm:null,heightMm:null,depthMm:null,price:prices[0]??null,priceStatus:prices.length?'confirmed':'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString(),image};
+ return {brand:cfg.brand,category:cfg.category,country:cfg.country??'KR',currency:cfg.currency,originalCode:String(p.sku),normalizedCode:expected,styleCode:expected,modelKey:`sku-${expected.toLowerCase()}`,parentModel:p.name,productName:p.name,materialDisplay:text(p.material),materialOriginal:text(p.material),colorDisplay:text(p.color),colorOriginal:text(p.color),widthMm:null,heightMm:null,depthMm:null,price:prices[0]??null,priceStatus:prices.length?'confirmed':'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString(),image};
 }

@@ -1,0 +1,17 @@
+{
+  "brand": "van-cleef-arpels",
+  "country": "IT",
+  "currency": "EUR",
+  "category": "jewelry",
+  "entryUrl": "https://www.vancleefarpels.com/it/en/",
+  "localePrefix": "/it/en/",
+  "allowedHosts": [
+    "www.vancleefarpels.com"
+  ],
+  "browserMode": "http",
+  "productPathPattern": "/collections/jewelry/[^/]+/vc[a-z0-9]{8}-[^/]+\\.html$",
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxImagesPerProduct": 0
+}
