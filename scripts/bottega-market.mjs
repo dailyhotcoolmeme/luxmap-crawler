@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {guardedRest} from '../crawler/common/guarded-rest.js';
+import {reportAuditFailure} from '../crawler/common/catalog-audit-alert.js';
 const root=path.resolve(import.meta.dirname,'..'),country=process.argv[2],args=process.argv.slice(3);
 if(!['kr','jp','fr','it','es','us','sg','hk'].includes(country)||args.some(a=>!['--discover-reference','--refresh','--limit','1','--readonly-smoke'].includes(a)))throw Error('INVALID_MODE');
 const smoke=args.includes('--limit')||args.includes('--readonly-smoke');
@@ -41,4 +42,4 @@ try{
   else execute('scripts/collect-bottega-country-prices.mjs',[country,'--published-route',...(args.includes('--refresh')?[]:['--remaining'])]);
  }
  report(smoke?'SAMPLE_VERIFIED_NOT_FULL_CATALOG':'DAILY_PHASE_VERIFIED');
-}catch(error){try{report(error.exitCode===78?'SAFETY_POLICY_BLOCKED':/^[A-Z0-9_]{1,40}$/.test(error.message)?error.message:'DAILY_ADAPTER_FAILED');}catch{}process.exitCode=error.exitCode??1;}
+}catch(error){try{report(error.exitCode===78?'SAFETY_POLICY_BLOCKED':/^[A-Z0-9_]{1,40}$/.test(error.message)?error.message:'DAILY_ADAPTER_FAILED');const file=path.join(jobFolder,'summary.json');await reportAuditFailure(JSON.parse(fs.readFileSync(file))[0],{queuePath:path.join(jobFolder,'alert-queue.json'),safetyBlocked:error.exitCode===78});}catch{}process.exitCode=error.exitCode??1;}

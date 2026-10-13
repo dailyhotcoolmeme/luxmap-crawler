@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {reportAuditFailure} from '../crawler/common/catalog-audit-alert.js';
 const root=path.resolve(import.meta.dirname,'..'),folder=path.join(root,'crawler/completeness/bottega-veneta'),base=path.join(root,'crawler/runs/bottega-veneta/kr');
 if(process.argv.length!==2||spawnSync(path.join(root,'scripts/crawl-preflight.sh'),[],{stdio:'ignore'}).status)throw Error('blocked');
 const guard=f=>spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[f],{stdio:'ignore'}).status===0;
@@ -17,3 +18,4 @@ for(let i=0;i<urls.size;i+=20){
 const result=spawnSync(process.execPath,[path.join(root,'scripts/reconcile-bottega-metadata.mjs'),'--preserve-stored-references','--fresh-only'],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});if(![0,2].includes(result.status)){save('REFERENCE_AUDIT_FAILED');process.exit(result.status===78?78:1);}
 const file=path.join(folder,'reconciled-metadata/summary.json');if(!guard(file))throw Error('blocked');const rows=JSON.parse(fs.readFileSync(file)),pending=Number(rows.find(r=>r.status.startsWith('PENDING_'))?.status.slice(8));if(!Number.isFinite(pending))throw Error('invalid audit');
 save(pending?`REFERENCE_AUDIT_UNCERTAIN_${pending}`:'REFERENCE_AUDIT_VERIFIED');process.exitCode=pending?2:0;
+if(pending)await reportAuditFailure(JSON.parse(fs.readFileSync(path.join(folder,'summary.json')))[0],{queuePath:path.join(folder,'alert-queue.json')}).catch(()=>{});
