@@ -22,19 +22,27 @@ export async function collectVanCleefPrices(cfg){
  const row=(status,code='RUN',url=cfg.entryUrl,price=null)=>({brand:cfg.brand,country:cfg.country,parentModel:'한국 상품 공식 국가 가격',variantCode:code,price,currency:cfg.currency,status,officialUrl:url});
  const save=()=>fs.writeFile(path.join(run,'summary.json'),JSON.stringify(rows),{mode:0o600});
  async function get(url){
-  const u=new URL(url);if(u.protocol!=='https:'||!cfg.allowedHosts.includes(u.hostname)||u.username||u.password)throw Error('UNAUTHORIZED_URL');
-  let r;for(let attempt=0;attempt<=2;attempt++){if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');try{r=await context.get(url,{maxRedirects:0});break;}catch(e){const transient=transientSourceError(e);if(transient&&attempt<2)continue;throw Error(transient??'SOURCE_REQUEST_FAILED');}}
+  const original=new URL(url),originalCode=referenceCode(url,cfg.brand)?.toUpperCase();let current=url,r;
+  for(let redirect=0;redirect<=2;redirect++){
+   const u=new URL(current);if(u.protocol!=='https:'||!cfg.allowedHosts.includes(u.hostname)||u.username||u.password)throw Error('UNAUTHORIZED_URL');
+   for(let attempt=0;attempt<=2;attempt++){if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');try{r=await context.get(current,{maxRedirects:0});break;}catch(e){const transient=transientSourceError(e);if(transient&&attempt<2)continue;throw Error(transient??'SOURCE_REQUEST_FAILED');}}
+   if(![301,302,303,307,308].includes(r.status()))break;
+   const location=r.headers().location;if(!location)throw Error('REDIRECT_LOCATION_MISSING');const target=new URL(location,current);
+   if(target.protocol!=='https:'||target.hostname!==original.hostname||target.username||target.password)throw Error('UNAUTHORIZED_REDIRECT');
+   if(target.pathname.split('/')[1]!==original.pathname.split('/')[1]||referenceCode(target.href,cfg.brand)?.toUpperCase()!==originalCode)throw Object.assign(Error('REDIRECT_REFERENCE_MISMATCH'),{officialUrl:target.href});
+   if(redirect===2)throw Error('REDIRECT_LIMIT');current=target.href;
+  }
   if([403,429].includes(r.status()))throw Error('ACCESS_BLOCKED');if(!r.ok())throw Error(`HTTP_${r.status()}`);
   const bytes=await r.body();if(bytes.length>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');const html=bytes.toString('utf8');
   if(/cf-chl|px-captcha|captcha-delivery|<title[^>]*>\s*(?:just a moment|access denied)/i.test(html))throw Error('ACCESS_BLOCKED');
-  await fs.writeFile(path.join(run,'raw',`${calls}.source`),bytes,{mode:0o600});return html;
+  await fs.writeFile(path.join(run,'raw',`${calls}.source`),bytes,{mode:0o600});return {html,url:current};
  }
  try{
   if(offset>=index.urls.length)throw Error('OFFSET_OUT_OF_RANGE');
   const batch=index.urls.slice(offset,offset+(sample?1:cfg.maxProductsPerRun));let failed=0;if(sample)rows.push(row('SAMPLE_NOT_FULL_CATALOG'));
   for(const krUrl of batch){let url=cfg.entryUrl;const code=referenceCode(krUrl,cfg.brand).toUpperCase();
-   try{url=localizedReference(await get(krUrl),krUrl,cfg);const p=parseReferenceProduct(await get(url),url,cfg);delete p.image;records.push(p);rows.push(row(p.price===null?'PRICE_UNPUBLISHED':'COUNTRY_PRICE_READY',code,url,p.price));}
-   catch(e){if(/BLOCKED|LIMIT|UNAUTHORIZED|SANDBOX|GUARD/.test(e.message))throw e;failed++;rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'PRODUCT_REQUEST_FAILED',code,url));}
+   try{const kr=await get(krUrl);url=localizedReference(kr.html,kr.url,cfg);const foreign=await get(url);url=foreign.url;const p=parseReferenceProduct(foreign.html,url,cfg);delete p.image;records.push(p);rows.push(row(p.price===null?'PRICE_UNPUBLISHED':'COUNTRY_PRICE_READY',code,url,p.price));}
+   catch(e){if(/BLOCKED|LIMIT|UNAUTHORIZED|SANDBOX|GUARD/.test(e.message))throw e;failed++;rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'PRODUCT_REQUEST_FAILED',code,e.officialUrl??url));}
    await save();
   }
   await fs.mkdir(path.join(run,'artifacts'),{recursive:true});await fs.writeFile(path.join(run,'artifacts/records.json'),JSON.stringify(records),{mode:0o600});
