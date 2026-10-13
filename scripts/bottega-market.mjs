@@ -22,7 +22,17 @@ try{
  }else{
   const cfg=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands/bottega-veneta/countries',country))),folder=path.join(root,'crawler/completeness/bottega-veneta/country-targets',country);fs.mkdirSync(folder,{recursive:true});const markets=[];
   for(let offset=0;;offset+=100){const rows=await guardedRest(`market_products?country_code=eq.${cfg.country}&select=official_product_code,official_url,current_price,currency_code&order=id&limit=100&offset=${offset}`);markets.push(...rows);if(rows.length<100)break;}
-  const targets=master.map(r=>{const m=markets.find(m=>m.official_product_code===r.normalizedCode&&m.currency_code===cfg.currency&&m.official_url.startsWith(`https://www.bottegaveneta.com${cfg.localePrefix}`));return m?{normalizedCode:r.normalizedCode,sourceProductId:r.sourceProductId,parentModel:r.parentModel,officialUrl:m.official_url}:null;}).filter(Boolean);
+  let targets=master.map(r=>{const m=markets.find(m=>m.official_product_code===r.normalizedCode&&m.currency_code===cfg.currency&&m.official_url.startsWith(`https://www.bottegaveneta.com${cfg.localePrefix}`));return m?{normalizedCode:r.normalizedCode,sourceProductId:r.sourceProductId,parentModel:r.parentModel,officialUrl:m.official_url}:null;}).filter(Boolean);
+  if(!targets.length){
+   let state,finished=false;
+   for(let batch=0;batch<20;batch++){
+    execute('scripts/run-brand-country-pipeline.sh',['bottega-veneta',country,'--crawl-only','--discover-country-listings',...(state?['--listing-state-file',state]:[])],[0,1]);
+    const base=path.join(root,'crawler/runs/bottega-veneta',country),dir=path.join(base,fs.readdirSync(base).sort().at(-1)),file=path.join(dir,'summary.json');execute('scripts/crawl-output-guard.sh',[file]);const rows=JSON.parse(fs.readFileSync(file));
+    if(rows.some(r=>r.status==='LISTING_BATCH_PENDING')){state=path.join(dir,'artifacts/listing-state.json');continue;}
+    if(!rows.some(r=>r.status==='PUBLISHED_LISTINGS_TRAVERSED'))throw Error('COUNTRY_DISCOVERY_FAILED');
+    const index=JSON.parse(fs.readFileSync(path.join(dir,'artifacts/country-listing-index.json')));targets=index.map(t=>{const r=master.find(r=>r.normalizedCode===t.normalizedCode);return r?{normalizedCode:r.normalizedCode,sourceProductId:r.sourceProductId,parentModel:r.parentModel,officialUrl:t.officialUrl}:null;}).filter(Boolean);finished=true;break;
+   }if(!finished)throw Object.assign(Error('DISCOVERY_BATCH_LIMIT_BLOCKED'),{exitCode:78});
+  }
   if(!targets.length)throw Error('PUBLISHED_COUNTRY_REFERENCE_MISSING');
   fs.writeFileSync(path.join(folder,'targets.json'),JSON.stringify(targets),{mode:0o600});const summary=path.join(folder,'summary.json');fs.writeFileSync(summary,JSON.stringify([{brand:'bottega-veneta',country:cfg.country,parentModel:'한국 기준 실제 국가 연결',variantCode:'TOTAL',price:null,currency:cfg.currency,status:`EXACT_DB_TARGETS_${targets.length}`,officialUrl:cfg.entryUrl}]));execute('scripts/crawl-output-guard.sh',[summary]);
   const sample=path.join(folder,'route-source-target.json');fs.writeFileSync(sample,JSON.stringify(targets.slice(0,1)),{mode:0o600});execute('scripts/run-brand-country-pipeline.sh',['bottega-veneta',country,'--crawl-only','--prices-only','--targets-file',sample],[0,1]);
