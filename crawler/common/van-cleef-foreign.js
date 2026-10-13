@@ -14,7 +14,7 @@ export function localizedReference(html,krUrl,cfg){
 }
 export async function collectVanCleefPrices(cfg){
  if(process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled')throw Error('GUARDED_RUN_REQUIRED');
- const args=process.argv.slice(2);if(args.length!==4||args[2]!=='--prices-offset'||!/^\d+$/.test(args[3]))throw Error('BATCH_REQUIRED');
+ const args=process.argv.slice(2),sample=args.length===6&&args[4]==='--limit'&&args[5]==='1';if((args.length!==4&&!sample)||args[2]!=='--prices-offset'||!/^\d+$/.test(args[3]))throw Error('BATCH_REQUIRED');
  const offset=Number(args[3]),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..');
  const index=JSON.parse(await fs.readFile(path.join(root,'crawler/brands/van-cleef-arpels/.reference-index.json')));
  if(Date.now()-Date.parse(index.checkedAt)>86400000)throw Error('REFERENCE_INDEX_STALE');
@@ -31,7 +31,7 @@ export async function collectVanCleefPrices(cfg){
  }
  try{
   if(offset>=index.urls.length)throw Error('OFFSET_OUT_OF_RANGE');
-  const batch=index.urls.slice(offset,offset+cfg.maxProductsPerRun);let failed=0;
+  const batch=index.urls.slice(offset,offset+(sample?1:cfg.maxProductsPerRun));let failed=0;if(sample)rows.push(row('SAMPLE_NOT_FULL_CATALOG'));
   for(const krUrl of batch){let url=cfg.entryUrl;const code=referenceCode(krUrl,cfg.brand).toUpperCase();
    try{url=localizedReference(await get(krUrl),krUrl,cfg);const p=parseReferenceProduct(await get(url),url,cfg);delete p.image;records.push(p);rows.push(row(p.price===null?'PRICE_UNPUBLISHED':'COUNTRY_PRICE_READY',code,url,p.price));}
    catch(e){if(/BLOCKED|LIMIT|UNAUTHORIZED|SANDBOX|GUARD/.test(e.message))throw e;failed++;rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'PRODUCT_REQUEST_FAILED',code,url));}

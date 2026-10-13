@@ -17,7 +17,7 @@ for(const country of countries){
   const startedAt=new Date().toISOString();
   for(let n=0;n<400;n++){
    report(`RUNNING_OFFSET_${offset}`);
-   const result=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),[cfg.brand,country,'--prices-offset',String(offset)],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});
+   const result=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),[cfg.brand,country,'--prices-offset',String(offset),...(sample?['--limit','1']:[])],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});
    const base=path.join(root,'crawler/runs',cfg.brand,country),run=path.join(base,fs.readdirSync(base).sort().at(-1)),rows=guard(path.join(run,'summary.json'));
    if(result.status===78||result.signal||result.error||rows.some(r=>/UNAUTHORIZED|SANDBOX|TOKEN|NETWORK_POLICY/.test(r.status)))throw Object.assign(Error('SAFETY_STOP'),{safety:true});
    if(![0,2].includes(result.status))throw Error('COLLECTION_OR_STORAGE_FAILED');
