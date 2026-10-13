@@ -6,7 +6,7 @@ export function coverageFailure(rows,discoveryMissing=0){
 export async function storePradaMarkets(rows,config,query){
  const vanCleef=config.brand==='van-cleef-arpels';
  const brandName=vanCleef?'VAN CLEEF & ARPELS':'PRADA';
- const prefix=vanCleef?config.localePrefix:config.referenceDetailPrefix;
+ const prefix=vanCleef?`/${config.country.toLowerCase()}/`:config.referenceDetailPrefix;
  const pattern=vanCleef?config.productPathPattern:config.detailPathPattern;
  const origin=vanCleef?'https://www.vancleefarpels.com':'https://www.prada.com';
  if(!Array.isArray(rows)||!rows.length||rows.length>100)throw new Error('invalid batch');

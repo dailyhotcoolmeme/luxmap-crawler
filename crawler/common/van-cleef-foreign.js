@@ -2,22 +2,27 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {request} from 'playwright-core';
 import {referenceCode,parseReferenceProduct,transientSourceError} from './jewelry-watch-product.js';
+import {selectRepairUrls} from './reference-repair.js';
 export function localizedReference(html,krUrl,cfg){
  const code=referenceCode(krUrl,cfg.brand)?.toUpperCase(),urls=new Set();
  for(const tag of html.matchAll(/<(?:link|a)\b[^>]*>/gi)){
   const href=tag[0].match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];if(!href)continue;
   let u;try{u=new URL(href.replaceAll('&amp;','&'),krUrl);}catch{continue;}
-  if(u.protocol==='https:'&&!u.username&&!u.password&&cfg.allowedHosts.includes(u.hostname)&&u.pathname.startsWith(cfg.localePrefix)&&referenceCode(u.href,cfg.brand)?.toUpperCase()===code&&new RegExp(cfg.productPathPattern,'i').test(u.pathname))urls.add(u.href);
+  if(u.protocol==='https:'&&!u.username&&!u.password&&cfg.allowedHosts.includes(u.hostname)&&u.pathname.startsWith(`/${cfg.country.toLowerCase()}/`)&&/^\/[a-z]{2}\/[a-z]{2}\//i.test(u.pathname)&&referenceCode(u.href,cfg.brand)?.toUpperCase()===code&&new RegExp(cfg.productPathPattern,'i').test(u.pathname))urls.add(u.href);
  }
+ const preferred=[...urls].filter(url=>new URL(url).pathname.startsWith(cfg.localePrefix));
+ if(preferred.length===1)return preferred[0];
  if(urls.size!==1)throw Error(urls.size?'COUNTRY_REFERENCE_CONFLICT':'COUNTRY_REFERENCE_UNPUBLISHED');
  return [...urls][0];
 }
 export async function collectVanCleefPrices(cfg){
  if(process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled')throw Error('GUARDED_RUN_REQUIRED');
- const args=process.argv.slice(2),sample=args.length===6&&args[4]==='--limit'&&args[5]==='1';if((args.length!==4&&!sample)||args[2]!=='--prices-offset'||!/^\d+$/.test(args[3]))throw Error('BATCH_REQUIRED');
- const offset=Number(args[3]),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..');
+ const args=process.argv.slice(2),sample=args.length===6&&args[4]==='--limit'&&args[5]==='1',repair=args[2]==='--reference-codes-file'&&args.length===4;if((args.length!==4&&!sample)||(!repair&&(args[2]!=='--prices-offset'||!/^\d+$/.test(args[3]))))throw Error('BATCH_REQUIRED');
+ const offset=repair?0:Number(args[3]),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..');
  const index=JSON.parse(await fs.readFile(path.join(root,'crawler/brands/van-cleef-arpels/.reference-index.json')));
  if(Date.now()-Date.parse(index.checkedAt)>86400000)throw Error('REFERENCE_INDEX_STALE');
+ let targets=index.urls;
+ if(repair){const file=await fs.realpath(args[3]),folder=await fs.realpath(path.join(root,'crawler/onboarding/van-cleef-arpels/foreign',cfg.country.toLowerCase()));if(!file.startsWith(folder+path.sep)||(await fs.stat(file)).size>4096)throw Error('REPAIR_SCOPE_INVALID');const korean=JSON.parse(await fs.readFile(path.join(root,'crawler/brands/van-cleef-arpels/countries/kr')));targets=selectRepairUrls(index,JSON.parse(await fs.readFile(file)),korean);}
  const context=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:30000}),rows=[],records=[];let calls=0;
  const row=(status,code='RUN',url=cfg.entryUrl,price=null)=>({brand:cfg.brand,country:cfg.country,parentModel:'한국 상품 공식 국가 가격',variantCode:code,price,currency:cfg.currency,status,officialUrl:url});
  const save=()=>fs.writeFile(path.join(run,'summary.json'),JSON.stringify(rows),{mode:0o600});
@@ -38,15 +43,15 @@ export async function collectVanCleefPrices(cfg){
   await fs.writeFile(path.join(run,'raw',`${calls}.source`),bytes,{mode:0o600});return {html,url:current};
  }
  try{
-  if(offset>=index.urls.length)throw Error('OFFSET_OUT_OF_RANGE');
-  const batch=index.urls.slice(offset,offset+(sample?1:cfg.maxProductsPerRun));let failed=0;if(sample)rows.push(row('SAMPLE_NOT_FULL_CATALOG'));
+  if(offset>=targets.length)throw Error('OFFSET_OUT_OF_RANGE');
+  const batch=targets.slice(offset,offset+(sample?1:cfg.maxProductsPerRun));let failed=0;if(sample)rows.push(row('SAMPLE_NOT_FULL_CATALOG'));if(repair)rows.push(row('TARGETED_REPAIR_NOT_FULL_CATALOG'));
   for(const krUrl of batch){let url=cfg.entryUrl;const code=referenceCode(krUrl,cfg.brand).toUpperCase();
    try{const kr=await get(krUrl);url=localizedReference(kr.html,kr.url,cfg);const foreign=await get(url);url=foreign.url;const p=parseReferenceProduct(foreign.html,url,cfg);delete p.image;records.push(p);rows.push(row(p.price===null?'PRICE_UNPUBLISHED':'COUNTRY_PRICE_READY',code,url,p.price));}
    catch(e){if(/BLOCKED|LIMIT|UNAUTHORIZED|SANDBOX|GUARD/.test(e.message))throw e;failed++;rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'PRODUCT_REQUEST_FAILED',code,e.officialUrl??url));}
    await save();
   }
   await fs.mkdir(path.join(run,'artifacts'),{recursive:true});await fs.writeFile(path.join(run,'artifacts/records.json'),JSON.stringify(records),{mode:0o600});
-  rows.push(row(`BATCH_READY_${records.length}`),row(`BATCH_FAILED_${failed}`),row(`NEXT_OFFSET_${offset+batch.length}`),row(`REMAINING_${index.urls.length-offset-batch.length}`));if(failed)process.exitCode=2;
+  rows.push(row(`BATCH_READY_${records.length}`),row(`BATCH_FAILED_${failed}`),row(`NEXT_OFFSET_${offset+batch.length}`),row(`REMAINING_${targets.length-offset-batch.length}`));if(failed)process.exitCode=2;
  }catch(e){rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'FOREIGN_COLLECTION_FAILED'));process.exitCode=/UNAUTHORIZED|SANDBOX|GUARD/.test(e.message)?78:1;}
  finally{await save();await context.dispose();}
 }

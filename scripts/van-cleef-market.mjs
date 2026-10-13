@@ -4,7 +4,7 @@ import {spawnSync} from 'node:child_process';
 const root=path.resolve(import.meta.dirname,'..'),args=process.argv.slice(2);
 if(['jp','fr','it','es','us','sg','hk'].includes(args[0])){
  if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||!['--refresh','--refresh --limit 1',''].includes(args.slice(1).join(' ')))throw Error('INVALID_FOREIGN_MODE');
- const r=spawnSync(process.execPath,[path.join(root,'scripts/van-cleef-foreign.mjs'),'--country',args[0],...(args.includes('--limit')?['--smoke']:args.includes('--refresh')?['--refresh']:[])],{cwd:root,env:process.env,stdio:'ignore',timeout:3600000});
+ const r=spawnSync(process.execPath,[path.join(root,'scripts/van-cleef-foreign.mjs'),'--country',args[0],...(args.includes('--limit')?['--smoke']:args.includes('--refresh')?['--refresh']:['--remaining'])],{cwd:root,env:process.env,stdio:'ignore',timeout:3600000});
  process.exit(r.signal||r.error?78:r.status??1);
 }
 if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||!['kr --discover-reference','kr --refresh','kr --refresh --limit 1'].includes(args.join(' ')))throw Error('INVALID_DAILY_MODE');

@@ -7,6 +7,7 @@ for(const country of ['jp','fr','it','es','us','sg','hk']){
  const cfg=JSON.parse(fs.readFileSync(new URL(`../crawler/brands/van-cleef-arpels/countries/${country}`,import.meta.url))),url=kr.replace('/kr/ko/',cfg.localePrefix);
  const link=`<link href="${url}" rel="alternate">`;
  assert.equal(localizedReference(link,kr,cfg),url);
+ const alternative=url.replace(cfg.localePrefix,`/${country}/ko/`);assert.equal(localizedReference(`<link href="${alternative}">`,kr,cfg),alternative);
  assert.throws(()=>localizedReference(link.replace('vcara36300','vcara38800'),kr,cfg),/UNPUBLISHED/);
  assert.throws(()=>localizedReference(link.replace('www.vancleefarpels.com','example.com'),kr,cfg),/UNPUBLISHED/);
  assert.throws(()=>localizedReference('',kr,cfg),/UNPUBLISHED/);
