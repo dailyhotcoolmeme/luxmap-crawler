@@ -6,6 +6,13 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const rows=[];
 for(const job of schedule.jobs){
+ if(job.brand==='van-cleef-arpels'){
+  const files=['crawler/onboarding/van-cleef-arpels/daily/summary.json','crawler/onboarding/van-cleef-arpels/daily-audit/summary.json'];
+  const base=path.join(root,'crawler/runs',job.brand,job.country),last=fs.existsSync(base)?fs.readdirSync(base).sort().at(-1):null;
+  if(last)files.push(path.relative(root,path.join(base,last,'summary.json')),path.relative(root,path.join(base,last,'artifacts/verified/summary.json')));
+  for(const name of files){const file=path.join(root,name);if(fs.existsSync(file)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(file)));}
+  continue;
+ }
  if(job.brand==='bottega-veneta'){
   const jobFile=path.join(root,'crawler/bottega-progress',job.country,'summary.json');if(fs.existsSync(jobFile)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[jobFile],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(jobFile)));
   const sampleBase=path.join(root,'crawler/runs/bottega-veneta',job.country),last=fs.existsSync(sampleBase)?fs.readdirSync(sampleBase).sort().at(-1):null;
