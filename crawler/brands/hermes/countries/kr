@@ -11,6 +11,7 @@
   ],
   "allowedHosts": [
     "www.hermes.com",
+    "bck.hermes.com",
     "assets.hermes.com"
   ],
   "imageHosts": [

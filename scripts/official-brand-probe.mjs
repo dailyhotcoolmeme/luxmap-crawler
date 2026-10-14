@@ -15,6 +15,7 @@ const supported={
  '--probe-published-script':4,
  '--probe-product-chunk':4,
  '--probe-product-dependencies':0,
+ '--probe-product-api':0,
  '--inspect-listing':2,'--inspect-detail-evidence':2,
 };
 if(!(mode in supported)||args.length!==supported[mode])throw Error('invalid probe mode');
