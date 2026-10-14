@@ -1,6 +1,16 @@
 #!/bin/sh
 set -eu
 
+# Shared enforcement also covers direct central pipeline calls.
+for option in "$@"; do
+  case "${option%%=*}" in
+    --probe-published-script|--probe-product-chunk|--probe-product-dependencies|--probe-product-api)
+      echo 'BLOCKED: retired diagnostics; reuse the verified catalog pipeline.' >&2
+      exit 78
+      ;;
+  esac
+done
+
 if [ "${LUXURY_PIPELINE_GUARD:-}" != "enabled" ]; then
   echo "BLOCKED: use scripts/run-brand-country-pipeline.sh." >&2
   exit 1

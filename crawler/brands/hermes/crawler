@@ -2,7 +2,7 @@
 import {runBrandCollection} from '../../common/hermes-collection.js';
 import {probeOfficialSite} from '../../common/official-site-probe.js';
 import {discoverHermesReference} from '../../common/hermes-reference-collection.js';
-import {collectHermesReferenceBatch} from '../../common/hermes-reference-batch.js';
+import {collectHermesReferenceBatch,recoverHermesListingSample} from '../../common/hermes-reference-batch.js';
 import {probeHermesImageProperties} from '../../common/hermes-image-properties-probe.js';
 if(process.argv.includes('--audit-reference')){
  const {auditOfficialReferenceCatalog}=await import('../../../scripts/audit-official-reference.mjs');
@@ -20,6 +20,7 @@ else if(process.argv.includes('--probe-published-script')||process.argv.includes
  const {probePublishedScript}=await import('../../common/published-script-probe.js');
  await probePublishedScript();
 }
+else if(process.argv.includes('--recover-source-run'))await recoverHermesListingSample();
 else if(process.argv.includes('--discover-reference'))await discoverHermesReference();
 else if(process.argv.includes('--batch-offset'))await collectHermesReferenceBatch();
 else if(process.argv.includes('--probe-image-properties'))await probeHermesImageProperties();

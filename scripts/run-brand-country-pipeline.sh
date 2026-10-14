@@ -100,7 +100,7 @@ if [ -n "$CELINE_PARTIAL_RUN" ]; then
 else
  if LUXURY_PIPELINE_GUARD=enabled "$PROJECT_DIR/scripts/run-crawler.sh" "$BRAND" "$COUNTRY" "$@"; then :; else
   REFERENCE_EXIT=$?
-  case "$BRAND/$COUNTRY/$REFERENCE_EXIT" in van-cleef-arpels/*/2|rolex/*/2|bulgari/kr/2) ;; *) exit "$REFERENCE_EXIT";; esac
+  case "$BRAND/$COUNTRY/$REFERENCE_EXIT" in van-cleef-arpels/*/2|rolex/*/2|bulgari/kr/2|hermes/kr/2) ;; *) exit "$REFERENCE_EXIT";; esac
  fi
  RUN_DIR=$(find "$PROJECT_DIR/crawler/runs/$BRAND/$COUNTRY" -mindepth 1 -maxdepth 1 -type d -print | sort | tail -n 1)
 fi

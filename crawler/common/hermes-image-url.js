@@ -9,6 +9,12 @@ export function inspectHermesImageUrl(value, expectedCode) {
  let url, pathname;
  try { url = new URL(value); pathname = decodeURIComponent(url.pathname); }
  catch { throw Error('HERMES_IMAGE_REFERENCE'); }
+ const native=pathname.match(/^\/is\/image\/hermesproduct\/([0-9]{6}[A-Z0-9]{4})_(?:(front|side|above|back|detail)_(?:wm_)?([1-9])|(worn)_([1-9]))$/);
+ if(native){
+  if(url.origin!=='https://assets.hermes.com'||url.host!=='assets.hermes.com'||url.username||url.password||url.hash||url.href!==value||`H${native[1]}`!==expectedCode)throw Error('HERMES_IMAGE_REFERENCE');
+  if(!/^\?size=3000,3000&extend=(?:0,0,0,0|300,300,300,300)&align=0,0$/.test(url.search))throw Error('HERMES_IMAGE_PATH_UNVERIFIED');
+  return {url:url.href,variantCode:expectedCode,view:native[2]??native[4],renditionWidth:3000,renditionHeight:3000,nativeAsset:true,originalVerified:false};
+ }
  if (url.protocol !== 'https:' || url.host !== 'assets.hermes.com' || url.username || url.password ||
      url.search || url.hash || url.href !== value || !value.startsWith('https://assets.hermes.com/is/image/hermesproduct/') ||
      /%(?:2f|5c|2e)/i.test(value) || pathname.includes('/../')) throw Error('HERMES_IMAGE_REFERENCE');
@@ -26,8 +32,12 @@ export function hermesPublishedImageUrl(value, expectedCode, publishedUrls) {
  return image.url;
 }
 
-export function hermesOriginalImageUrl(value, expectedCode, publishedUrls) {
- hermesPublishedImageUrl(value, expectedCode, publishedUrls);
+export function hermesOriginalImageUrl(value, expectedCode, publishedUrls,properties) {
+ const published=hermesPublishedImageUrl(value, expectedCode, publishedUrls);
+ const image=inspectHermesImageUrl(value,expectedCode);
+ if(image.nativeAsset&&properties?.dimensionsVerified===true&&properties.propertiesUrl===hermesImagePropertiesUrl(value,expectedCode,publishedUrls)&&Number.isSafeInteger(properties.width)&&Number.isSafeInteger(properties.height)&&Math.min(properties.width,properties.height)>=200){
+  const url=new URL(published);url.search='';return url.href;
+ }
  // A 1000px rendition, Scene7 route or removed transform is not master-asset evidence.
  // Enable original resolution only after source/native-dimension evidence is verified.
  throw Error('HERMES_ORIGINAL_SOURCE_UNVERIFIED');
@@ -37,5 +47,7 @@ export function hermesOriginalImageUrl(value, expectedCode, publishedUrls) {
 // network access. Preserve the published identifier byte-for-byte; add only the
 // Scene7 properties request command. Never evaluate a script returned by the server.
 export function hermesImagePropertiesUrl(value, expectedCode, publishedUrls) {
- return `${hermesPublishedImageUrl(value, expectedCode, publishedUrls)}?req=props`;
+ const published=hermesPublishedImageUrl(value, expectedCode, publishedUrls);
+ if(inspectHermesImageUrl(value,expectedCode).nativeAsset){const url=new URL(published);url.search='?req=props';return url.href;}
+ return `${published}?req=props`;
 }

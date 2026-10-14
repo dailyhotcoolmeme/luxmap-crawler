@@ -25,4 +25,18 @@ for(const value of [
  'https://assets.hermes.com/is/image/hermesproduct/073428CKO5_thumbnail_20?wid=65',
 ]) assert.throws(()=>inspectHermesImageUrl(value,code));
 assert.throws(()=>inspectHermesImageUrl(front,'073428CKO5'));
+const native='https://assets.hermes.com/is/image/hermesproduct/073428CKO5_front_wm_1?size=3000,3000&extend=0,0,0,0&align=0,0';
+assert.equal(inspectHermesImageUrl(native,code).nativeAsset,true);
+assert.equal(inspectHermesImageUrl(native.replace('front_wm_1','front_wm_4'),code).nativeAsset,true);
+assert.equal(inspectHermesImageUrl(native.replace('front_wm_1','worn_1'),code).view,'worn');
+assert.equal(inspectHermesImageUrl(native.replace('front_wm_1','front_1').replace('extend=0,0,0,0','extend=300,300,300,300'),code).nativeAsset,true);
+assert.equal(inspectHermesImageUrl(native,code).originalVerified,false);
+assert.equal(hermesImagePropertiesUrl(native,code,[native]),native.split('?')[0]+'?req=props');
+assert.throws(()=>inspectHermesImageUrl(native,code.replace('O5','89')));
+assert.throws(()=>inspectHermesImageUrl(native.replace('3000,3000','9999,9999'),code));
+assert.throws(()=>hermesOriginalImageUrl(native,code,[native]),/ORIGINAL_SOURCE_UNVERIFIED/);
+const properties={dimensionsVerified:true,width:400,height:400,propertiesUrl:native.split('?')[0]+'?req=props'};
+assert.equal(hermesOriginalImageUrl(native,code,[native],properties),native.split('?')[0]);
+assert.throws(()=>hermesOriginalImageUrl(native,code,[native],{...properties,propertiesUrl:'https://evil.invalid/'}));
+assert.throws(()=>hermesOriginalImageUrl(front,code,[front],properties));
 console.log('PASS: Hermes published rendition validation, exact SKU, hostile URL rejection, original fail-closed; no network');

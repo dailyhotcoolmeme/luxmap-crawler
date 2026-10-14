@@ -4,8 +4,95 @@ import {createHash,randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {parseOfficialProduct} from './hermes-collection.js';
 import {hermesReferenceCode} from './hermes-reference-collection.js';
+import {inspectHermesListingEvidence} from './hermes-listing-evidence.js';
+import {parseHermesImageProperties} from './hermes-image-properties-probe.js';
+import {hermesImagePropertiesUrl} from './hermes-image-url.js';
+import {downloadAndOptimizeImage,closeImageProcessor} from './image-processor.js';
 
 const projectRoot=path.resolve(import.meta.dirname,'../..');
+// One end-to-end sample from the already acquired, exact Korean listing source.
+// No product-detail retries; image bytes must match the native catalog dimensions.
+export async function recoverHermesListingSample(){
+ const env=process.env,args=process.argv.slice(2),cfg=JSON.parse(await fs.readFile(args[1])),run=env.CRAWL_RUN_DIR;
+ const batch=args.length===6&&args[4]==='--batch-offset'&&/^\d+$/.test(args[5]??''),offset=batch?Number(args[5]):0;
+ if(env.CRAWL_MODE!=='deterministic-only'||env.LUXURY_PIPELINE_GUARD!=='enabled'||env.LUXURY_NETWORK_ISOLATED!=='enabled'||env.CRAWL_BRAND!=='hermes'||(!batch&&args.length!==4)||args[2]!=='--recover-source-run'||cfg.country!=='KR'||!Number.isSafeInteger(offset))throw Error('GUARDED_RUN_REQUIRED');
+ const source=path.resolve(args[3]),base=path.join(projectRoot,'crawler/runs/hermes/kr')+path.sep,rows=[],records=[],artifact=path.join(run,'artifacts');let context,product;
+ const row=(status)=>({brand:'hermes',country:'KR',parentModel:product?.name??'한국 공식 가방',variantCode:product?.sku??'RUN',price:product?.price??null,currency:'KRW',status,officialUrl:product?.url??cfg.entryUrl});
+ const guarded=async address=>{if(!address.startsWith(base)||await fs.realpath(address)!==address||spawnSync(path.join(projectRoot,'scripts/crawl-output-guard.sh'),[address+'/summary.json'],{stdio:'ignore'}).status!==0)throw Error('SOURCE_PROVENANCE_INVALID');};
+ const readPrivate=async file=>{const s=await fs.lstat(file);if(!s.isFile()||s.isSymbolicLink()||s.size>8388608)throw Error('SOURCE_LIMIT');try{await fs.chmod(file,0o600);return await fs.readFile(file,'utf8');}finally{await fs.chmod(file,s.mode&0o777);}};
+ try{
+  await guarded(source);await fs.mkdir(artifact,{recursive:true});
+  const summary=JSON.parse(await fs.readFile(source+'/summary.json','utf8'));
+  if(!summary.some(r=>r.brand==='hermes'&&r.status==='REFERENCE_DISCOVERED_NOT_INGESTED'))throw Error('SOURCE_SCOPE_INVALID');
+  const index=JSON.parse(await readPrivate(path.join(projectRoot,'crawler/brands/hermes/.reference-index.json'))),age=Date.now()-Date.parse(index.checkedAt);
+  if(!Number.isFinite(age)||age<0||age>86400000)throw Error('SOURCE_STALE');
+  const prices=new Map();
+  const names=(await fs.readdir(source+'/raw')).filter(n=>/^\d+\.source$/.test(n));if(names.length>20)throw Error('SOURCE_LIMIT');
+  for(const name of names)for(const p of inspectHermesListingEvidence(await readPrivate(source+'/raw/'+name),{includeVisiblePrices:true}).records){if(p.price===null||!p.name||!index.products.some(i=>i.code===p.sku&&i.url===p.url))continue;const prior=prices.get(p.sku);if(prior&&prior.price!==p.price)throw Error('PRICE_CONFLICT');prices.set(p.sku,{...p,assets:[...new Map([...(prior?.assets??[]),...p.assets].map(a=>[JSON.stringify([a.url,a.type,a.tag]),a])).values()]});}
+  const selected=[...prices.values()].slice(offset,offset+(batch?25:1));if(!selected.length)throw Error('EXACT_LISTING_PRICE_MISSING');
+  const stored=new Set();
+  for(const id of await fs.readdir(base)){
+   const p=path.join(base,id,'artifacts/public-verified/summary.json');
+   if(spawnSync(path.join(projectRoot,'scripts/crawl-output-guard.sh'),[p],{stdio:'ignore'}).status!==0)continue;
+   for(const r of JSON.parse(await fs.readFile(p,'utf8')))if(r.status==='PUBLIC_CATALOG_VERIFIED'&&prices.get(r.variantCode)?.price===r.price&&prices.get(r.variantCode)?.url===r.officialUrl)stored.add(r.variantCode);
+  }
+  const {request}=await import('playwright-core');context=await request.newContext({proxy:{server:env.LUXURY_NETWORK_PROXY},timeout:30000});let calls=0,failed=0;
+  for(product of selected){
+  try{
+  if(stored.has(product.sku)){rows.push(row('EXISTING_PUBLIC_VERIFIED'));continue;}
+  const eligibleImages=product.assets.filter(a=>a.type==='image'&&a.source==='scene7'),preferred=eligibleImages.some(a=>a.tag==='front')?'front':'worn';
+  const front=eligibleImages.filter(a=>a.tag===preferred).sort((a,b)=>a.position-b.position);if(!front.length||front.length>1&&front[0].position===front[1].position&&front[0].url!==front[1].url)throw Error('IMAGE_SOURCE_AMBIGUOUS');
+  const image=new URL(front[0].url,cfg.entryUrl).href,propertiesUrl=hermesImagePropertiesUrl(image,product.sku,[image]);
+  let cached;
+  for(const id of (await fs.readdir(base)).sort().reverse()){
+   const previous=path.join(base,id);if(previous===run)continue;try{
+    await guarded(previous);const sr=JSON.parse(await fs.readFile(previous+'/summary.json','utf8'));
+    if(!sr.some(r=>r.status==='REFERENCE_IMAGE_READY'&&r.variantCode===product.sku&&r.price===product.price&&r.officialUrl===product.url))continue;
+    const candidates=JSON.parse(await readPrivate(previous+'/artifacts/records.json'));
+    const r=candidates.find(r=>r.normalizedCode===product.sku&&r.price===product.price&&r.officialUrl===product.url&&r.sourceImageUrl===image.split('?')[0]);if(!r)continue;
+    if(!r.imageProof?.cpuOfflineVerified||!r.imageProof.originalSourceVerified||r.imageProcessingVersion!=='original-cutout-v1')continue;
+    if(path.dirname(r.imagePath)!==previous+'/artifacts'||path.dirname(r.originalImagePath)!==previous+'/artifacts')continue;
+    const output=await fs.readFile(r.imagePath),input=await fs.readFile(r.originalImagePath);
+    if(output.length>4194304||input.length>12582912||createHash('sha256').update(output).digest('hex')!==r.imageSha256||createHash('sha256').update(input).digest('hex')!==r.imageProof.sourceSha256)continue;
+    const imagePath=path.join(artifact,path.basename(r.imagePath)),originalImagePath=path.join(artifact,path.basename(r.originalImagePath));await fs.writeFile(imagePath,output,{mode:0o600});await fs.writeFile(originalImagePath,input,{mode:0o600});cached={...r,imagePath,originalImagePath};break;
+   }catch(error){if(error.code!=='ENOENT'&&error.code!=='EACCES'&&error.message!=='SOURCE_PROVENANCE_INVALID')throw error;}
+  }
+  if(cached){records.push(cached);rows.push(row('REFERENCE_IMAGE_READY'));await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(records),{mode:0o600});await fs.writeFile(path.join(run,'summary.json'),JSON.stringify(rows),{mode:0o600});continue;}
+  let facts;
+  for(const id of (await fs.readdir(base)).sort().reverse()){
+   const candidate=path.join(base,id);try{await guarded(candidate);}catch{continue;}
+   const sr=JSON.parse(await fs.readFile(candidate+'/summary.json','utf8'));
+   if(!sr.some(r=>r.variantCode===product.sku&&r.officialUrl===propertiesUrl&&/^PROPS_IMAGE_SIZE_/.test(r.status)))continue;
+   const propertiesFile=candidate+'/raw/image-properties.source';if(Date.now()-(await fs.stat(propertiesFile)).mtimeMs>86400000)continue;
+   facts={...parseHermesImageProperties(await readPrivate(propertiesFile)),propertiesUrl};break;
+  }
+  if(!facts?.dimensionsVerified){
+   if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');
+   const response=await context.get(propertiesUrl,{maxRedirects:0,maxRetries:0,timeout:30000});
+   if([401,403,429].includes(response.status()))throw Error('IMAGE_ACCESS_BLOCKED');
+   if(!response.ok()||!/^(text\/plain|application\/json)(?:;|$)/i.test(response.headers()['content-type']??''))throw Error('IMAGE_PROPERTIES_FAILED');
+   const body=await response.body();if(body.length>65536)throw Error('METADATA_LIMIT');
+   await fs.writeFile(path.join(artifact,product.sku+'-properties.source'),body,{mode:0o600});
+   facts={...parseHermesImageProperties(body.toString('utf8')),propertiesUrl};
+  }
+  if(!facts?.dimensionsVerified)throw Error('NATIVE_IMAGE_PROPERTIES_MISSING');
+  const optimized=await downloadAndOptimizeImage({request:{get:(url,options)=>{if(url!==image.split('?')[0])throw Error('UNAUTHORIZED_IMAGE_URL');if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');return context.get(url,options);}}},image,artifact,product.sku,facts);
+  const code=product.sku,referenceProof={schema:1,exactReferenceVerified:true,classificationEvidenceVerified:true,countryCurrencyVerified:true,brand:'hermes',category:'bag',country:'KR',currency:'KRW',code,officialUrl:product.url};
+  records.push({brand:'hermes',category:'bag',country:'KR',currency:'KRW',originalCode:code,normalizedCode:code,sourceProductId:code,styleCode:code,modelKey:`sku-${code.toLowerCase()}`,parentModel:product.name,productName:product.name,materialDisplay:null,materialOriginal:null,colorDisplay:null,colorOriginal:null,sizeDisplay:null,widthMm:null,heightMm:null,depthMm:null,price:product.price,priceStatus:'confirmed',officialUrl:product.url,checkedAt:new Date().toISOString(),imageView:preferred,referenceProof,...optimized});
+  if(preferred==='worn')rows.push(row('OFFICIAL_SAME_SKU_WORN_IMAGE'));
+  rows.push(row('REFERENCE_IMAGE_READY'));
+  }catch(error){
+   const status=/^[A-Z0-9_]{1,40}$/.test(error.message)?error.message:'LISTING_PRODUCT_FAILED';
+   if(/BLOCKED|LIMIT|UNAUTHORIZED|GUARD|CONFLICT|SANDBOX|WORKER|RUNTIME|OFFLINE/.test(status))throw error;
+   failed++;rows.push(row(status));
+  }
+  await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(records),{mode:0o600});await fs.writeFile(path.join(run,'summary.json'),JSON.stringify(rows),{mode:0o600});
+  }
+  rows.push(row('BATCH_FAILED_'+failed),row('NEXT_OFFSET_'+(offset+selected.length)),row(batch?'PARTIAL_LISTING_BATCH_NOT_FULL_CATALOG':'SAMPLE_NOT_FULL_CATALOG'));
+  if(failed){process.exitCode=records.length?2:1;await fs.writeFile(path.join(run,'failure.json'),JSON.stringify({failureCode:'PARTIAL_REFERENCE_BATCH'}));}
+ }catch(error){const status=/^[A-Z0-9_]{1,40}$/.test(error.message)?error.message:'LISTING_RECOVERY_FAILED';rows.push(row(status));await fs.writeFile(path.join(run,'failure.json'),JSON.stringify({failureCode:status}));process.exitCode=1;}
+ finally{await closeImageProcessor();await context?.dispose();await fs.mkdir(artifact,{recursive:true});await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(records),{mode:0o600});await fs.writeFile(path.join(run,'summary.json'),JSON.stringify(rows),{mode:0o600});}
+}
 const safeCode=error=>/^[A-Z0-9_]{1,40}$/.test(error?.message??'')?error.message:'DETAIL_REQUEST_FAILED';
 const fatalCode=code=>/BLOCKED|UNAUTHORIZED|LIMIT|GUARD|PREFLIGHT|INDEX_|SCOPE|CONFIG|OFFSET/.test(code);
 async function atomic(file,data){const temp=`${file}.${randomUUID()}.tmp`;await fs.writeFile(temp,JSON.stringify(data),{mode:0o600});await fs.rename(temp,file);}

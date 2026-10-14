@@ -7,12 +7,13 @@ import {finished} from 'node:stream/promises';
 import sharp from 'sharp';
 import {celineOriginalImageUrl} from './celine-image-url.js';
 import {bulgariOriginalImageUrl} from './bulgari-image-url.js';
+import {hermesOriginalImageUrl} from './hermes-image-url.js';
 
 const root=path.resolve(import.meta.dirname,'../..');
 export const IMAGE_PROCESSING_VERSION='original-cutout-v1';
 let inputStream,outputStream,lines,waiting,ready,closed=false;
 let jobQueue=Promise.resolve();
-export function originalImageUrl(imageUrl,expectedCode){
+export function originalImageUrl(imageUrl,expectedCode,sourceProperties){
  const url=new URL(imageUrl);
  if(url.protocol!=='https:'||url.username||url.password)throw Error('IMAGE_URL');
  if(['www.prada.com','wsp-cdn.pradagroup.net'].includes(url.hostname)){
@@ -32,6 +33,8 @@ export function originalImageUrl(imageUrl,expectedCode){
   const match=url.pathname.match(/^\/image\/upload\/(?:[^/]+\/)*?(v\d+\/[a-f0-9]+\/catalogue\/\d{4}\/upright-c\/m[0-9a-z]+-\d+)$/i);
   if(!match||!expectedCode||match[1].split('/').at(-1).replace(/[^a-z0-9]/gi,'').toUpperCase()!==expectedCode)throw Error('IMAGE_SOURCE_PATH');
   url.pathname=`/image/upload/${match[1]}`;url.search='';
+ }else if(url.hostname==='assets.hermes.com'){
+  return hermesOriginalImageUrl(imageUrl,expectedCode,[imageUrl],sourceProperties);
  }else if(url.hostname==='www.bulgari.com'){
   return bulgariOriginalImageUrl(imageUrl);
  }else if(url.hostname==='image.celine.com'){
@@ -76,9 +79,9 @@ export async function closeImageProcessor(){
  await finished(outputStream).catch(()=>{});
  lines?.close();
 }
-export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expectedCode){
+export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expectedCode,sourceProperties){
  await startWorker();
- const sourceImageUrl=originalImageUrl(imageUrl,expectedCode);
+ const sourceImageUrl=originalImageUrl(imageUrl,expectedCode,sourceProperties);
  let response;
  for(let attempt=0;attempt<3;attempt++){
   try{response=await context.request.get(sourceImageUrl,{timeout:30000,maxRedirects:0});break;}
@@ -90,6 +93,7 @@ export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expe
  if(source.length>12*1024*1024)throw Error('IMAGE_BYTE_LIMIT');
  let metadata;try{metadata=await sharp(source,{limitInputPixels:24000000}).metadata();}catch(error){throw Error(/pixel.*limit/i.test(error.message??'')?'IMAGE_PIXEL_LIMIT':'IMAGE_FORMAT_INVALID');}
  if(!metadata.width||!metadata.height||Math.min(metadata.width,metadata.height)<200)throw Error('IMAGE_PIXEL_LIMIT');
+ if(new URL(sourceImageUrl).hostname==='assets.hermes.com'&&(metadata.width!==sourceProperties?.width||metadata.height!==sourceProperties?.height))throw Error('IMAGE_NATIVE_DIMENSIONS_MISMATCH');
  const id=crypto.randomUUID(),input=path.join(artifactDir,`${id}-original.image`),temp=path.join(artifactDir,`${id}-cutout.webp`);
  await fs.writeFile(input,source,{mode:0o600});
  const job=jobQueue.then(async()=>{

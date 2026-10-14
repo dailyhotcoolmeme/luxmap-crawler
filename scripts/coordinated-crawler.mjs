@@ -3,6 +3,12 @@ import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+// 2026-10-15: disable the unproductive overnight diagnostic expansion.
+const retiredDiagnostics=new Set(['--probe-published-script','--probe-product-chunk','--probe-product-dependencies','--probe-product-api']);
+if(process.argv.slice(2).some(arg=>retiredDiagnostics.has(arg.split('=')[0]))){
+ console.error('BLOCKED: retired diagnostics; reuse the verified catalog pipeline.');
+ process.exit(78);
+}
 if(process.env.LUXURY_SERVICE_GUARD!=='enabled')throw new Error('service guard required');
 const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
 if(!key)throw new Error('server credential required');
@@ -14,7 +20,8 @@ const foreign=process.argv.includes('--van-cleef-foreign');
 const rolexForeign=process.argv.includes('--rolex-foreign');
 const officialProbe=process.argv.includes('--official-probe');
 const officialReference=process.argv.includes('--official-reference');
-if(officialReference&&(process.argv[2]!=='--official-reference'||process.argv[3]!=='bulgari'||!['--batch-offset','--recover-source-run'].includes(process.argv[4])||(process.argv[4]==='--batch-offset'&&!/^\d+$/.test(process.argv[5]??''))||process.argv.length!==6))throw Error('invalid official reference arguments');
+const hermesListingBatch=officialReference&&process.argv[3]==='hermes'&&process.argv[4]==='--recover-source-run'&&process.argv.length===8&&process.argv[6]==='--batch-offset'&&/^\d+$/.test(process.argv[7]??'');
+if(officialReference&&(process.argv[2]!=='--official-reference'||!['bulgari','hermes'].includes(process.argv[3])||(process.argv[3]==='hermes'&&process.argv[4]!=='--recover-source-run')||!['--batch-offset','--recover-source-run'].includes(process.argv[4])||(process.argv[4]==='--batch-offset'&&!/^\d+$/.test(process.argv[5]??''))||(!hermesListingBatch&&process.argv.length!==6)))throw Error('invalid official reference arguments');
 if(officialReference&&(officialProbe||rolexForeign||foreign||onboarding))throw Error('conflicting execution modes');
 const probeBrands=new Set(['hermes','dior','saint-laurent','bulgari']);
 const probeModes=new Set(['--inspect-navigation','--probe-source','--inspect-listing','--inspect-detail-evidence','--probe-listing-source','--discover-candidates','--discover-reference','--probe-sitemap-source','--probe-product-source','--batch-offset','--probe-image-properties','--audit-reference','--probe-published-script','--probe-product-chunk','--probe-product-dependencies','--probe-product-api']);

@@ -97,19 +97,20 @@ export async function probeHermesImageProperties(options={}){
   const folder=path.join(source,'raw');if(await fs.realpath(folder)!==folder)throw Error('RAW_SCOPE_INVALID');
   const names=(await fs.readdir(folder)).filter(n=>/^\d+\.source$/.test(n));
   if(names.length>100)throw Error('SOURCE_FILE_LIMIT');
-  let total=0;const published=new Set();
+  let total=0;const published=new Set(),nativePublished=new Set();
   for(const name of names){
    const file=path.join(folder,name),stat=await fs.lstat(file);
    total+=stat.size;if(!stat.isFile()||stat.isSymbolicLink()||stat.size>8388608||total>67108864)throw Error('SOURCE_FILE_LIMIT');
    let text;try{await fs.chmod(file,0o600);text=await fs.readFile(file,'utf8');}finally{await fs.chmod(file,stat.mode&0o777);}
    text=text.replace(/\\u002[fF]/g,'/').replace(/\\\//g,'/').replace(/&amp;/g,'&').replace(/&quot;/g,'"');
    if(!text.includes(sku))continue;
-   for(const m of text.matchAll(/https:\/\/assets\.hermes\.com\/[^\s"'<>\\]+/g)){
+   for(const m of text.matchAll(/(?:https:)?\/\/assets\.hermes\.com\/[^\s"'<>\\]+/g)){
     // Standard URL serialization percent-encodes a published Unicode pathname;
     // it does not substitute the asset identifier, size or transformation.
-    try{const image=inspectHermesImageUrl(new URL(m[0]).href,sku);if(image.renditionWidth===1000&&image.view==='front')published.add(image.url);}catch{}
+    try{const image=inspectHermesImageUrl(new URL(m[0],'https://www.hermes.com').href,sku);if(image.view==='front'){if(image.nativeAsset)nativePublished.add(image.url);else if(image.renditionWidth===1000)published.add(image.url);}}catch{}
    }
   }
+  if(nativePublished.size){published.clear();for(const url of nativePublished)published.add(url);}
   if(published.size!==1)throw Error(published.size?'PUBLISHED_SOURCE_AMBIGUOUS':'PUBLISHED_SOURCE_MISSING');
   target=hermesImagePropertiesUrl([...published][0],sku,[...published]);
   const url=new URL(target);if(url.origin!=='https://assets.hermes.com'||url.search!=='?req=props')throw Error('UNAUTHORIZED_URL');
