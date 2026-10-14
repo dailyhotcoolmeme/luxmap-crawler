@@ -33,7 +33,7 @@ export function publishedScriptProvenance(html,target,brand,sourceUrls){
 }
 function proxyUrl(raw){let u;try{u=new URL(raw);}catch{throw Error('PROXY_GUARD_REQUIRED');}if(u.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(u.hostname)||!u.port||u.username||u.password||u.search||u.hash||u.pathname!=='/')throw Error('PROXY_GUARD_REQUIRED');return u;}
 function checkResponse(status,headers,limit){
- if([401,403,429].includes(status))throw Error('ACCESS_BLOCKED');if(status>=300&&status<400)throw Error('SCRIPT_REDIRECT_BLOCKED');if(status!==200)throw Error('SCRIPT_HTTP_FAILED');
+ if([401,403,429].includes(status))throw Error('ACCESS_BLOCKED');if(status>=300&&status<400)throw Error('SCRIPT_REDIRECT_BLOCKED');if(status!==200)throw Error(Number.isInteger(status)&&status>=100&&status<=599?`SCRIPT_HTTP_${status}`:'SCRIPT_HTTP_FAILED');
  if(!/^(?:application\/(?:javascript|x-javascript|ecmascript)|text\/(?:javascript|ecmascript))(?:\s*;|$)/i.test(headers['content-type']??''))throw Error('NON_JAVASCRIPT_RESPONSE');
  if(headers['content-encoding']&&headers['content-encoding']!=='identity')throw Error('SCRIPT_ENCODING_UNSUPPORTED');
  const n=headers['content-length'];if(n!==undefined&&(!/^\d+$/.test(String(n))||Number(n)>limit))throw Error('SCRIPT_RESPONSE_LIMIT');

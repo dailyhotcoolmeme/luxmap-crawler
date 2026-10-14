@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {validateBulgariProductChunk as validate} from '../crawler/common/bulgari-product-chunk-proof.js';
+const root=path.resolve(import.meta.dirname,'..');
+const htmlRun=path.join(root,'crawler/runs/bulgari/kr/20261014T150952Z-87506');
+const mainRun=path.join(root,'crawler/runs/bulgari/kr/20261014T162428Z-60144');
+const target='https://www.bulgari.com/ko-kr/overrides-app-pages-product-detail.9f98c33d10aeac5466b2.js';
+const guard=file=>assert.equal(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status,0);
+const read=file=>{const stat=fs.lstatSync(file);assert(stat.isFile()&&!stat.isSymbolicLink()&&stat.size<=8388608);assert.equal(fs.realpathSync(file),file);try{fs.chmodSync(file,0o600);return fs.readFileSync(file);}finally{fs.chmodSync(file,stat.mode&0o777);}};
+assert.equal(spawnSync(path.join(root,'scripts/crawl-preflight.sh'),[],{stdio:'ignore'}).status,0);
+let checks=0;const test=fn=>{fn();checks++;};
+test(()=>assert.equal(validate('untrusted','untrusted',target+'?x=1'),false));
+test(()=>assert.equal(validate('untrusted','untrusted',target.replace('/ko-kr/','/mobify/bundle/3189/')),false));
+test(()=>assert.throws(()=>validate('untrusted','untrusted',target),/CHUNK_MAIN_HASH_MISMATCH/));
+test(()=>assert.throws(()=>validate('',Buffer.alloc(8388609),target),/CHUNK_SOURCE_LIMIT/));
+test(()=>assert.throws(()=>validate('',null,target),/CHUNK_SOURCE_TYPE/));
+let actual='ACTUAL_SOURCE_FIXTURE_ABSENT';
+if(fs.existsSync(path.join(htmlRun,'raw'))&&fs.existsSync(path.join(mainRun,'raw/published-script.source'))){
+ guard(path.join(htmlRun,'summary.json'));guard(path.join(mainRun,'summary.json'));
+ assert(JSON.parse(fs.readFileSync(path.join(htmlRun,'summary.json'),'utf8')).some(r=>r.officialUrl==='https://www.bulgari.com/ko-kr/323532.html'&&r.status==='EXACT_PRODUCT_SCHEMA_MISSING'));
+ assert(JSON.parse(fs.readFileSync(path.join(mainRun,'summary.json'),'utf8')).some(r=>r.officialUrl==='https://www.bulgari.com/mobify/bundle/3189/main.ed56b3dc93aa16a4c81c.js'&&r.status==='SCRIPT_FETCH_HTTP_200'));
+ const main=read(path.join(mainRun,'raw/published-script.source')),folder=path.join(htmlRun,'raw');assert.equal(fs.realpathSync(folder),folder);
+ const names=fs.readdirSync(folder).filter(n=>/^\d+\.source$/.test(n));assert(names.length<=30);
+ let html;for(const name of names){const candidate=read(path.join(folder,name));if(validate(candidate,main,target)){assert(!html);html=candidate;}}
+ assert(html);actual='ACTUAL_PINNED_PROOF_TRUE';
+ test(()=>assert.equal(validate(html,main,target),true));
+ test(()=>assert.equal(validate(html.toString('utf8'),main.toString('utf8'),target),true));
+ test(()=>assert.equal(validate(Buffer.concat([html,Buffer.from(' ')]),main,target),false));
+ test(()=>assert.equal(validate(html.toString().replace('323532','999999'),main,target),false));
+ test(()=>assert.equal(validate(Buffer.from('<base href="https://outside.invalid/">'+html.toString()),main,target),false));
+ test(()=>assert.equal(validate(Buffer.concat([html,Buffer.from('<script>webpack.p="x"</script>')]),main,target),false));
+ test(()=>assert.throws(()=>validate(html,Buffer.concat([main,Buffer.from(' ')]),target),/CHUNK_MAIN_HASH_MISMATCH/));
+ test(()=>{const changed=Buffer.from(main);changed[0]^=1;assert.throws(()=>validate(html,changed,target),/CHUNK_MAIN_HASH_MISMATCH/);});
+ test(()=>assert.equal(validate(html,main,target.replace('9f98','0000')),false));
+ const dir=path.join(htmlRun,'bulgari-product-chunk-proof');if(fs.existsSync(dir))assert(!fs.lstatSync(dir).isSymbolicLink());fs.mkdirSync(dir,{recursive:true,mode:0o700});assert.equal(fs.realpathSync(dir),dir);
+ const file=path.join(dir,'summary.json');if(fs.existsSync(file))assert(fs.lstatSync(file).isFile()&&fs.lstatSync(file).nlink===1);
+ fs.writeFileSync(file,JSON.stringify([{brand:'bulgari',country:'KR',parentModel:'',variantCode:'323532',price:null,currency:'',status:actual,officialUrl:target}]),{mode:0o600});guard(file);
+}
+console.log(`PASS: ${checks} frozen Bulgari proof checks; no network/parser; actual evidence in guarded summary only`);

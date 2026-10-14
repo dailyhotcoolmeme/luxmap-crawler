@@ -33,7 +33,7 @@ try{
  assert.equal((await fs.stat(input)).mode&0o777,0o400);assert.equal((await fs.stat(path.join(lastRun,'raw/published-script.source'))).mode&0o777,0o600);
  for(const status of [401,403,429]){const before=calls,result=await probe({status});assert.equal(result.failureCode,'ACCESS_BLOCKED');assert.equal(calls,before+1);await assert.rejects(fs.stat(path.join(lastRun,'raw/published-script.source')),/ENOENT/);}
  assert.equal((await probe({status:302})).failureCode,'SCRIPT_REDIRECT_BLOCKED');
- assert.equal((await probe({status:500})).failureCode,'SCRIPT_HTTP_FAILED');
+ assert.equal((await probe({status:500})).failureCode,'SCRIPT_HTTP_500');
  assert.equal((await probe({headers:{'content-type':'text/html'}})).failureCode,'NON_JAVASCRIPT_RESPONSE');
  assert.equal((await probe({headers:{'content-type':'text/javascript','content-encoding':'gzip'}})).failureCode,'SCRIPT_ENCODING_UNSUPPORTED');
  assert.equal((await probe({body:Buffer.alloc(9)},{config:{...config,maxResponseBytes:8}})).failureCode,'SCRIPT_RESPONSE_LIMIT');

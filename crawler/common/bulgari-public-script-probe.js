@@ -5,6 +5,7 @@ import https from 'node:https';
 import tls from 'node:tls';
 import {spawnSync} from 'node:child_process';
 import {decodeHtml} from './prada-product.js';
+import {validateBulgariChunkUrl} from './bulgari-chunk-provenance.js';
 
 const projectRoot=path.resolve(import.meta.dirname,'../..');
 const sourceId='20261014T150952Z-87506';
@@ -36,7 +37,7 @@ export function hasPublishedBulgariScript(html,url){
 function checkResponse(status,headers,maxBytes){
  if([401,403,429].includes(status))throw Error('ACCESS_BLOCKED');
  if(status>=300&&status<400)throw Error('SCRIPT_REDIRECT_BLOCKED');
- if(status!==200)throw Error('SCRIPT_HTTP_FAILED');
+ if(status!==200)throw Error(Number.isInteger(status)&&status>=100&&status<=599?`SCRIPT_HTTP_${status}`:'SCRIPT_HTTP_FAILED');
  if(!jsMime.test(headers['content-type']??''))throw Error('NON_JAVASCRIPT_RESPONSE');
  if(headers['content-encoding']&&headers['content-encoding']!=='identity')throw Error('SCRIPT_ENCODING_UNSUPPORTED');
  const length=headers['content-length'];if(length!==undefined&&(!/^\d+$/.test(String(length))||Number(length)>maxBytes))throw Error('SCRIPT_RESPONSE_LIMIT');
@@ -75,8 +76,9 @@ export async function probeBulgariPublicScript(options={}){
  if(env.CRAWL_MODE!=='deterministic-only'||env.LUXURY_PIPELINE_GUARD!=='enabled'||env.LUXURY_NETWORK_ISOLATED!=='enabled'||env.CRAWL_BRAND!=='bulgari')throw Error('GUARDED_RUN_REQUIRED');
  proxyUrl(env.LUXURY_NETWORK_PROXY);
  if(spawnSync(path.join(projectRoot,'scripts/crawl-preflight.sh'),[],{stdio:'ignore'}).status!==0)throw Error('PREFLIGHT_FAILED');
- if(args.length!==7||args[0]!=='--country-config'||args[2]!=='--probe-published-script'||args[3]!=='--source-run'||args[5]!=='--script-url')throw Error('INVALID_PROBE_ARGS');
- const target=validateBulgariScriptUrl(args[6]),cfg=options.config??JSON.parse(await fs.readFile(args[1],'utf8'));
+ const chunk=args[2]==='--probe-product-chunk';
+ if(args.length!==7||args[0]!=='--country-config'||!['--probe-published-script','--probe-product-chunk'].includes(args[2])||args[3]!=='--source-run'||args[5]!=='--script-url')throw Error('INVALID_PROBE_ARGS');
+ const target=(chunk?validateBulgariChunkUrl:validateBulgariScriptUrl)(args[6]),cfg=options.config??JSON.parse(await fs.readFile(args[1],'utf8'));
  if(cfg.brand!=='bulgari'||cfg.country!=='KR'||cfg.currency!=='KRW'||cfg.localePrefix!=='/ko-kr/'||!Array.isArray(cfg.allowedHosts)||!cfg.allowedHosts.includes('www.bulgari.com')||!Number.isSafeInteger(cfg.maxResponseBytes)||cfg.maxResponseBytes<1||cfg.maxResponseBytes>8388608||!Number.isSafeInteger(cfg.maxRequestsPerRun)||cfg.maxRequestsPerRun<1)throw Error('CONFIG_INVALID');
  const base=path.join(root,'crawler/runs/bulgari/kr'),source=path.resolve(args[4]),run=path.resolve(env.CRAWL_RUN_DIR??'');
  if(source!==path.join(base,sourceId)||!run.startsWith(base+path.sep)||run===source||run.startsWith(source+path.sep))throw Error('RUN_SCOPE_INVALID');
@@ -92,11 +94,24 @@ export async function probeBulgariPublicScript(options={}){
   if(!prior.some(r=>r.brand==='bulgari'&&r.country==='KR'&&r.status==='EXACT_PRODUCT_SCHEMA_MISSING'&&r.officialUrl===product&&['SOURCE','323532'].includes(r.variantCode)))throw Error('PRIOR_SOURCE_PROOF_MISSING');
   const folder=path.join(source,'raw');if(await fs.realpath(folder)!==folder)throw Error('RAW_SCOPE_INVALID');
   const names=(await fs.readdir(folder)).filter(n=>/^\d+\.source$/.test(n));if(!names.length||names.length>100)throw Error('SOURCE_FILE_LIMIT');
-  let total=0,proven=false;
+  let total=0,proven=false,mainSource;
+  if(chunk){
+   const dir=path.join(base,'20261014T162428Z-60144'),proof=path.join(dir,'summary.json');
+   if(await fs.realpath(dir)!==dir)throw Error('CHUNK_SOURCE_SCOPE');
+   const p=await fs.lstat(proof);
+   if(!p.isFile()||p.isSymbolicLink()||p.size>32768||spawnSync(path.join(projectRoot,'scripts/crawl-output-guard.sh'),[proof],{stdio:'ignore'}).status!==0)throw Error('CHUNK_SOURCE_GUARD');
+   if(!JSON.parse(await fs.readFile(proof,'utf8')).some(r=>r.brand==='bulgari'&&r.country==='KR'&&r.status==='SCRIPT_FETCH_HTTP_200'&&r.officialUrl==='https://www.bulgari.com/mobify/bundle/3189/main.ed56b3dc93aa16a4c81c.js'))throw Error('CHUNK_SOURCE_PROOF');
+   const file=path.join(dir,'raw/published-script.source'),s=await fs.lstat(file);
+   if(!s.isFile()||s.isSymbolicLink()||await fs.realpath(file)!==file||s.size>8388608)throw Error('CHUNK_SOURCE_LIMIT');
+   try{await fs.chmod(file,0o600);mainSource=await fs.readFile(file,'utf8');}finally{await fs.chmod(file,s.mode&0o777);}
+  }
   for(const name of names){const file=path.join(folder,name),stat=await fs.lstat(file);total+=stat.size;
    if(!stat.isFile()||stat.isSymbolicLink()||stat.size>8388608||total>67108864)throw Error('SOURCE_FILE_LIMIT');
    let html;try{await fs.chmod(file,0o600);html=await fs.readFile(file,'utf8');}finally{await fs.chmod(file,stat.mode&0o777);}
-   if(hasPublishedBulgariScript(html,target))proven=true;
+   if(chunk){
+    const {validateBulgariProductChunk}=await import('./bulgari-product-chunk-proof.js');
+    if(validateBulgariProductChunk(html,mainSource,target))proven=true;
+   }else if(hasPublishedBulgariScript(html,target))proven=true;
   }
   if(!proven)throw Error('PUBLISHED_SCRIPT_PROOF_MISSING');
   const out=path.join(run,'raw');await fs.mkdir(out,{recursive:true,mode:0o700});if(await fs.realpath(out)!==out)throw Error('RAW_SCOPE_INVALID');

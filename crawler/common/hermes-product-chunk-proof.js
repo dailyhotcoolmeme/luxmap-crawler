@@ -2,8 +2,10 @@ import {createHash} from 'node:crypto';
 
 // Frozen source-version proof, generated/checked offline by
 // scripts/pin-hermes-product-chunk-evidence.mjs using the locked app parser.
-// main: literal path "product", loadChildren e(2681), bind entry module 82681.
-// runtime: matching webpack chunk global, u(2681)=2681.3ca69cb105cc8c16.js,
+// main: literal path "product", loadChildren includes 2681, 2276, 1298,
+// bind entry module 82681. 2276/1298 are shared route dependencies; their
+// contained module IDs are NOT attested. Runtime mapping was independently
+// resolved with the pinned offline parser for each exact filename below.
 // p="". HTML: published /kr/ko/ base and both exact script src tags.
 // All THREE complete source byte hashes are mandatory. These are not an
 // externally supplied "verified" flag or a general-purpose chunk allowlist.
@@ -11,11 +13,14 @@ const PIN=Object.freeze({
  html:'febd2a057336042ef54bca678866a571c3a823b5ec2c927486653f69b7a0c97e',
  main:'51d4be90e86e93f13122a142e0846f1867f036124c877cb8f3791b00bdcef7cb',
  runtime:'ca3e17aa826963860370d57d528f1442b59ea98a06ec13a9991d95d086af83bb',
- target:'https://www.hermes.com/kr/ko/2681.3ca69cb105cc8c16.js',
  mainUrl:'https://www.hermes.com/kr/ko/main.512d3bc35b6ae972.js',
  runtimeUrl:'https://www.hermes.com/kr/ko/runtime.d9db7c0cd2a87d6b.js',
- filename:'2681.3ca69cb105cc8c16.js',
 });
+const FILENAMES=Object.freeze([
+ '2681.3ca69cb105cc8c16.js',
+ '2276.18297d8cdcdb277c.js',
+ '1298.db55006e8b5c1943.js',
+]);
 function bytes(value){
  if(typeof value==='string'){if(Buffer.byteLength(value)>8388608)throw Error('CHUNK_SOURCE_LIMIT');return Buffer.from(value,'utf8');}
  if(Buffer.isBuffer(value)){if(value.length>8388608)throw Error('CHUNK_SOURCE_LIMIT');return value;}
@@ -27,7 +32,8 @@ const attrs=tag=>Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*
 // Pure/no filesystem/no network/no parser dependency. Core version mismatches
 // throw; a nonmatching HTML file in the approved run simply returns false.
 export function validateHermesProductChunk(html,mainSource,runtimeSource,target){
- if(target!==PIN.target)return false;
+ const filename=FILENAMES.find(name=>target===`https://www.hermes.com/kr/ko/${name}`);
+ if(!filename)return false;
  const mainBytes=bytes(mainSource),runtimeBytes=bytes(runtimeSource);
  if(hash(mainBytes)!==PIN.main)throw Error('CHUNK_MAIN_HASH_MISMATCH');
  if(hash(runtimeBytes)!==PIN.runtime)throw Error('CHUNK_RUNTIME_HASH_MISMATCH');
@@ -48,5 +54,5 @@ export function validateHermesProductChunk(html,mainSource,runtimeSource,target)
  if(!scripts.has(PIN.mainUrl)||!scripts.has(PIN.runtimeUrl))return false;
  // The exact frozen sources establish the runtime mapping and empty publicPath;
  // only the actually published base is applied with standard URL resolution.
- return new URL(PIN.filename,new URL(bases[0],'https://www.hermes.com/')).href===target;
+ return new URL(filename,new URL(bases[0],'https://www.hermes.com/')).href===target;
 }

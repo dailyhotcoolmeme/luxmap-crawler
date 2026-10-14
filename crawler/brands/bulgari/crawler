@@ -6,7 +6,7 @@ if(process.argv.includes('--audit-reference')){
  const {auditOfficialReferenceCatalog}=await import('../../../scripts/audit-official-reference.mjs');
  process.exitCode=(await auditOfficialReferenceCatalog({brand:'bulgari'})).exitCode;
 }
-else if(process.argv.includes('--probe-published-script')){
+else if(process.argv.includes('--probe-published-script')||process.argv.includes('--probe-product-chunk')){
  const {probeBulgariPublicScript}=await import('../../common/bulgari-public-script-probe.js');
  await probeBulgariPublicScript();
 }
