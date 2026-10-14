@@ -12,9 +12,9 @@ const key=process.env.EXPO_PUBLIC_SUPABASE_KEY;
 if(!key)throw Error('PUBLIC_KEY_REQUIRED');
 const client=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:30000,extraHTTPHeaders:{apikey:key}});
 const selection=process.argv.slice(2);
-if(selection.length&&!(selection.length===2&&selection[0]==='--brand'&&selection[1]==='van-cleef-arpels'))throw Error('AUDIT_SCOPE_INVALID');
+if(selection.length&&!(selection.length===2&&selection[0]==='--brand'&&['van-cleef-arpels','rolex'].includes(selection[1])))throw Error('AUDIT_SCOPE_INVALID');
 const selected=selection.length?[selection[1]]:['van-cleef-arpels','rolex'];
-const output=path.join(root,selection.length?'crawler/onboarding/van-cleef-arpels/daily-audit/summary.json':'crawler/onboarding/final-public/summary.json'),summary=[];
+const output=path.join(root,selection.length?`crawler/onboarding/${selection[1]}/daily-audit/summary.json`:'crawler/onboarding/final-public/summary.json'),summary=[];
 fs.mkdirSync(path.dirname(output),{recursive:true});
 const guarded=file=>{
  if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status)throw Error('SUMMARY_REJECTED');
@@ -51,8 +51,8 @@ try{
    const markets=v?.market_products.filter(m=>m.country_code==='KR')??[],m=markets[0];
    const media=v?.product_media.filter(m=>m.is_primary)??[];
    const imageOk=media.length===1&&media[0].r2_object_key.startsWith(`products/${brand}/`)&&media[0].r2_object_key.includes(`/${code}/cutout-v1/`)&&/\/[a-f0-9]{64}\.webp$/.test(media[0].r2_object_key);
-   const kind=productKind?.({brand:v?.brands?.name_ko,brandOriginal:v?.brands?.name_original});
-   const categoryOk=productKind?kind===cfg.category:(brand==='van-cleef-arpels'&&cfg.category==='jewelry'&&v?.brands?.name_ko==='반클리프 아펠');
+   const kind=productKind?.({brandSlug:brand,brand:v?.brands?.name_ko,brandOriginal:v?.brands?.name_original});
+   const categoryOk=productKind?kind===cfg.category:(brand==='van-cleef-arpels'&&cfg.category==='jewelry'&&v?.brands?.name_ko==='반클리프 아펠'||brand==='rolex'&&cfg.category==='watch'&&v?.brands?.slug==='rolex');
    if(imageOk)images++;if(categoryOk)categories++;
    if(matches.length!==1||!v.product_models?.id||!source||markets.length!==1||m.currency_code!=='KRW'||m.official_product_code!==code||m.official_url!==url||source.officialUrl!==url||
       (source.price===null?m.current_price!==null:Number(m.current_price)!==source.price)||!imageOk||!categoryOk){mismatch++;continue;}

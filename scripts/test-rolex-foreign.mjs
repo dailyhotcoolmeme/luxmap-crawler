@@ -19,4 +19,8 @@ assert.throws(()=>localizedReference('<link href="https://www.rolex.com/ja/watch
 const daily=fs.readFileSync(new URL('./rolex-market.mjs',import.meta.url),'utf8');
 assert(daily.includes("'scripts/audit-rolex-catalog.mjs'"),'Rolex daily verification must check Rolex, not another brand');
 assert(!daily.includes('audit-van-cleef-catalog.mjs')&&!daily.includes('www.vancleefarpels.com'),'Rolex must not report a different brand source or audit');
+const audit=fs.readFileSync(new URL('./verify-jewelry-watch-catalog.mjs',import.meta.url),'utf8');
+assert(audit.includes("['van-cleef-arpels','rolex'].includes(selection[1])"),'registered Rolex audit scope must be accepted');
+assert(audit.includes('crawler/onboarding/${selection[1]}/daily-audit/summary.json'),'brand audit summaries must be isolated');
+assert(audit.includes("brand==='rolex'&&cfg.category==='watch'&&v?.brands?.slug==='rolex'"),'public crawler checkout must verify watch category without app source');
 console.log('PASS: Rolex 7 country-specific routes, exact normalized SKU, declared currency; generic language-only route rejected');
