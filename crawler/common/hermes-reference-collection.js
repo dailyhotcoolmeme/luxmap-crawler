@@ -2,6 +2,46 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {request} from 'playwright-core';
 import {decodeHtml} from './prada-product.js';
+import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {inspectHermesListingEvidence} from './hermes-listing-evidence.js';
+
+export async function collectHermesForeignPrices(){
+ const args=process.argv.slice(2),cfg=JSON.parse(await fs.readFile(args[1])),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..');
+ if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.CRAWL_BRAND!=='hermes'||!['JP','FR','IT','ES','US','SG','HK'].includes(cfg.country)||args[0]!=='--country-config'||args[2]!=='--prices-offset'||!/^\d+$/.test(args[3]??'')||![4,6].includes(args.length)||args.length===6&&(args[4]!=='--limit'||args[5]!=='1'))throw Error('GUARDED_PRICE_RUN_REQUIRED');
+ const offset=Number(args[3]),sample=args.length===6,rows=[],records=[],artifact=path.join(run,'artifacts'),cacheFile=path.join(root,`crawler/brands/hermes/.foreign-listing-${cfg.country.toLowerCase()}.json`);
+ const krBytes=await fs.readFile(path.join(root,'crawler/brands/hermes/.reference-index.json')),index=JSON.parse(krBytes),fingerprint=createHash('sha256').update(krBytes).digest('hex');
+ const targets=[...new Set(index.products.map(p=>p.code))].sort();if(!targets.length||targets.length>cfg.maxCandidates)throw Error('REFERENCE_SCOPE_INVALID');
+ const row=(status,p={})=>({brand:'hermes',country:cfg.country,parentModel:'한국 SKU 해외 가격',variantCode:p.sku??'RUN',price:p.price??null,currency:cfg.currency,status,officialUrl:p.url??cfg.entryUrl});
+ const context=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:cfg.navigationTimeoutMs});let calls=0,cache;
+ async function get(address){
+  const u=new URL(address);if(u.protocol!=='https:'||u.host!=='www.hermes.com'||u.username||u.password||!u.pathname.startsWith(cfg.localePrefix)||cfg.localePrefix.split('/')[1]!==cfg.country.toLowerCase())throw Error('UNAUTHORIZED_URL');
+  if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');
+  const r=await context.get(u.href,{maxRedirects:0,maxRetries:0});if([401,403,429].includes(r.status()))throw Error('ACCESS_BLOCKED');if(!r.ok())throw Error('HTTP_'+r.status());
+  if(!/text\/html/i.test(r.headers()['content-type']??''))throw Error('SOURCE_NOT_HTML');const b=await r.body();if(b.length>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');
+  const text=b.toString('utf8');if(/cf-chl|challenge-platform|px-captcha|captcha-delivery|verify you are human|datadome/i.test(text))throw Error('ACCESS_BLOCKED');
+  await fs.writeFile(path.join(run,'raw',calls+'.source'),b,{mode:0o600});return text;
+ }
+ try{
+  await fs.mkdir(artifact,{recursive:true});try{cache=JSON.parse(await fs.readFile(cacheFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+  if(cache?.blocked)throw Error('PREVIOUS_COUNTRY_BLOCKED');
+  if(cache&&!(cache.fingerprint===fingerprint&&Date.now()-Date.parse(cache.checkedAt)<86400000&&cache.country===cfg.country&&cache.currency===cfg.currency&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[cache.sourceRun+'/summary.json'],{stdio:'ignore'}).status===0))cache=null;
+  if(!cache){
+   const home=await get(cfg.entryUrl),queue=[...hermesReferenceLinks(home,cfg.entryUrl,cfg).listings],seen=new Set(),found=new Map();if(!queue.length)throw Error('COUNTRY_LISTING_MISSING');
+   while(queue.length){const url=queue.shift();if(seen.has(url))continue;if(seen.size>=cfg.maxDiscoveryPages)throw Error('DISCOVERY_PAGE_LIMIT');seen.add(url);const html=await get(url);
+    for(const p of inspectHermesListingEvidence(html,{includeVisiblePrices:true,market:cfg}).records){if(!targets.includes(p.sku)||p.price===null||p.currency!==cfg.currency)continue;const old=found.get(p.sku);if(old&&old.price!==p.price)throw Error('PRICE_CONFLICT');found.set(p.sku,{sku:p.sku,url:p.url,price:p.price,name:p.name});}
+    for(const next of hermesReferenceLinks(html,url,cfg).listings)if(!seen.has(next)&&!queue.includes(next))queue.push(next);
+   }
+   cache={country:cfg.country,currency:cfg.currency,fingerprint,checkedAt:new Date().toISOString(),sourceRun:run,products:[...found.values()]};await fs.writeFile(cacheFile,JSON.stringify(cache),{mode:0o600});rows.push(row('COUNTRY_LISTING_CAPTURED'));
+  }
+  rows.push(row('KOREAN_REFERENCES_'+targets.length),row('LISTING_PRICE_MATCHES_'+cache.products.length));
+  const selected=sample?targets.filter(c=>cache.products.some(p=>p.sku===c)).slice(0,1):targets.slice(offset,offset+25);if(!selected.length)throw Error('NO_COUNTRY_PRICE_MATCH');let failed=0;
+  for(const code of selected){const p=cache.products.find(p=>p.sku===code);if(!p){failed++;rows.push(row('UNPROCESSED_COUNTRY_LISTING',{sku:code}));continue;}
+   records.push({brand:'hermes',country:cfg.country,currency:cfg.currency,originalCode:code,normalizedCode:code,price:p.price,priceStatus:'confirmed',productName:p.name,officialUrl:p.url,checkedAt:new Date().toISOString()});rows.push(row('COUNTRY_PRICE_READY',p));}
+  rows.push(row('BATCH_READY_'+records.length),row('BATCH_FAILED_'+failed),row('NEXT_OFFSET_'+(offset+selected.length)),row('REMAINING_'+Math.max(0,targets.length-offset-selected.length)));if(sample)rows.push(row('SAMPLE_NOT_FULL_CATALOG'));if(failed)process.exitCode=2;
+ }catch(e){const code=/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'COUNTRY_SOURCE_FAILED';rows.push(row(code));if(code==='ACCESS_BLOCKED')await fs.writeFile(cacheFile,JSON.stringify({blocked:true,country:cfg.country}),{mode:0o600});process.exitCode=/UNAUTHORIZED|LIMIT|GUARD|CONFLICT/.test(code)?78:1;}
+ finally{await fs.mkdir(artifact,{recursive:true});await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(records),{mode:0o600});await fs.writeFile(path.join(run,'summary.json'),JSON.stringify(rows),{mode:0o600});await context.dispose();}
+}
 
 export const hermesReferenceCode=url=>new URL(url).pathname.match(/\/product\/[^/]+-(H[A-Z0-9]{8,19})\/?$/i)?.[1]?.toUpperCase()??null;
 export function hermesReferenceLinks(html,base,cfg){
@@ -14,7 +54,7 @@ export function hermesReferenceLinks(html,base,cfg){
    url.hash='';
    const code=hermesReferenceCode(url.href);
    if(code){url.search='';product.set(code,url.href);}
-   else if(/\/category\/leather-goods\/bags-and-clutches\//.test(url.pathname)){
+   else if(/\/category\/.*(?:bags|clutches|sacs|borse|bolsos)(?:[-/]|$)/i.test(url.pathname)){
     // Facets are alternate views, not independent discovery pages. Follow only
     // pagination actually published by the official list.
     if([...url.searchParams.keys()].some(key=>!['page','offset','start'].includes(key)))continue;

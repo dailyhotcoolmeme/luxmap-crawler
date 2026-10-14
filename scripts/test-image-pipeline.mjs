@@ -42,6 +42,11 @@ try{
  assert.equal(second.imageProcessingVersion,'original-cutout-v1');assert.notEqual(second.originalImagePath,image.originalImagePath);
  assert.equal(image.imageProcessingVersion,'original-cutout-v1');
  const meta=await sharp(image.imagePath).metadata();assert.equal(meta.width,960);assert.equal(meta.height,960);assert(meta.hasAlpha);
+ const {data:rgba,info}=await sharp(image.imagePath).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+ let left=960,top=960,right=-1,bottom=-1;
+ for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++)if(rgba[(y*info.width+x)*4+3]>16){left=Math.min(left,x);top=Math.min(top,y);right=Math.max(right,x);bottom=Math.max(bottom,y);}
+ assert(Math.max(right-left+1,bottom-top+1)>=760,'small native foreground must fill the standard product slot');
+ assert(Math.max(right-left+1,bottom-top+1)<=820,'foreground must remain inside the standard bounds');
  assert.equal(image.imageProof.originalSourceVerified,true);assert.equal(image.imageProof.cpuOfflineVerified,true);assert.equal(image.imageProof.outputVerified,true);
  assert.equal(image.imageProof.sha256,image.imageSha256);assert.equal(image.imageProof.sourceUrl,image.sourceImageUrl);assert.equal(image.imageProof.width,960);assert.equal(image.imageProof.height,960);assert.equal(image.imageProof.hasAlpha,true);assert.match(image.imageProof.sourceSha256,/^[a-f0-9]{64}$/);
  assert(fs.existsSync(image.originalImagePath),'original retained until storage verification');

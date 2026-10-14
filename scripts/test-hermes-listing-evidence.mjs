@@ -28,3 +28,10 @@ assert.equal(inspect(typed+card.replace('1,230,000','1,240,000'),{includeVisible
 assert.equal(inspect(typed+card.replace('</li>','<span>₩ 1,240,000</span></li>'),{includeVisiblePrices:true}).records[0].price,null);
 assert.equal(inspect(script({sku,url,price:1230000,currency:'USD'})+card,{includeVisiblePrices:true}).records[0].price,null);
 console.log('PASS: exact SKU/card/typed-price currency corroboration, conflicts rejected, no evaluation');
+for(const [country,currency,prefix,price,display] of [['JP','JPY','/jp/ja/',1230000,'￥1,230,000'],['FR','EUR','/fr/fr/',1230,'1 230 €'],['IT','EUR','/it/it/',1230,'1.230 €'],['ES','EUR','/es/es/',1230,'1.230 €'],['US','USD','/us/en/',1230,'$1,230'],['SG','SGD','/sg/en/',1230,'S$1,230'],['HK','HKD','/hk/en/',1230,'HK$1,230']]){
+ const market={country,currency,localePrefix:prefix},foreign=url.replace('/kr/ko/',prefix),source=script({sku,url:foreign,title:'Fixture',price})+`<li class="product-item"><a href="${foreign}">Fixture</a><span>${display}</span></li>`;
+ assert.equal(inspect(source,{includeVisiblePrices:true,market}).records[0].price,price,country);
+ assert.equal(inspect(source,{includeVisiblePrices:true,market}).records[0].currency,currency);
+ assert.equal(inspect(source.replaceAll(prefix,'/kr/ko/'),{includeVisiblePrices:true,market}).records.length,0);
+}
+console.log('PASS: seven explicit markets, local number formats and foreign locale rejection');

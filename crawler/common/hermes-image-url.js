@@ -36,7 +36,9 @@ export function hermesOriginalImageUrl(value, expectedCode, publishedUrls,proper
  const published=hermesPublishedImageUrl(value, expectedCode, publishedUrls);
  const image=inspectHermesImageUrl(value,expectedCode);
  if(image.nativeAsset&&properties?.dimensionsVerified===true&&properties.propertiesUrl===hermesImagePropertiesUrl(value,expectedCode,publishedUrls)&&Number.isSafeInteger(properties.width)&&Number.isSafeInteger(properties.height)&&Math.min(properties.width,properties.height)>=200){
-  const url=new URL(published);url.search='';return url.href;
+  // Preserve the exact URL published by Hermes; its size query does not prove
+  // high resolution. The downloader separately checks actual native dimensions.
+  return published;
  }
  // A 1000px rendition, Scene7 route or removed transform is not master-asset evidence.
  // Enable original resolution only after source/native-dimension evidence is verified.
@@ -48,6 +50,6 @@ export function hermesOriginalImageUrl(value, expectedCode, publishedUrls,proper
 // Scene7 properties request command. Never evaluate a script returned by the server.
 export function hermesImagePropertiesUrl(value, expectedCode, publishedUrls) {
  const published=hermesPublishedImageUrl(value, expectedCode, publishedUrls);
- if(inspectHermesImageUrl(value,expectedCode).nativeAsset){const url=new URL(published);url.search='?req=props';return url.href;}
+ if(inspectHermesImageUrl(value,expectedCode).nativeAsset)return published+'&req=props';
  return `${published}?req=props`;
 }

@@ -49,7 +49,7 @@ export async function recoverHermesListingSample(){
     await guarded(previous);const sr=JSON.parse(await fs.readFile(previous+'/summary.json','utf8'));
     if(!sr.some(r=>r.status==='REFERENCE_IMAGE_READY'&&r.variantCode===product.sku&&r.price===product.price&&r.officialUrl===product.url))continue;
     const candidates=JSON.parse(await readPrivate(previous+'/artifacts/records.json'));
-    const r=candidates.find(r=>r.normalizedCode===product.sku&&r.price===product.price&&r.officialUrl===product.url&&r.sourceImageUrl===image.split('?')[0]);if(!r)continue;
+    const r=candidates.find(r=>r.normalizedCode===product.sku&&r.price===product.price&&r.officialUrl===product.url&&r.sourceImageUrl===image);if(!r)continue;
     if(!r.imageProof?.cpuOfflineVerified||!r.imageProof.originalSourceVerified||r.imageProcessingVersion!=='original-cutout-v1')continue;
     if(path.dirname(r.imagePath)!==previous+'/artifacts'||path.dirname(r.originalImagePath)!==previous+'/artifacts')continue;
     const output=await fs.readFile(r.imagePath),input=await fs.readFile(r.originalImagePath);
@@ -76,7 +76,7 @@ export async function recoverHermesListingSample(){
    facts={...parseHermesImageProperties(body.toString('utf8')),propertiesUrl};
   }
   if(!facts?.dimensionsVerified)throw Error('NATIVE_IMAGE_PROPERTIES_MISSING');
-  const optimized=await downloadAndOptimizeImage({request:{get:(url,options)=>{if(url!==image.split('?')[0])throw Error('UNAUTHORIZED_IMAGE_URL');if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');return context.get(url,options);}}},image,artifact,product.sku,facts);
+  const optimized=await downloadAndOptimizeImage({request:{get:(url,options)=>{if(url!==image)throw Error('UNAUTHORIZED_IMAGE_URL');if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');return context.get(url,options);}}},image,artifact,product.sku,facts);
   const code=product.sku,referenceProof={schema:1,exactReferenceVerified:true,classificationEvidenceVerified:true,countryCurrencyVerified:true,brand:'hermes',category:'bag',country:'KR',currency:'KRW',code,officialUrl:product.url};
   records.push({brand:'hermes',category:'bag',country:'KR',currency:'KRW',originalCode:code,normalizedCode:code,sourceProductId:code,styleCode:code,modelKey:`sku-${code.toLowerCase()}`,parentModel:product.name,productName:product.name,materialDisplay:null,materialOriginal:null,colorDisplay:null,colorOriginal:null,sizeDisplay:null,widthMm:null,heightMm:null,depthMm:null,price:product.price,priceStatus:'confirmed',officialUrl:product.url,checkedAt:new Date().toISOString(),imageView:preferred,referenceProof,...optimized});
   if(preferred==='worn')rows.push(row('OFFICIAL_SAME_SKU_WORN_IMAGE'));

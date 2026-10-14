@@ -113,7 +113,7 @@ export async function probeHermesImageProperties(options={}){
   if(nativePublished.size){published.clear();for(const url of nativePublished)published.add(url);}
   if(published.size!==1)throw Error(published.size?'PUBLISHED_SOURCE_AMBIGUOUS':'PUBLISHED_SOURCE_MISSING');
   target=hermesImagePropertiesUrl([...published][0],sku,[...published]);
-  const url=new URL(target);if(url.origin!=='https://assets.hermes.com'||url.search!=='?req=props')throw Error('UNAUTHORIZED_URL');
+  const url=new URL(target);if(url.origin!=='https://assets.hermes.com'||url.searchParams.get('req')!=='props')throw Error('UNAUTHORIZED_URL');
   add('PUBLISHED_PROPERTIES_REQUEST');result.requests=1;
   const maxBytes=Math.min(cfg.maxResponseBytes,65536);
   const response=await (options.transport??requestProperties)(target,{proxy:env.LUXURY_NETWORK_PROXY,maxBytes,timeoutMs:30000});

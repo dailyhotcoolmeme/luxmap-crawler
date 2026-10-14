@@ -48,7 +48,8 @@ def make_cutout(original, session, np, Image):
         if bounds is None:
             raise RuntimeError("EMPTY_BOUNDS")
         cutout = original.crop(bounds)
-        cutout.thumbnail((820, 820), Image.Resampling.LANCZOS)
+        ratio = min(820 / cutout.width, 820 / cutout.height)
+        cutout = cutout.resize((max(1, round(cutout.width * ratio)), max(1, round(cutout.height * ratio))), Image.Resampling.LANCZOS)
         centered = Image.new("RGBA", (960, 960), (0, 0, 0, 0))
         centered.alpha_composite(cutout, ((960-cutout.width)//2, (960-cutout.height)//2))
         return centered
@@ -73,7 +74,8 @@ def make_cutout(original, session, np, Image):
     cutout = original.convert("RGBA")
     cutout.putalpha(mask)
     cutout = cutout.crop((max(0,left-4), max(0,top-4), min(original.width,right+4), min(original.height,bottom+4)))
-    cutout.thumbnail((820, 820), Image.Resampling.LANCZOS)
+    ratio = min(820 / cutout.width, 820 / cutout.height)
+    cutout = cutout.resize((max(1, round(cutout.width * ratio)), max(1, round(cutout.height * ratio))), Image.Resampling.LANCZOS)
     centered = Image.new("RGBA", (960, 960), (0, 0, 0, 0))
     centered.alpha_composite(cutout, ((960-cutout.width)//2, (960-cutout.height)//2))
     return centered

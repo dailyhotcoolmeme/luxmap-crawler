@@ -8,13 +8,19 @@ function taxonomy(v,depth=0){
  if(v&&typeof v==='object'){const entries=Object.entries(v);if(entries.length>30)return null;const items=entries.filter(([k])=>/^[A-Za-z0-9_-]{1,40}$/.test(k)).map(([k,x])=>[k,taxonomy(x,depth+1)]).filter(([,x])=>x!==null);return items.length?Object.fromEntries(items):null;}
  return null;
 }
-export function hermesEvidenceLink(raw){
+export function hermesEvidenceLink(raw,market={localePrefix:'/kr/ko/'}){
  if(typeof raw!=='string'||raw.length>500)return null;
  try{const u=new URL(decodeHtml(raw),'https://www.hermes.com');if(u.origin!=='https://www.hermes.com'||u.username||u.password||u.search||u.hash)return null;
- const sku=u.pathname.match(/^\/kr\/ko\/product\/[^/]+-(H[A-Z0-9]{8,19})\/?$/)?.[1];return sku?{sku,url:u.href}:null;}catch{return null;}
+ const prefix=market.localePrefix;
+ if(!/^\/[a-z]{2}\/[a-z]{2}\/$/.test(prefix??'')||!u.pathname.startsWith(prefix))return null;
+ const sku=u.pathname.slice(prefix.length).match(/^product\/[^/]+-(H[A-Z0-9]{8,19})\/?$/)?.[1];return sku?{sku,url:u.href}:null;}catch{return null;}
 }
 // Bind visible currency to one product card, never to the whole page/another SKU.
-export function hermesVisiblePrices(html){
+export function hermesVisiblePrices(html,market={country:'KR',currency:'KRW',localePrefix:'/kr/ko/'}){
+ const formats={KR:['KRW','₩','en'],JP:['JPY','[¥￥]','en'],FR:['EUR','€','fr'],IT:['EUR','€','it'],ES:['EUR','€','it'],US:['USD','(?<![A-Za-z])(?:US\\$|\\$)','en'],SG:['SGD','(?<![A-Za-z])(?:S\\$|\\$)','en'],HK:['HKD','(?<![A-Za-z])(?:HK\\$|\\$)','en']};
+ const format=formats[market.country];if(!format||format[0]!==market.currency)throw Error('COUNTRY_CURRENCY_INVALID');
+ const digits='[0-9][0-9,. \\u00a0\\u202f]*',money=new RegExp(`${format[1]}\\s*(${digits})|(${digits})\\s*${format[1]}`,'g');
+ const number=value=>{let v=value.replace(/[\s\u00a0\u202f]/g,'');if(format[2]==='en')v=v.replaceAll(',','');else if(format[2]==='it')v=v.replaceAll('.','').replace(',','.');else v=v.replace(',','.');return /^\d+(?:\.\d{1,2})?$/.test(v)?Number(v):null;};
  const source=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'');
  const root={tag:'root',attrs:{},children:[]},stack=[root];let count=0;
  const voids=new Set(['img','input','link','meta','br','hr','source','wbr','area','track','embed','param','col']);
@@ -31,17 +37,17 @@ export function hermesVisiblePrices(html){
   if(depth>200)throw Error('MARKUP_LIMIT');
   if(typeof node==='string')return {text:node,codes:new Set()};
   const parts=node.children.map(c=>visit(c,depth+1)),codes=new Set(parts.flatMap(p=>[...p.codes]));
-  const ref=node.tag==='a'?hermesEvidenceLink(node.attrs.href):null;if(ref)codes.add(ref.sku);
+  const ref=node.tag==='a'?hermesEvidenceLink(node.attrs.href,market):null;if(ref)codes.add(ref.sku);
   const text=parts.map(p=>p.text).join(' '),card=['li','article'].includes(node.tag)||/(?:^|\s)product[-_](?:item|tile|card)(?:\s|$)/i.test(node.attrs.class??'');
   if(card&&codes.size===1){
-   const prices=[...text.matchAll(/₩\s*([0-9][0-9,]*)/g)].map(m=>Number(m[1].replaceAll(',',''))).filter(n=>Number.isSafeInteger(n)&&n>0);
+   const prices=[...text.matchAll(money)].map(m=>number((m[1]??m[2]).trim())).filter(n=>Number.isFinite(n)&&n>0);
    if(prices.length){const sku=[...codes][0],set=found.get(sku)??new Set();for(const p of prices)set.add(p);found.set(sku,set);}
   }
   return {text,codes};
  }
  visit(root);return found;
 }
-export function inspectHermesListingEvidence(html,{includeVisiblePrices=false}={}){
+export function inspectHermesListingEvidence(html,{includeVisiblePrices=false,market={country:'KR',currency:'KRW',localePrefix:'/kr/ko/'}}={}){
  if(typeof html!=='string'||Buffer.byteLength(html)>8388608)throw Error('SOURCE_LIMIT');
  const stats={scripts:0,jsonLd:0,dataAttributes:0,parsedJson:0,unresolvedScripts:0,boundHits:0,objects:0,skuObjects:0};
  const objects=[],published=new Map(),seen=new Set(),fields={};let visits=0,bytes=0;
@@ -70,27 +76,27 @@ export function inspectHermesListingEvidence(html,{includeVisiblePrices=false}={
  for(const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){stats.scripts++;stats.jsonLd+=Number(/application\/ld\+json/i.test(m[1]));parseSafe(m[2]);}
  for(const tag of html.matchAll(/<[a-z][\w:-]*\b[^>]*>/gi))for(const m of tag[0].matchAll(/\b([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)){
   const key=m[1].toLowerCase(),v=decodeHtml(m[2]??m[3]);
-  if(key==='href'){const ref=hermesEvidenceLink(v);if(ref)published.set(ref.sku,ref.url);}
+  if(key==='href'){const ref=hermesEvidenceLink(v,market);if(ref)published.set(ref.sku,ref.url);}
   if(key.startsWith('data-')){stats.dataAttributes++;if(/^\s*[\[{]/.test(v))parseSafe(v);}
  }
  stats.objects=objects.length;
  stats.krwCurrencyObjects=objects.filter(o=>[o.currency,o.currencyCode,o.priceCurrency].includes('KRW')).length;
  // Collect explicit typed URLs before resolving SKU objects. No constructed paths.
- for(const object of objects)for(const key of ['url','productUrl','href','@id']){const ref=hermesEvidenceLink(object[key]);if(ref)published.set(ref.sku,ref.url);}
- const records=[],visible=includeVisiblePrices?hermesVisiblePrices(html):new Map();
+ for(const object of objects)for(const key of ['url','productUrl','href','@id']){const ref=hermesEvidenceLink(object[key],market);if(ref)published.set(ref.sku,ref.url);}
+ const records=[],visible=includeVisiblePrices?hermesVisiblePrices(html,market):new Map();
  for(const o of objects){
   const ids=[o.sku,o.mpn,o.productCode,o.productId,o.id,o.reference].filter(v=>typeof v==='string'&&skuPattern.test(v));
   const unique=[...new Set(ids)];if(unique.length!==1)continue;stats.skuObjects++;
   for(const [key,v] of Object.entries(o))if(/^[A-Za-z][A-Za-z0-9_]{0,17}$/.test(key)){const label=`${key.toUpperCase()}_${v===null?'NULL':Array.isArray(v)?'ARR':typeof v==='object'?'OBJ':typeof v==='number'?'NUM':'STR'}`;fields[label]=(fields[label]??0)+1;}
-  const sku=unique[0],refs=[o.url,o.productUrl,o.href,o['@id'],o.offers?.url].map(hermesEvidenceLink).filter(Boolean);
+  const sku=unique[0],refs=[o.url,o.productUrl,o.href,o['@id'],o.offers?.url].map(v=>hermesEvidenceLink(v,market)).filter(Boolean);
   if(refs.some(r=>r.sku!==sku))continue;const url=refs[0]?.url??published.get(sku);if(!url)continue;
   const offers=[o.offers].flat().filter(v=>v&&typeof v==='object');
   const candidates=[...offers.map(v=>[v.price,v.priceCurrency]),[o.price,o.priceCurrency??o.currency],[o.price?.value??o.price?.amount,o.price?.currency??o.price?.currencyCode],[o.salePriceValue,o.currencyCode]];
   const ownPrice=amount(o.price),cardPrices=visible.get(sku);
-  if(ownPrice!==null&&!o.priceCurrency&&!o.currency&&!o.currencyCode&&cardPrices?.size===1&&cardPrices.has(ownPrice))candidates.push([ownPrice,'KRW']);
-  const prices=[...new Set(candidates.filter(([p,c])=>amount(p)!==null&&c==='KRW').map(([p])=>amount(p)))];
+  if(ownPrice!==null&&!o.priceCurrency&&!o.currency&&!o.currencyCode&&cardPrices?.size===1&&cardPrices.has(ownPrice))candidates.push([ownPrice,market.currency]);
+  const prices=[...new Set(candidates.filter(([p,c])=>amount(p)!==null&&c===market.currency).map(([p])=>amount(p)))];
   const names=[...new Set([o.name,o.productName,o.title].map(clean).filter(Boolean))];
-  records.push({sku,url,name:names.length===1?names[0]:null,taxonomy:taxonomy(o.category??o.productCategory??o.categories),price:prices.length===1?prices[0]:null,currency:prices.length===1?'KRW':null,priceConflict:prices.length>1,explicitAmountWithoutCurrency:candidates.some(([p,c])=>amount(p)!==null&&!c),assets:Array.isArray(o.assets)?o.assets:[],originalImageVerified:false});
+  records.push({sku,url,name:names.length===1?names[0]:null,taxonomy:taxonomy(o.category??o.productCategory??o.categories),price:prices.length===1?prices[0]:null,currency:prices.length===1?market.currency:null,priceConflict:prices.length>1,explicitAmountWithoutCurrency:candidates.some(([p,c])=>amount(p)!==null&&!c),assets:Array.isArray(o.assets)?o.assets:[],originalImageVerified:false});
  }
  return {stats,fields,records,published:[...published].map(([sku,url])=>({sku,url}))};
 }

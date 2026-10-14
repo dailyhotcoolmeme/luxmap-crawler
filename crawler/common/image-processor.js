@@ -93,7 +93,11 @@ export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expe
  if(source.length>12*1024*1024)throw Error('IMAGE_BYTE_LIMIT');
  let metadata;try{metadata=await sharp(source,{limitInputPixels:24000000}).metadata();}catch(error){throw Error(/pixel.*limit/i.test(error.message??'')?'IMAGE_PIXEL_LIMIT':'IMAGE_FORMAT_INVALID');}
  if(!metadata.width||!metadata.height||Math.min(metadata.width,metadata.height)<200)throw Error('IMAGE_PIXEL_LIMIT');
- if(new URL(sourceImageUrl).hostname==='assets.hermes.com'&&(metadata.width!==sourceProperties?.width||metadata.height!==sourceProperties?.height))throw Error('IMAGE_NATIVE_DIMENSIONS_MISMATCH');
+ if(new URL(sourceImageUrl).hostname==='assets.hermes.com'){
+  // Scene7's published `size` query is not a native pixel-size assertion.
+  // Compare the downloaded catalog asset with its independently fetched props.
+  if(!sourceProperties?.dimensionsVerified||metadata.width!==sourceProperties.width||metadata.height!==sourceProperties.height)throw Error('IMAGE_NATIVE_SIZE_MISMATCH');
+ }
  const id=crypto.randomUUID(),input=path.join(artifactDir,`${id}-original.image`),temp=path.join(artifactDir,`${id}-cutout.webp`);
  await fs.writeFile(input,source,{mode:0o600});
  const job=jobQueue.then(async()=>{
@@ -108,6 +112,6 @@ export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expe
  if(info.width!==960||info.height!==960||!info.hasAlpha||output.length>4*1024*1024)throw Error('IMAGE_OUTPUT_INVALID');
  const sha256=crypto.createHash('sha256').update(output).digest('hex'),outputPath=path.join(artifactDir,`${sha256}.webp`);
  await fs.rename(temp,outputPath);
- const imageProof={schema:1,originalSourceVerified:true,cpuOfflineVerified:true,outputVerified:true,processingVersion:IMAGE_PROCESSING_VERSION,sourceUrl:sourceImageUrl,sourceSha256:crypto.createHash('sha256').update(source).digest('hex'),sha256,width:info.width,height:info.height,hasAlpha:info.hasAlpha};
+ const imageProof={schema:1,originalSourceVerified:true,cpuOfflineVerified:true,outputVerified:true,processingVersion:IMAGE_PROCESSING_VERSION,sourceUrl:sourceImageUrl,sourceSha256:crypto.createHash('sha256').update(source).digest('hex'),sourceWidth:metadata.width,sourceHeight:metadata.height,sha256,width:info.width,height:info.height,hasAlpha:info.hasAlpha};
  return {sourceImageUrl,imagePath:outputPath,imageSha256:sha256,imageMimeType:'image/webp',imageWidth:960,imageHeight:960,imageBytes:output.length,imageProcessingVersion:IMAGE_PROCESSING_VERSION,originalImagePath:input,imageProof};
 }

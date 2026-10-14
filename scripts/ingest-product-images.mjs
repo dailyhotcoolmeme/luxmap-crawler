@@ -7,7 +7,7 @@ import sharp from 'sharp';
 const root=path.resolve(import.meta.dirname,'..');
 const file=path.resolve(process.argv[2]),dir=path.dirname(file),run=path.dirname(dir);
 const brand=process.env.LUXURY_INGEST_BRAND;
-if(process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||!['chanel','prada'].includes(brand))throw Error('IMAGE_STORAGE_GUARD');
+if(process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||!['chanel','prada','hermes'].includes(brand))throw Error('IMAGE_STORAGE_GUARD');
 const rows=JSON.parse(fs.readFileSync(file,'utf8'));
 if(!rows.length||rows.length>25)throw Error('IMAGE_STORAGE_LIMIT');
 const hash=buffer=>crypto.createHash('sha256').update(buffer).digest('hex');
