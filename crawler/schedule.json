@@ -3,7 +3,14 @@
   "hour": 9,
   "minute": 0,
   "primary": "github",
-  "fallbackHours": [12,14,16,18,20,22],
+  "fallbackHours": [
+    12,
+    14,
+    16,
+    18,
+    20,
+    22
+  ],
   "scope": "korean_reference_discovery_and_country_price_refresh",
   "referenceCountry": "KR",
   "discoverReferenceProducts": true,
@@ -11,40 +18,209 @@
     "van-cleef-arpels": "scripts/audit-van-cleef-catalog.mjs",
     "chanel": "scripts/audit-chanel-catalog.mjs",
     "prada": "scripts/audit-prada-catalog.mjs",
-    "bottega-veneta": "scripts/audit-bottega-catalog.mjs"
+    "bottega-veneta": "scripts/audit-bottega-catalog.mjs",
+    "rolex": "scripts/audit-rolex-catalog.mjs"
   },
   "jobs": [
-    {"brand":"van-cleef-arpels","country":"kr","adapter":"scripts/van-cleef-market.mjs"},
-    {"brand":"van-cleef-arpels","country":"jp","adapter":"scripts/van-cleef-market.mjs"},
-    {"brand":"van-cleef-arpels","country":"fr","adapter":"scripts/van-cleef-market.mjs"},
-    {"brand":"van-cleef-arpels","country":"it","adapter":"scripts/van-cleef-market.mjs"},
-    {"brand":"van-cleef-arpels","country":"es","adapter":"scripts/van-cleef-market.mjs"},
-    {"brand":"van-cleef-arpels","country":"us","adapter":"scripts/van-cleef-market.mjs"},
-    {"brand":"van-cleef-arpels","country":"sg","adapter":"scripts/van-cleef-market.mjs"},
-    {"brand":"van-cleef-arpels","country":"hk","adapter":"scripts/van-cleef-market.mjs"},
-    {"brand":"chanel","country":"kr","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"jp","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"fr","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"it","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"es","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"us","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"sg","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"chanel","country":"hk","adapter":"scripts/chanel-jp-remaining.mjs"},
-    {"brand":"prada","country":"kr","adapter":"scripts/prada-market.mjs"},
-    {"brand":"prada","country":"jp","adapter":"scripts/prada-market.mjs"},
-    {"brand":"prada","country":"fr","adapter":"scripts/prada-market.mjs"},
-    {"brand":"prada","country":"it","adapter":"scripts/prada-market.mjs"},
-    {"brand":"prada","country":"es","adapter":"scripts/prada-market.mjs"},
-    {"brand":"prada","country":"us","adapter":"scripts/prada-market.mjs"},
-    {"brand":"prada","country":"sg","adapter":"scripts/prada-market.mjs"},
-    {"brand":"prada","country":"hk","adapter":"scripts/prada-market.mjs"},
-    {"brand":"bottega-veneta","country":"kr","adapter":"scripts/bottega-market.mjs"},
-    {"brand":"bottega-veneta","country":"jp","adapter":"scripts/bottega-market.mjs"},
-    {"brand":"bottega-veneta","country":"fr","adapter":"scripts/bottega-market.mjs"},
-    {"brand":"bottega-veneta","country":"it","adapter":"scripts/bottega-market.mjs"},
-    {"brand":"bottega-veneta","country":"es","adapter":"scripts/bottega-market.mjs"},
-    {"brand":"bottega-veneta","country":"us","adapter":"scripts/bottega-market.mjs"},
-    {"brand":"bottega-veneta","country":"sg","adapter":"scripts/bottega-market.mjs"},
-    {"brand":"bottega-veneta","country":"hk","adapter":"scripts/bottega-market.mjs"}
+    {
+      "brand": "van-cleef-arpels",
+      "country": "kr",
+      "adapter": "scripts/van-cleef-market.mjs"
+    },
+    {
+      "brand": "van-cleef-arpels",
+      "country": "jp",
+      "adapter": "scripts/van-cleef-market.mjs"
+    },
+    {
+      "brand": "van-cleef-arpels",
+      "country": "fr",
+      "adapter": "scripts/van-cleef-market.mjs"
+    },
+    {
+      "brand": "van-cleef-arpels",
+      "country": "it",
+      "adapter": "scripts/van-cleef-market.mjs"
+    },
+    {
+      "brand": "van-cleef-arpels",
+      "country": "es",
+      "adapter": "scripts/van-cleef-market.mjs"
+    },
+    {
+      "brand": "van-cleef-arpels",
+      "country": "us",
+      "adapter": "scripts/van-cleef-market.mjs"
+    },
+    {
+      "brand": "van-cleef-arpels",
+      "country": "sg",
+      "adapter": "scripts/van-cleef-market.mjs"
+    },
+    {
+      "brand": "van-cleef-arpels",
+      "country": "hk",
+      "adapter": "scripts/van-cleef-market.mjs"
+    },
+    {
+      "brand": "chanel",
+      "country": "kr",
+      "adapter": "scripts/chanel-jp-remaining.mjs"
+    },
+    {
+      "brand": "chanel",
+      "country": "jp",
+      "adapter": "scripts/chanel-jp-remaining.mjs"
+    },
+    {
+      "brand": "chanel",
+      "country": "fr",
+      "adapter": "scripts/chanel-jp-remaining.mjs"
+    },
+    {
+      "brand": "chanel",
+      "country": "it",
+      "adapter": "scripts/chanel-jp-remaining.mjs"
+    },
+    {
+      "brand": "chanel",
+      "country": "es",
+      "adapter": "scripts/chanel-jp-remaining.mjs"
+    },
+    {
+      "brand": "chanel",
+      "country": "us",
+      "adapter": "scripts/chanel-jp-remaining.mjs"
+    },
+    {
+      "brand": "chanel",
+      "country": "sg",
+      "adapter": "scripts/chanel-jp-remaining.mjs"
+    },
+    {
+      "brand": "chanel",
+      "country": "hk",
+      "adapter": "scripts/chanel-jp-remaining.mjs"
+    },
+    {
+      "brand": "prada",
+      "country": "kr",
+      "adapter": "scripts/prada-market.mjs"
+    },
+    {
+      "brand": "prada",
+      "country": "jp",
+      "adapter": "scripts/prada-market.mjs"
+    },
+    {
+      "brand": "prada",
+      "country": "fr",
+      "adapter": "scripts/prada-market.mjs"
+    },
+    {
+      "brand": "prada",
+      "country": "it",
+      "adapter": "scripts/prada-market.mjs"
+    },
+    {
+      "brand": "prada",
+      "country": "es",
+      "adapter": "scripts/prada-market.mjs"
+    },
+    {
+      "brand": "prada",
+      "country": "us",
+      "adapter": "scripts/prada-market.mjs"
+    },
+    {
+      "brand": "prada",
+      "country": "sg",
+      "adapter": "scripts/prada-market.mjs"
+    },
+    {
+      "brand": "prada",
+      "country": "hk",
+      "adapter": "scripts/prada-market.mjs"
+    },
+    {
+      "brand": "bottega-veneta",
+      "country": "kr",
+      "adapter": "scripts/bottega-market.mjs"
+    },
+    {
+      "brand": "bottega-veneta",
+      "country": "jp",
+      "adapter": "scripts/bottega-market.mjs"
+    },
+    {
+      "brand": "bottega-veneta",
+      "country": "fr",
+      "adapter": "scripts/bottega-market.mjs"
+    },
+    {
+      "brand": "bottega-veneta",
+      "country": "it",
+      "adapter": "scripts/bottega-market.mjs"
+    },
+    {
+      "brand": "bottega-veneta",
+      "country": "es",
+      "adapter": "scripts/bottega-market.mjs"
+    },
+    {
+      "brand": "bottega-veneta",
+      "country": "us",
+      "adapter": "scripts/bottega-market.mjs"
+    },
+    {
+      "brand": "bottega-veneta",
+      "country": "sg",
+      "adapter": "scripts/bottega-market.mjs"
+    },
+    {
+      "brand": "bottega-veneta",
+      "country": "hk",
+      "adapter": "scripts/bottega-market.mjs"
+    },
+    {
+      "brand": "rolex",
+      "country": "kr",
+      "adapter": "scripts/rolex-market.mjs"
+    },
+    {
+      "brand": "rolex",
+      "country": "jp",
+      "adapter": "scripts/rolex-market.mjs"
+    },
+    {
+      "brand": "rolex",
+      "country": "fr",
+      "adapter": "scripts/rolex-market.mjs"
+    },
+    {
+      "brand": "rolex",
+      "country": "it",
+      "adapter": "scripts/rolex-market.mjs"
+    },
+    {
+      "brand": "rolex",
+      "country": "es",
+      "adapter": "scripts/rolex-market.mjs"
+    },
+    {
+      "brand": "rolex",
+      "country": "us",
+      "adapter": "scripts/rolex-market.mjs"
+    },
+    {
+      "brand": "rolex",
+      "country": "sg",
+      "adapter": "scripts/rolex-market.mjs"
+    },
+    {
+      "brand": "rolex",
+      "country": "hk",
+      "adapter": "scripts/rolex-market.mjs"
+    }
   ]
 }

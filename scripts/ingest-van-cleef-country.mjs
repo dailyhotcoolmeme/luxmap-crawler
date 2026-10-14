@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync,spawnSync} from 'node:child_process';
 import {storePradaMarkets} from '../crawler/common/prada-market-store.js';
-const root=path.resolve(import.meta.dirname,'..'),country=process.env.LUXURY_MARKET_COUNTRY;
-if(process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_INGEST_BRAND!=='van-cleef-arpels'||!['jp','fr','it','es','us','sg','hk'].includes(country))throw Error('GUARDED_RUN_REQUIRED');
-const cfg=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands/van-cleef-arpels/countries',country))),records=JSON.parse(fs.readFileSync(process.argv[2])),folder=path.join(path.dirname(process.argv[2]),'verified');fs.mkdirSync(folder,{recursive:true});
+const root=path.resolve(import.meta.dirname,'..'),country=process.env.LUXURY_MARKET_COUNTRY,brand=process.env.LUXURY_INGEST_BRAND;
+if(process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||!['van-cleef-arpels','rolex'].includes(brand)||!['jp','fr','it','es','us','sg','hk'].includes(country))throw Error('GUARDED_RUN_REQUIRED');
+const cfg=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',brand,'countries',country))),records=JSON.parse(fs.readFileSync(process.argv[2])),folder=path.join(path.dirname(process.argv[2]),'verified');fs.mkdirSync(folder,{recursive:true});
 const file=path.join(folder,'summary.json'),rows=[];
 const save=()=>{fs.writeFileSync(file,JSON.stringify(rows),{mode:0o600});if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status)throw Error('SUMMARY_REJECTED');};
 const query=async(endpoint,method='GET',body,prefer='return=representation')=>{

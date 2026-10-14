@@ -1,0 +1,18 @@
+{
+  "brand": "rolex",
+  "country": "IT",
+  "currency": "EUR",
+  "category": "watch",
+  "entryUrl": "https://www.rolex.com/it-it",
+  "localePrefix": "/it-it/",
+  "sitemapLocalePrefix": "/api/sm/it-it/",
+  "allowedHosts": [
+    "www.rolex.com"
+  ],
+  "browserMode": "http",
+  "productPathPattern": "/watches/[^/]+/m[0-9][0-9a-z]+-[0-9]+$",
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxImagesPerProduct": 0
+}

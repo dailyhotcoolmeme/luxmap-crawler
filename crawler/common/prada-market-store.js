@@ -5,10 +5,11 @@ export function coverageFailure(rows,discoveryMissing=0){
 }
 export async function storePradaMarkets(rows,config,query){
  const vanCleef=config.brand==='van-cleef-arpels';
- const brandName=vanCleef?'VAN CLEEF & ARPELS':'PRADA';
- const prefix=vanCleef?`/${config.country.toLowerCase()}/`:config.referenceDetailPrefix;
- const pattern=vanCleef?config.productPathPattern:config.detailPathPattern;
- const origin=vanCleef?'https://www.vancleefarpels.com':'https://www.prada.com';
+ const rolex=config.brand==='rolex';
+ const brandName=vanCleef?'VAN CLEEF & ARPELS':rolex?'ROLEX':'PRADA';
+ const prefix=vanCleef?`/${config.country.toLowerCase()}/`:rolex?config.localePrefix:config.referenceDetailPrefix;
+ const pattern=vanCleef||rolex?config.productPathPattern:config.detailPathPattern;
+ const origin=vanCleef?'https://www.vancleefarpels.com':rolex?'https://www.rolex.com':'https://www.prada.com';
  if(!Array.isArray(rows)||!rows.length||rows.length>100)throw new Error('invalid batch');
  const codes=new Set();
  for(const row of rows){const url=new URL(row.officialUrl);const code=vanCleef?url.pathname.match(/\/(VC[A-Z0-9]{8})-[^/]+\.html$/i)?.[1].toUpperCase():decodeURIComponent(url.pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase();if(row.country!==config.country||row.currency!==config.currency||url.origin!==origin||!url.pathname.startsWith(prefix)||!new RegExp(pattern).test(url.pathname)||code!==row.normalizedCode||!/^[A-Z0-9]+$/.test(row.normalizedCode)||codes.has(row.normalizedCode)||!['confirmed','price_unavailable','page_not_found'].includes(row.priceStatus)||!Number.isFinite(Date.parse(row.checkedAt))||!(row.price===null||(Number.isFinite(row.price)&&row.price>0))||(row.price!==null&&row.priceStatus!=='confirmed'))throw new Error('invalid country record');codes.add(row.normalizedCode);}

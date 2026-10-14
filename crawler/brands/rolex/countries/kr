@@ -1,0 +1,8 @@
+{
+  "brand":"rolex","country":"KR","currency":"KRW",
+  "category":"watch","entryUrl":"https://www.rolex.com/ko-kr",
+  "localePrefix":"/ko-kr/","sitemapLocalePrefix":"/api/sm/ko-kr/","allowedHosts":["www.rolex.com","media.rolex.com"],
+  "browserMode":"http","productPathPattern":"/watches/[^/]+/m[0-9][0-9a-z]+-[0-9]+$",
+  "maxProductsPerRun":25,"maxRequestsPerRun":80,"maxDiscoveryPages":20,
+  "maxResponseBytes":8388608,"maxCandidates":10000,"maxImagesPerProduct":1
+}
