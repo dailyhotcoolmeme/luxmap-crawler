@@ -36,6 +36,7 @@ try{
   const {calculateComparison,emptyConditions}=m.exports;let match=0;
   for(const p of korean){let best=Infinity;for(const market of p.market_products){if(market.country_code==='KR'||market.current_price===null||market.official_product_code!==p.normalized_code)continue;const result=calculateComparison(Number(market.current_price),market.country_code,market.currency_code,context,emptyConditions,'watch');if(Number.isFinite(result?.total))best=Math.min(best,result.total);}const saved=estimates.find(e=>e.id===p.id);if(saved?.total===best)match++;}
   rows.push(row(`APP_TOTALS_MATCH_${match}`),row(`APP_TOTALS_DIFFERENT_${korean.length-match}`));
+  if(process.argv.includes('--require-complete')&&match!==korean.length)process.exitCode=1;
  }
 }catch(e){rows.push({brand:'rolex',country:'KR',parentModel:'해외 공개 대조',variantCode:'RUN',price:null,currency:'KRW',status:/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'PUBLIC_AUDIT_FAILED',officialUrl:'https://www.rolex.com/ko-kr'});process.exitCode=1;}
 finally{await client.dispose();fs.writeFileSync(file,JSON.stringify(rows),{mode:0o600});if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status)process.exitCode=78;}
