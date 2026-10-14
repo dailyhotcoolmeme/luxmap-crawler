@@ -8,6 +8,10 @@ if(process.argv.includes('--audit-reference')){
  const {auditOfficialReferenceCatalog}=await import('../../../scripts/audit-official-reference.mjs');
  process.exitCode=(await auditOfficialReferenceCatalog({brand:'hermes'})).exitCode;
 }
+else if(process.argv.includes('--probe-product-dependencies')){
+ const {probeHermesProductDependencies}=await import('../../common/hermes-product-dependencies-probe.js');
+ await probeHermesProductDependencies();
+}
 else if(process.argv.includes('--probe-published-script')||process.argv.includes('--probe-product-chunk')){
  const {probePublishedScript}=await import('../../common/published-script-probe.js');
  await probePublishedScript();
