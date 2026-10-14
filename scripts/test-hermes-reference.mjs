@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
 import {hermesReferenceCode,hermesReferenceLinks,publishedHermesSearch} from '../crawler/common/hermes-reference-collection.js';
 import {declaredCountrySitemapUrls} from '../crawler/common/van-cleef-foreign.js';
 import {parseOfficialProduct} from '../crawler/common/hermes-collection.js';
@@ -19,4 +22,17 @@ const html=(currency='JPY',sku='H073428CKO5')=>`<script type="application/ld+jso
 assert.equal(parseOfficialProduct(html(),productUrl,cfg,{priceOnly:true,expectedCode:'H073428CKO5'}).price,1500000);
 assert.throws(()=>parseOfficialProduct(html('KRW'),productUrl,cfg,{priceOnly:true,expectedCode:'H073428CKO5'}),/CURRENCY/);
 assert.throws(()=>parseOfficialProduct(html('JPY','H073428CK89'),productUrl,cfg,{priceOnly:true,expectedCode:'H073428CKO5'}),/EXACT_SKU/);
+// A safety failure may deliberately produce no crawl summary. Never downgrade
+// exit78 to SUMMARY_GUARD and accidentally continue to the next country.
+const wrapper=fs.readFileSync(new URL('./official-brand-reference.mjs',import.meta.url),'utf8').replace(/^import .*$/gm,'').replaceAll('import.meta.dirname','__dirname');
+for(const mode of ['--prices-country','--prices-facet-country','--prices-render-country']){
+ const files=new Map();let runs=0,stopped;
+ const fakeFs={mkdirSync(){},existsSync(){return false;},writeFileSync(f,s){files.set(f,s);},readFileSync(f){if(files.has(f))return files.get(f);if(f.includes('/countries/'))return JSON.stringify({country:'JP',currency:'JPY',entryUrl:'https://www.hermes.com/jp/ja/'});throw Object.assign(Error('missing'),{code:'ENOENT'});},readdirSync(){throw Error('POST_SAFETY_READ_FORBIDDEN');}};
+ const stop=Error('expected safety stop');
+ try{vm.runInNewContext(wrapper,{__dirname:import.meta.dirname,path,fs:fakeFs,spawnSync(file){if(file.endsWith('crawl-output-guard.sh'))return {status:0};runs++;return {status:78};},process:{env:{LUXURY_SERVICE_GUARD:'enabled'},argv:['node','worker','hermes',mode,'all'],exit(code){stopped=code;throw stop;}}});}catch(e){assert.equal(e,stop);}
+ assert.equal(stopped,78);assert.equal(runs,1,'no second country after safety failure');
+ stopped=undefined;
+ try{vm.runInNewContext(wrapper,{__dirname:import.meta.dirname,path,fs:{existsSync(f){return f.endsWith('/foreign-safety-stop.json');}},spawnSync(){throw Error('PERSISTED_STOP_MUST_NOT_EXECUTE');},process:{env:{LUXURY_SERVICE_GUARD:'enabled'},argv:['node','worker','hermes',mode,'all'],exit(code){stopped=code;throw stop;}}});}catch(e){assert.equal(e,stop);}
+ assert.equal(stopped,78,'persisted safety stop prevents new execution');
+}
 console.log('PASS: Hermes official exact SKU discovery, country/host isolation, published pagination, facet/static exclusion');

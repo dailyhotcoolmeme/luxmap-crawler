@@ -50,7 +50,8 @@ export function hermesVisiblePrices(html,market={country:'KR',currency:'KRW',loc
 export function inspectHermesListingEvidence(html,{includeVisiblePrices=false,market={country:'KR',currency:'KRW',localePrefix:'/kr/ko/'}}={}){
  if(typeof html!=='string'||Buffer.byteLength(html)>8388608)throw Error('SOURCE_LIMIT');
  const stats={scripts:0,jsonLd:0,dataAttributes:0,parsedJson:0,unresolvedScripts:0,boundHits:0,objects:0,skuObjects:0};
- const objects=[],published=new Map(),seen=new Set(),fields={};let visits=0,bytes=0;
+ const objects=[],published=new Map(),seen=new Set(),fields={},navigation=new Set();let visits=0,bytes=0;
+ const addNavigation=raw=>{if(typeof raw!=='string'||raw.length>1000||!/^https:\/\/|^\//.test(raw))return;try{const u=new URL(decodeHtml(raw),'https://www.hermes.com');if(u.origin==='https://www.hermes.com'&&!u.username&&!u.password&&!u.hash&&u.pathname.startsWith(market.localePrefix)&&!u.pathname.includes('/product/')&&/bags|clutches|sacs|borse|bolsos|pagination|next|load|\/api\/.*(?:products|catalog)/i.test(u.pathname)&&!/\.(?:png|jpe?g|webp|svg|js|css|woff2?)(?:$|\/)/i.test(u.pathname)){navigation.add(u.href);if(navigation.size>200)throw Error('NAVIGATION_LIMIT');}}catch(e){if(e.message==='NAVIGATION_LIMIT')throw e;}};
  function walk(v,depth=0){
   if(++visits>100000||depth>30)throw Error('PARSE_BOUND');
   if(!v||typeof v!=='object')return;
@@ -77,9 +78,11 @@ export function inspectHermesListingEvidence(html,{includeVisiblePrices=false,ma
  for(const tag of html.matchAll(/<[a-z][\w:-]*\b[^>]*>/gi))for(const m of tag[0].matchAll(/\b([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)){
   const key=m[1].toLowerCase(),v=decodeHtml(m[2]??m[3]);
   if(key==='href'){const ref=hermesEvidenceLink(v,market);if(ref)published.set(ref.sku,ref.url);}
+  if(/^(?:href|action|data-url|data-href|data-next-url|data-load-more-url)$/.test(key))addNavigation(v);
   if(key.startsWith('data-')){stats.dataAttributes++;if(/^\s*[\[{]/.test(v))parseSafe(v);}
  }
  stats.objects=objects.length;
+ for(const object of objects)for(const [key,value]of Object.entries(object))if(/url|href|endpoint|next|loadmore|path/i.test(key))addNavigation(value);
  stats.krwCurrencyObjects=objects.filter(o=>[o.currency,o.currencyCode,o.priceCurrency].includes('KRW')).length;
  // Collect explicit typed URLs before resolving SKU objects. No constructed paths.
  for(const object of objects)for(const key of ['url','productUrl','href','@id']){const ref=hermesEvidenceLink(object[key],market);if(ref)published.set(ref.sku,ref.url);}
@@ -98,5 +101,5 @@ export function inspectHermesListingEvidence(html,{includeVisiblePrices=false,ma
   const names=[...new Set([o.name,o.productName,o.title].map(clean).filter(Boolean))];
   records.push({sku,url,name:names.length===1?names[0]:null,taxonomy:taxonomy(o.category??o.productCategory??o.categories),price:prices.length===1?prices[0]:null,currency:prices.length===1?market.currency:null,priceConflict:prices.length>1,explicitAmountWithoutCurrency:candidates.some(([p,c])=>amount(p)!==null&&!c),assets:Array.isArray(o.assets)?o.assets:[],originalImageVerified:false});
  }
- return {stats,fields,records,published:[...published].map(([sku,url])=>({sku,url}))};
+ return {stats,fields,records,published:[...published].map(([sku,url])=>({sku,url})),navigation:[...navigation]};
 }

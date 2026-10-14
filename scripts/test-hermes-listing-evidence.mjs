@@ -18,6 +18,10 @@ assert.equal(inspect(`<div data-product='${JSON.stringify(p)}'></div>`).records[
 assert.equal(inspect(`<script>window.fixture=${JSON.stringify(p)}</script>`).records[0].sku,sku);
 assert.equal(inspect(script(p)).records[0].originalImageVerified,false);
 assert.equal(hermesEvidenceLink(url.replace('www.hermes.com','evil.invalid')),null);
+const facet='https://www.hermes.com/kr/ko/category/leather-goods/bags-and-clutches/?facet_color=black';
+assert.deepEqual(inspect(`<button data-url="${facet}">next</button><a href="https://evil.invalid/kr/ko/category/bags/">bad</a>`).navigation,[facet]);
+assert.deepEqual(inspect(script({nextUrl:facet})).navigation,[facet]);
+assert.deepEqual(inspect('<a href="https://www.hermes.com/jp/ja/category/bags/">foreign</a>').navigation,[]);
 inspect('<script>globalThis.HERMES_EXECUTED=true</script>');assert.equal(globalThis.HERMES_EXECUTED,undefined);
 assert.throws(()=>inspect('x'.repeat(8388609)),/LIMIT/);
 const typed=script({sku,url,title:'Fixture',price:1230000});

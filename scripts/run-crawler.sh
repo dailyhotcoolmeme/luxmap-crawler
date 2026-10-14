@@ -101,9 +101,15 @@ if [ "$COUNTRY" = kr ]; then
   CUTOUT_PID=$!
 fi
 
-if [ "$IMAGE_REFRESH" = 0 ] && jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; then
+RENDER_FOREIGN=0
+for option in "$@"; do
+ if [ "$option" = '--render-foreign-listing' ]; then
+  case "$BRAND/$COUNTRY" in hermes/jp|hermes/sg) RENDER_FOREIGN=1 ;; *) exit 78 ;; esac
+ fi
+done
+if [ "$IMAGE_REFRESH" = 0 ] && { [ "$RENDER_FOREIGN" = 1 ] || jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; }; then
   CDP_PORT=$((9300 + ($$ % 500)))
-  BROWSER_EXECUTABLE=$(jq -r '.browserExecutable' "$COUNTRY_CONFIG")
+  BROWSER_EXECUTABLE=$(jq -r '.browserExecutable // "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"' "$COUNTRY_CONFIG")
   BROWSER_ENTRY='about:blank'
   if [ "${LUXURY_USE_ASIDE:-0}" = '1' ]; then
     BROWSER_EXECUTABLE='/Applications/Aside.app/Contents/MacOS/Aside'
