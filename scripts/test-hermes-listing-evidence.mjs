@@ -4,6 +4,8 @@ const sku='H073428CKO5',url=`https://www.hermes.com/kr/ko/product/fixture-${sku}
 const p={sku,url,name:'Fixture',category:'Explicit',offers:{price:1230000,priceCurrency:'KRW'}};
 const script=v=>`<script type="application/ld+json">${JSON.stringify(v)}</script>`;
 assert.equal(inspect(script(p)).records[0].price,1230000);
+assert.equal(inspect(script({...p,sku:sku.toLowerCase(),url:url.replace(sku,sku.toLowerCase())})).records[0].sku,sku);
+assert.equal(hermesEvidenceLink(url.replace(sku,sku.toLowerCase())).url,url.replace(sku,sku.toLowerCase()));
 assert.equal(inspect(script({...p,offers:{price:1230000}})).records[0].price,null);
 assert.equal(inspect(script({...p,offers:{price:'1,230,000',priceCurrency:'KRW'}})).records[0].price,null);
 assert.equal(inspect(script({...p,offers:{price:12,priceCurrency:'USD'}})).records[0].price,null);

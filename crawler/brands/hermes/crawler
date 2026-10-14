@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {runBrandCollection} from '../../common/hermes-collection.js';
 import {probeOfficialSite} from '../../common/official-site-probe.js';
-import {discoverHermesReference,collectHermesForeignPrices,collectHermesSitemapPrices} from '../../common/hermes-reference-collection.js';
+import {discoverHermesReference,collectHermesForeignPrices,collectHermesSitemapPrices,collectHermesSearchPrices} from '../../common/hermes-reference-collection.js';
 import {collectHermesReferenceBatch,recoverHermesListingSample} from '../../common/hermes-reference-batch.js';
 import {probeHermesImageProperties} from '../../common/hermes-image-properties-probe.js';
 if(process.argv.includes('--image-refresh-file')){
@@ -11,6 +11,7 @@ if(process.argv.includes('--image-refresh-file')){
  if(args.length!==4||args[0]!=='--country-config'||args[2]!=='--image-refresh-file')throw Error('INVALID_IMAGE_REFRESH_MODE');
  await refreshImages(JSON.parse(await fs.readFile(args[1],'utf8')),args[3]);
 }
+else if(process.argv.includes('--prices-search-offset'))await collectHermesSearchPrices();
 else if(process.argv.includes('--prices-sitemap-offset'))await collectHermesSitemapPrices();
 else if(process.argv.includes('--prices-offset'))await collectHermesForeignPrices();
 else if(process.argv.includes('--audit-reference')){

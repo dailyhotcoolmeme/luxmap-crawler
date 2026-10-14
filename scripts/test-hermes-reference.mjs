@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {hermesReferenceCode,hermesReferenceLinks} from '../crawler/common/hermes-reference-collection.js';
+import {hermesReferenceCode,hermesReferenceLinks,publishedHermesSearch} from '../crawler/common/hermes-reference-collection.js';
 import {declaredCountrySitemapUrls} from '../crawler/common/van-cleef-foreign.js';
 import {parseOfficialProduct} from '../crawler/common/hermes-collection.js';
 const base='https://www.hermes.com/kr/ko/category/leather-goods/bags-and-clutches/womens-bags-and-clutches/';
@@ -9,6 +9,9 @@ assert.deepEqual([...links.listings],[base+'?page=2']);
 assert.equal(hermesReferenceCode(base),null);assert.equal(hermesReferenceCode('https://www.hermes.com/kr/ko/product/a-H073428CKO5/'),'H073428CKO5');
 const cfg={brand:'hermes',country:'JP',currency:'JPY',localePrefix:'/jp/ja/',entryUrl:'https://www.hermes.com/jp/ja/',allowedHosts:['www.hermes.com'],productPathPattern:'/product/',skuPattern:'[A-Z0-9]{8,20}',stylePattern:'^([A-Z0-9]{6,12})'};
 const productUrl='https://www.hermes.com/jp/ja/product/lindy-H073428CKO5/',calls=[];
+assert.equal(publishedHermesSearch('<form action="/jp/ja/search/" method="get"><input name="s"></form>',cfg),'https://www.hermes.com/jp/ja/search/');
+for(const action of ['https://evil.invalid/jp/ja/search/','/us/en/search/'])assert.throws(()=>publishedHermesSearch(`<form action="${action}"><input name="s"></form>`,cfg),/PUBLISHED_SEARCH/);
+assert.throws(()=>publishedHermesSearch('<form action="/jp/ja/search/" method="post"><input name="s"></form>',cfg),/PUBLISHED_SEARCH/);
 const sources=new Map([['https://www.hermes.com/robots.txt','Sitemap: https://www.hermes.com/kr/ko/sitemap_index.xml\nSitemap: https://www.hermes.com/jp/ja/sitemap_index.xml'],['https://www.hermes.com/jp/ja/sitemap_index.xml','<sitemapindex><sitemap><loc>https://www.hermes.com/jp/ja/products.xml</loc></sitemap></sitemapindex>'],['https://www.hermes.com/jp/ja/products.xml',`<urlset><url><loc>${productUrl}</loc></url><url><loc>https://www.hermes.com/us/en/product/lindy-H073428CKO5/</loc></url></urlset>`]]);
 assert.deepEqual(await declaredCountrySitemapUrls(async url=>{calls.push(url);assert(sources.has(url));return {html:sources.get(url)};},cfg),[productUrl]);
 assert.equal(calls.length,3);assert(!calls.some(url=>url.includes('/kr/')));

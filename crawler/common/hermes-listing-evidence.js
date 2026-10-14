@@ -13,7 +13,7 @@ export function hermesEvidenceLink(raw,market={localePrefix:'/kr/ko/'}){
  try{const u=new URL(decodeHtml(raw),'https://www.hermes.com');if(u.origin!=='https://www.hermes.com'||u.username||u.password||u.search||u.hash)return null;
  const prefix=market.localePrefix;
  if(!/^\/[a-z]{2}\/[a-z]{2}\/$/.test(prefix??'')||!u.pathname.startsWith(prefix))return null;
- const sku=u.pathname.slice(prefix.length).match(/^product\/[^/]+-(H[A-Z0-9]{8,19})\/?$/)?.[1];return sku?{sku,url:u.href}:null;}catch{return null;}
+ const sku=u.pathname.slice(prefix.length).match(/^product\/[^/]+-(H[A-Z0-9]{8,19})\/?$/i)?.[1]?.toUpperCase();return sku?{sku,url:u.href}:null;}catch{return null;}
 }
 // Bind visible currency to one product card, never to the whole page/another SKU.
 export function hermesVisiblePrices(html,market={country:'KR',currency:'KRW',localePrefix:'/kr/ko/'}){
@@ -85,7 +85,7 @@ export function inspectHermesListingEvidence(html,{includeVisiblePrices=false,ma
  for(const object of objects)for(const key of ['url','productUrl','href','@id']){const ref=hermesEvidenceLink(object[key],market);if(ref)published.set(ref.sku,ref.url);}
  const records=[],visible=includeVisiblePrices?hermesVisiblePrices(html,market):new Map();
  for(const o of objects){
-  const ids=[o.sku,o.mpn,o.productCode,o.productId,o.id,o.reference].filter(v=>typeof v==='string'&&skuPattern.test(v));
+  const ids=[o.sku,o.mpn,o.productCode,o.productId,o.id,o.reference].filter(v=>typeof v==='string').map(v=>v.toUpperCase()).filter(v=>skuPattern.test(v));
   const unique=[...new Set(ids)];if(unique.length!==1)continue;stats.skuObjects++;
   for(const [key,v] of Object.entries(o))if(/^[A-Za-z][A-Za-z0-9_]{0,17}$/.test(key)){const label=`${key.toUpperCase()}_${v===null?'NULL':Array.isArray(v)?'ARR':typeof v==='object'?'OBJ':typeof v==='number'?'NUM':'STR'}`;fields[label]=(fields[label]??0)+1;}
   const sku=unique[0],refs=[o.url,o.productUrl,o.href,o['@id'],o.offers?.url].map(v=>hermesEvidenceLink(v,market)).filter(Boolean);
