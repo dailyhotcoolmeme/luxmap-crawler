@@ -16,4 +16,7 @@ for(const country of ['jp','fr','it','es','us','sg','hk']){
 }
 const cfg=JSON.parse(fs.readFileSync(new URL('../crawler/brands/rolex/countries/jp',import.meta.url)));
 assert.throws(()=>localizedReference('<link href="https://www.rolex.com/ja/watches/1908/m52506-0003">',kr,cfg),/UNPUBLISHED/);
+const daily=fs.readFileSync(new URL('./rolex-market.mjs',import.meta.url),'utf8');
+assert(daily.includes("'scripts/audit-rolex-catalog.mjs'"),'Rolex daily verification must check Rolex, not another brand');
+assert(!daily.includes('audit-van-cleef-catalog.mjs')&&!daily.includes('www.vancleefarpels.com'),'Rolex must not report a different brand source or audit');
 console.log('PASS: Rolex 7 country-specific routes, exact normalized SKU, declared currency; generic language-only route rejected');
