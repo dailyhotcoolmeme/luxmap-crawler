@@ -34,7 +34,10 @@ try{
   rows.push(row('APP_WATCH_VERSION_VERIFIED'),row(`APP_TOTALS_READY_${estimates.length}`),row(`APP_TOTALS_PENDING_${korean.length-new Set(estimates.map(e=>e.id)).size}`));
   const filename=path.join(root,'app/src/lib/comparison.ts'),local=createRequire(filename),ts=local('typescript'),m=new Module(filename);m.filename=filename;m.paths=Module._nodeModulePaths(path.dirname(filename));m._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText,filename);
   const {calculateComparison,emptyConditions}=m.exports;let match=0;
-  for(const p of korean){let best=Infinity;for(const market of p.market_products){if(market.country_code==='KR'||market.current_price===null||market.official_product_code!==p.normalized_code)continue;const result=calculateComparison(Number(market.current_price),market.country_code,market.currency_code,context,emptyConditions,'watch');if(Number.isFinite(result?.total))best=Math.min(best,result.total);}const saved=estimates.find(e=>e.id===p.id);if(saved?.total===best)match++;}
+  // The app's detail, cart and saved-catalog paths map watch to tax kind 'bag'.
+  // 'watch' is a ProductKind, not an accepted comparison tax kind; passing it
+  // bypassed TypeScript here and accidentally selected the jewelry threshold.
+  for(const p of korean){let best=Infinity;for(const market of p.market_products){if(market.country_code==='KR'||market.current_price===null||market.official_product_code!==p.normalized_code)continue;const result=calculateComparison(Number(market.current_price),market.country_code,market.currency_code,context,emptyConditions,'bag');if(Number.isFinite(result?.total))best=Math.min(best,result.total);}const saved=estimates.find(e=>e.id===p.id);if(saved?.total===best)match++;}
   rows.push(row(`APP_TOTALS_MATCH_${match}`),row(`APP_TOTALS_DIFFERENT_${korean.length-match}`));
   if(process.argv.includes('--require-complete')&&match!==korean.length)process.exitCode=1;
  }

@@ -23,4 +23,10 @@ const audit=fs.readFileSync(new URL('./verify-jewelry-watch-catalog.mjs',import.
 assert(audit.includes("['van-cleef-arpels','rolex'].includes(selection[1])"),'registered Rolex audit scope must be accepted');
 assert(audit.includes('crawler/onboarding/${selection[1]}/daily-audit/summary.json'),'brand audit summaries must be isolated');
 assert(audit.includes("brand==='rolex'&&cfg.category==='watch'&&v?.brands?.slug==='rolex'"),'public crawler checkout must verify watch category without app source');
+const totals=fs.readFileSync(new URL('./verify-rolex-foreign.mjs',import.meta.url),'utf8');
+assert(totals.includes("context,emptyConditions,'bag')")&&!totals.includes("context,emptyConditions,'watch')"),'watch audit must use the app tax kind, not the product category');
+for(const file of ['../cloudflare/catalog-comparison.ts','../app/src/lib/calculator-cart.ts','../app/src/app/product/[id].tsx']){
+ const url=new URL(file,import.meta.url);if(!fs.existsSync(url))continue;
+ const source=fs.readFileSync(url,'utf8');assert(source.includes("==='jewelry'?'jewelry':'bag'"),'current app must use the same watch tax mapping');
+}
 console.log('PASS: Rolex 7 country-specific routes, exact normalized SKU, declared currency; generic language-only route rejected');
