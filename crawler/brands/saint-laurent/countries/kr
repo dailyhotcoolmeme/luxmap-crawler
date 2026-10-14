@@ -1,0 +1,29 @@
+{
+  "brand": "saint-laurent",
+  "country": "KR",
+  "currency": "KRW",
+  "locale": "ko-kr",
+  "entryUrl": "https://www.ysl.com/ko-kr",
+  "localePrefix": "/ko-kr/",
+  "siteHosts": [
+    "www.ysl.com"
+  ],
+  "allowedHosts": [
+    "www.ysl.com",
+    "saint-laurent.dam.kering.com"
+  ],
+  "imageHosts": [
+    "www.ysl.com",
+    "saint-laurent.dam.kering.com"
+  ],
+  "skuPattern": "[0-9]{6}[A-Z0-9]{9}",
+  "stylePattern": "^([0-9]{6})",
+  "browserMode": "http",
+  "maxProductsPerRun": 25,
+  "maxImagesPerProduct": 1,
+  "maxDiscoveryPages": 20,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000
+}

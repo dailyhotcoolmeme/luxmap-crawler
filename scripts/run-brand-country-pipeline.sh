@@ -56,6 +56,7 @@ case "$BRAND/$COUNTRY" in
   bottega-veneta/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-products.sh" ;;
   celine/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-celine-products.mjs" ;;
   van-cleef-arpels/kr|rolex/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-jewelry-watch.mjs" ;;
+  hermes/kr|dior/kr|saint-laurent/kr|bulgari/kr) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-official-reference.mjs" ;;
   van-cleef-arpels/jp|van-cleef-arpels/fr|van-cleef-arpels/it|van-cleef-arpels/es|van-cleef-arpels/us|van-cleef-arpels/sg|van-cleef-arpels/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
   rolex/jp|rolex/fr|rolex/it|rolex/es|rolex/us|rolex/sg|rolex/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
   bottega-veneta/jp|bottega-veneta/fr|bottega-veneta/it|bottega-veneta/es|bottega-veneta/us|bottega-veneta/sg|bottega-veneta/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-bottega-country.mjs" ;;
@@ -99,7 +100,7 @@ if [ -n "$CELINE_PARTIAL_RUN" ]; then
 else
  if LUXURY_PIPELINE_GUARD=enabled "$PROJECT_DIR/scripts/run-crawler.sh" "$BRAND" "$COUNTRY" "$@"; then :; else
   REFERENCE_EXIT=$?
-  case "$BRAND/$COUNTRY/$REFERENCE_EXIT" in van-cleef-arpels/*/2|rolex/*/2) ;; *) exit "$REFERENCE_EXIT";; esac
+  case "$BRAND/$COUNTRY/$REFERENCE_EXIT" in van-cleef-arpels/*/2|rolex/*/2|bulgari/kr/2) ;; *) exit "$REFERENCE_EXIT";; esac
  fi
  RUN_DIR=$(find "$PROJECT_DIR/crawler/runs/$BRAND/$COUNTRY" -mindepth 1 -maxdepth 1 -type d -print | sort | tail -n 1)
 fi

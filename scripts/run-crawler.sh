@@ -145,9 +145,11 @@ if [ "$IMAGE_REFRESH" = 0 ] && jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CO
     BROWSER_EXIT=$?
     set -e
     if [ "$BROWSER_EXIT" -eq 78 ]; then
+      node "$PROJECT_DIR/scripts/report-crawler-runtime-failure.mjs" "$RUN_DIR" BROWSER_UNAUTHORIZED_NETWORK
       echo 'FAILED: BROWSER_UNAUTHORIZED_NETWORK; browser logs were not printed.' >&2
       exit 78
     fi
+    node "$PROJECT_DIR/scripts/report-crawler-runtime-failure.mjs" "$RUN_DIR" BROWSER_LAUNCH_TIMEOUT
     echo "FAILED: BROWSER_LAUNCH_TIMEOUT; browser logs were not printed." >&2
     exit 1
   fi
@@ -188,6 +190,7 @@ if [ "$CRAWL_EXIT" -ne 0 ]; then
     CRAWL_EXIT=78
   fi
   chmod 000 "$STDOUT_FILE" "$STDERR_FILE" 2>/dev/null || true
+  node "$PROJECT_DIR/scripts/report-crawler-runtime-failure.mjs" "$RUN_DIR" "${FAILURE_CODE:-UNKNOWN}"
   find "$RUN_DIR/raw" -type f -exec chmod 000 {} + 2>/dev/null || true
   echo "FAILED: $FAILURE_CODE (exit $CRAWL_EXIT); raw logs were not printed." >&2
   exit "$CRAWL_EXIT"

@@ -1,0 +1,21 @@
+{
+  "brand": "bulgari",
+  "country": "KR",
+  "currency": "KRW",
+  "locale": "ko-kr",
+  "entryUrl": "https://www.bulgari.com/ko-kr/",
+  "localePrefix": "/ko-kr/",
+  "siteHosts": ["www.bulgari.com"],
+  "allowedHosts": ["www.bulgari.com"],
+  "imageHosts": ["www.bulgari.com"],
+  "browserMode": "http",
+  "maxProductsPerRun": 25,
+  "maxImagesPerProduct": 1,
+  "maxDiscoveryPages": 20,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified",
+  "productPathPattern": "/[0-9]{6}\\.html$"
+}

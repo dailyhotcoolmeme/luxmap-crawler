@@ -12,11 +12,18 @@ const owner=`${source}:${randomUUID()}`;
 const onboarding=process.argv.includes('--onboard-reference');
 const foreign=process.argv.includes('--van-cleef-foreign');
 const rolexForeign=process.argv.includes('--rolex-foreign');
+const officialProbe=process.argv.includes('--official-probe');
+const officialReference=process.argv.includes('--official-reference');
+if(officialReference&&(process.argv[2]!=='--official-reference'||process.argv[3]!=='bulgari'||!['--batch-offset','--recover-source-run'].includes(process.argv[4])||(process.argv[4]==='--batch-offset'&&!/^\d+$/.test(process.argv[5]??''))||process.argv.length!==6))throw Error('invalid official reference arguments');
+if(officialReference&&(officialProbe||rolexForeign||foreign||onboarding))throw Error('conflicting execution modes');
+const probeBrands=new Set(['hermes','dior','saint-laurent','bulgari']);
+if(officialProbe&&(process.argv[2]!=='--official-probe'||!probeBrands.has(process.argv[3])||!['--inspect-navigation','--probe-source','--inspect-listing','--inspect-detail-evidence','--probe-listing-source','--discover-candidates','--discover-reference','--probe-sitemap-source','--probe-product-source','--batch-offset','--probe-image-properties'].includes(process.argv[4])||![5,6,7,9].includes(process.argv.length)))throw Error('invalid official probe arguments');
+if(officialProbe&&(rolexForeign||foreign||onboarding))throw Error('conflicting execution modes');
 if(rolexForeign&&!['--rolex-foreign','--rolex-foreign --smoke'].includes(process.argv.slice(2).join(' ')))throw Error('invalid Rolex foreign arguments');
 if(rolexForeign&&(foreign||onboarding))throw Error('conflicting execution modes');
 if(foreign&&!['--van-cleef-foreign','--van-cleef-foreign --smoke'].includes(process.argv.slice(2).join(' ')))throw Error('invalid foreign arguments');
 if(onboarding&&(process.argv.length!==3||process.argv[2]!=='--onboard-reference'))throw Error('invalid onboarding arguments');
-const partial=foreign||rolexForeign||onboarding||process.argv.includes('--smoke')||process.argv.includes('--countries')||process.argv.includes('--brands');
+const partial=officialReference||officialProbe||foreign||rolexForeign||onboarding||process.argv.includes('--smoke')||process.argv.includes('--countries')||process.argv.includes('--brands');
 const rpc=async(name,args)=>{
  const response=await fetch(`https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw new Error('coordination request failed');
@@ -39,7 +46,7 @@ if(!acquired){
 let child,timer,heartbeatFailed=false,renewing=false,killTimer,finished=false;
 const stop=()=>{if(child){try{process.kill(-child.pid,'SIGTERM');}catch{}killTimer??=setTimeout(()=>{try{process.kill(-child.pid,'SIGKILL');}catch{}},5000);}};
 try{
- child=spawn(process.execPath,[path.join(root,rolexForeign?'scripts/rolex-foreign.mjs':foreign?'scripts/van-cleef-foreign.mjs':onboarding?'scripts/jewelry-watch-onboarding.mjs':'scripts/crawler-daily.mjs'),...(foreign||rolexForeign?process.argv.slice(3):onboarding?[]:process.argv.slice(2))],{cwd:root,env:process.env,detached:true,stdio:'ignore'});
+ child=spawn(process.execPath,[path.join(root,officialReference?'scripts/official-brand-reference.mjs':officialProbe?'scripts/official-brand-probe.mjs':rolexForeign?'scripts/rolex-foreign.mjs':foreign?'scripts/van-cleef-foreign.mjs':onboarding?'scripts/jewelry-watch-onboarding.mjs':'scripts/crawler-daily.mjs'),...(officialReference||officialProbe?process.argv.slice(3):foreign||rolexForeign?process.argv.slice(3):onboarding?[]:process.argv.slice(2))],{cwd:root,env:process.env,detached:true,stdio:'ignore'});
  timer=setInterval(async()=>{if(renewing||finished)return;renewing=true;try{if(!await rpc('heartbeat_crawler_execution',{p_owner:owner})&&!finished)throw new Error('lost lease');}catch{if(!finished){heartbeatFailed=true;stop();}}finally{renewing=false;}},30000);
  for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{heartbeatFailed=true;stop();});
  const code=await new Promise(resolve=>{child.once('error',()=>{finished=true;resolve(1);});child.once('exit',code=>{finished=true;resolve(code??1);});});

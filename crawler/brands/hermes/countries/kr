@@ -1,0 +1,30 @@
+{
+  "brand": "hermes",
+  "country": "KR",
+  "currency": "KRW",
+  "locale": "kr-ko",
+  "entryUrl": "https://www.hermes.com/kr/ko/",
+  "localePrefix": "/kr/ko/",
+  "probeListingUrls": ["https://www.hermes.com/kr/ko/category/leather-goods/bags-and-clutches/womens-bags-and-clutches/"],
+  "siteHosts": [
+    "www.hermes.com"
+  ],
+  "allowedHosts": [
+    "www.hermes.com",
+    "assets.hermes.com"
+  ],
+  "imageHosts": [
+    "www.hermes.com",
+    "assets.hermes.com"
+  ],
+  "skuPattern": "[A-Z0-9]{8,20}",
+  "stylePattern": "^([A-Z0-9]{6,12})",
+  "browserMode": "http",
+  "maxProductsPerRun": 25,
+  "maxImagesPerProduct": 1,
+  "maxDiscoveryPages": 20,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000
+}

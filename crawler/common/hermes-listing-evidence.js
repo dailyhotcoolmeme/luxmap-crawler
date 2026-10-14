@@ -1,0 +1,66 @@
+import {decodeHtml} from './prada-product.js';
+const skuPattern=/^H[A-Z0-9]{8,19}$/;
+const clean=v=>typeof v==='string'&&v.trim()&&v.length<=300&&!/[<>\x00-\x1f]/.test(v)?v.trim():null;
+const amount=v=>typeof v==='number'&&Number.isFinite(v)&&v>0?v:typeof v==='string'&&/^\d+(?:\.\d{1,2})?$/.test(v)&&Number(v)>0?Number(v):null;
+function taxonomy(v,depth=0){
+ if(depth>3)return null;if(typeof v==='string')return clean(v);
+ if(Array.isArray(v)){if(v.length>30)return null;const items=v.map(x=>taxonomy(x,depth+1)).filter(x=>x!==null);return items.length?items:null;}
+ if(v&&typeof v==='object'){const entries=Object.entries(v);if(entries.length>30)return null;const items=entries.filter(([k])=>/^[A-Za-z0-9_-]{1,40}$/.test(k)).map(([k,x])=>[k,taxonomy(x,depth+1)]).filter(([,x])=>x!==null);return items.length?Object.fromEntries(items):null;}
+ return null;
+}
+export function hermesEvidenceLink(raw){
+ if(typeof raw!=='string'||raw.length>500)return null;
+ try{const u=new URL(decodeHtml(raw),'https://www.hermes.com');if(u.origin!=='https://www.hermes.com'||u.username||u.password||u.search||u.hash)return null;
+ const sku=u.pathname.match(/^\/kr\/ko\/product\/[^/]+-(H[A-Z0-9]{8,19})\/?$/)?.[1];return sku?{sku,url:u.href}:null;}catch{return null;}
+}
+export function inspectHermesListingEvidence(html){
+ if(typeof html!=='string'||Buffer.byteLength(html)>8388608)throw Error('SOURCE_LIMIT');
+ const stats={scripts:0,jsonLd:0,dataAttributes:0,parsedJson:0,unresolvedScripts:0,boundHits:0,objects:0,skuObjects:0};
+ const objects=[],published=new Map(),seen=new Set(),fields={};let visits=0,bytes=0;
+ function walk(v,depth=0){
+  if(++visits>100000||depth>30)throw Error('PARSE_BOUND');
+  if(!v||typeof v!=='object')return;
+  if(!Array.isArray(v))objects.push(v);
+  for(const child of Object.values(v))if(child&&typeof child==='object')walk(child,depth+1);
+ }
+ function parse(s,depth=0){
+  if(depth>3||seen.has(s))return;seen.add(s);bytes+=Buffer.byteLength(s);
+  if(bytes>33554432||s.length>2097152)throw Error('PARSE_BOUND');
+  try{const v=JSON.parse(s);stats.parsedJson++;if(typeof v==='string')parse(v,depth+1);else walk(v);return;}catch(e){if(e.message==='PARSE_BOUND')throw e;}
+  stats.unresolvedScripts++;let quote=null,escape=false,attempts=0;const stack=[];
+  for(let i=0;i<s.length;i++){
+   const c=s[i];if(quote){if(escape)escape=false;else if(c==='\\')escape=true;else if(c===quote)quote=null;continue;}
+   if(c==='"'||c==="'"||c==='`'){quote=c;continue;}
+   if(c==='{')stack.push(i);
+   if(c==='}'&&stack.length){const start=stack.pop();if(++attempts>3000)throw Error('PARSE_BOUND');if(i-start>262144){stats.boundHits++;continue;}
+    let v;try{v=JSON.parse(s.slice(start,i+1));}catch{continue;}stats.parsedJson++;walk(v);
+   }
+  }
+  for(const m of s.matchAll(/"(?:[^"\\]|\\.)*"/g)){let v;try{v=JSON.parse(m[0]);}catch{continue;}if(typeof v==='string'&&v.includes('{'))parse(v,depth+1);}
+ }
+ const parseSafe=s=>{try{parse(s);}catch(e){if(e.message!=='PARSE_BOUND')throw e;stats.boundHits++;}};
+ for(const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)){stats.scripts++;stats.jsonLd+=Number(/application\/ld\+json/i.test(m[1]));parseSafe(m[2]);}
+ for(const tag of html.matchAll(/<[a-z][\w:-]*\b[^>]*>/gi))for(const m of tag[0].matchAll(/\b([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)){
+  const key=m[1].toLowerCase(),v=decodeHtml(m[2]??m[3]);
+  if(key==='href'){const ref=hermesEvidenceLink(v);if(ref)published.set(ref.sku,ref.url);}
+  if(key.startsWith('data-')){stats.dataAttributes++;if(/^\s*[\[{]/.test(v))parseSafe(v);}
+ }
+ stats.objects=objects.length;
+ stats.krwCurrencyObjects=objects.filter(o=>[o.currency,o.currencyCode,o.priceCurrency].includes('KRW')).length;
+ // Collect explicit typed URLs before resolving SKU objects. No constructed paths.
+ for(const object of objects)for(const key of ['url','productUrl','href','@id']){const ref=hermesEvidenceLink(object[key]);if(ref)published.set(ref.sku,ref.url);}
+ const records=[];
+ for(const o of objects){
+  const ids=[o.sku,o.mpn,o.productCode,o.productId,o.id,o.reference].filter(v=>typeof v==='string'&&skuPattern.test(v));
+  const unique=[...new Set(ids)];if(unique.length!==1)continue;stats.skuObjects++;
+  for(const [key,v] of Object.entries(o))if(/^[A-Za-z][A-Za-z0-9_]{0,17}$/.test(key)){const label=`${key.toUpperCase()}_${v===null?'NULL':Array.isArray(v)?'ARR':typeof v==='object'?'OBJ':typeof v==='number'?'NUM':'STR'}`;fields[label]=(fields[label]??0)+1;}
+  const sku=unique[0],refs=[o.url,o.productUrl,o.href,o['@id'],o.offers?.url].map(hermesEvidenceLink).filter(Boolean);
+  if(refs.some(r=>r.sku!==sku))continue;const url=refs[0]?.url??published.get(sku);if(!url)continue;
+  const offers=[o.offers].flat().filter(v=>v&&typeof v==='object');
+  const candidates=[...offers.map(v=>[v.price,v.priceCurrency]),[o.price,o.priceCurrency??o.currency],[o.price?.value??o.price?.amount,o.price?.currency??o.price?.currencyCode],[o.salePriceValue,o.currencyCode]];
+  const prices=[...new Set(candidates.filter(([p,c])=>amount(p)!==null&&c==='KRW').map(([p])=>amount(p)))];
+  const names=[...new Set([o.name,o.productName,o.title].map(clean).filter(Boolean))];
+  records.push({sku,url,name:names.length===1?names[0]:null,taxonomy:taxonomy(o.category??o.productCategory??o.categories),price:prices.length===1?prices[0]:null,currency:prices.length===1?'KRW':null,priceConflict:prices.length>1,explicitAmountWithoutCurrency:candidates.some(([p,c])=>amount(p)!==null&&!c),originalImageVerified:false});
+ }
+ return {stats,fields,records,published:[...published].map(([sku,url])=>({sku,url}))};
+}

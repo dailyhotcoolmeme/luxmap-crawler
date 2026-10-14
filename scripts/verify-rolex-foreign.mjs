@@ -28,7 +28,7 @@ try{
  if(process.argv.includes('--app-totals')){
   const publicClient=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:30000});
   let snapshot,context;try{const response=await publicClient.get('https://luxury-assets.dailyhotcoolmeme.workers.dev/comparison/catalog',{maxRedirects:0,headers:{'cache-control':'no-cache'}});if(!response.ok())throw Error('APP_CATALOG_UNAVAILABLE');snapshot=await response.json();const r=await publicClient.get('https://luxury-assets.dailyhotcoolmeme.workers.dev/comparison/calculator',{maxRedirects:0});if(!r.ok())throw Error('APP_RULES_UNAVAILABLE');context=await r.json();}finally{await publicClient.dispose();}
-  if(snapshot.categoryVersion!==1||!Array.isArray(snapshot.estimates))throw Error('APP_CATEGORY_VERSION_MISSING');
+  if(snapshot.categoryVersion!==2||!Array.isArray(snapshot.estimates))throw Error('APP_CATEGORY_VERSION_MISSING');
   const ids=new Set(korean.map(p=>p.id)),estimates=snapshot.estimates.filter(e=>ids.has(e.id)&&Number.isFinite(e.total)&&e.total>0&&/^[A-Z]{2}$/.test(e.country));
   const row=status=>({brand:'rolex',country:'KR',parentModel:'앱 저장 총비용 공개 확인',variantCode:'TOTAL',price:null,currency:'KRW',status,officialUrl:'https://luxury-assets.dailyhotcoolmeme.workers.dev/comparison/catalog'});
   rows.push(row('APP_WATCH_VERSION_VERIFIED'),row(`APP_TOTALS_READY_${estimates.length}`),row(`APP_TOTALS_PENDING_${korean.length-new Set(estimates.map(e=>e.id)).size}`));

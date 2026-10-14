@@ -7,7 +7,8 @@ import {listingTiles} from './official-listing-tiles.js';
 export async function probeOfficialSite({contextFactory=options=>request.newContext(options)}={}){
  if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled')throw Error('ISOLATED_PIPELINE_REQUIRED');
  const args=process.argv.slice(2);
- if(args.length!==3||args[0]!=='--country-config'||!['--probe-source','--probe-listing-source','--probe-browser-source','--probe-direct-listing-source'].includes(args[2]))throw Error('READ_ONLY_PROBE_REQUIRED');
+ if(args.length!==3||args[0]!=='--country-config'||!['--probe-source','--probe-listing-source','--probe-browser-source','--probe-direct-listing-source','--probe-sitemap-source'].includes(args[2]))throw Error('READ_ONLY_PROBE_REQUIRED');
+ const sitemapOnly=args[2]==='--probe-sitemap-source';
  const directListing=args[2]==='--probe-direct-listing-source';
  const listingOnly=args[2]==='--probe-listing-source'||directListing;
  const browserMode=args[2]==='--probe-browser-source';
@@ -32,12 +33,13 @@ export async function probeOfficialSite({contextFactory=options=>request.newCont
    return route.continue();
   });
  }else context=await contextFactory({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:30000});
- const records=[],links=new Set(),listingProducts=[];let calls=0;
+ const records=[],links=new Set(),listingProducts=[];let calls=0,activeSource=cfg.entryUrl;
  const safe=value=>{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||!cfg.allowedHosts.includes(u.hostname))throw Error('UNAUTHORIZED_URL');return u.href;};
  async function get(value){
   let url=safe(value);
   if(new URL(url).hostname==='bottega-veneta.dam.kering.com')throw Error('UNAUTHORIZED_URL');
   for(let hop=0;hop<4;hop++){
+   activeSource=url;
    if(++calls>30)throw Error('REQUEST_LIMIT');
    let r;
    try{r=browserMode?await browserPage.goto(url,{waitUntil:'domcontentloaded',timeout:30000}):await context.get(url,{maxRedirects:0});}catch(error){if(browserBlock)throw Error(browserBlock);throw error;}
@@ -60,7 +62,7 @@ export async function probeOfficialSite({contextFactory=options=>request.newCont
   const localSitemaps=sitemaps.filter(url=>new URL(url).pathname.startsWith(cfg.localePrefix.replace(/\/$/,'')));
   if(localSitemaps.length)sitemaps=localSitemaps;
   records.push(summary(`DECLARED_SITEMAPS_${sitemaps.length}`));
-  const home=directListing?{url:cfg.entryUrl,text:''}:await get(cfg.entryUrl);
+  const home=directListing||sitemapOnly?{url:cfg.entryUrl,text:''}:await get(cfg.entryUrl);
   for(const match of home.text.matchAll(/href\s*=\s*["']([^"']+)["']/gi))try{
    const u=new URL(match[1].replace(/&amp;/g,'&'),home.url);
    if(u.protocol==='https:'&&cfg.allowedHosts.includes(u.hostname)&&u.pathname.startsWith(cfg.localePrefix))links.add(u.href);
@@ -83,12 +85,15 @@ export async function probeOfficialSite({contextFactory=options=>request.newCont
   }
   records.push(summary(`SITEMAP_DOCS_CHECKED_${checked}`));
   if(queue.length)records.push(summary('SOURCE_PROBE_PARTIAL'));
+  if(sitemapOnly){
+   for(const url of [...links].filter(url=>/\d{6}|\/products?\//i.test(new URL(url).pathname)).slice(0,12))records.push(summary('PUBLISHED_SITEMAP_PRODUCT_PATH',url));
+  }
   const pattern=new RegExp(cfg.productPathPattern??'[A-Z0-9]{8,}(?:\\.[A-Z0-9]+)?(?:\\.html)?/?$','i');
   const candidates=listingOnly?[]:[...new Set([...(cfg.probeProductUrls??[]),...[...links].filter(url=>pattern.test(decodeURIComponent(new URL(url).pathname)))])];
   candidates.sort((a,b)=>Number(/\/(?:가방|핸드백|handbags|bags)\//i.test(decodeURIComponent(new URL(b).pathname)))-Number(/\/(?:가방|핸드백|handbags|bags)\//i.test(decodeURIComponent(new URL(a).pathname))));
   if(cfg.brand==='bottega-veneta')candidates.sort((a,b)=>Number((cfg.probeProductUrls??[]).includes(b))-Number((cfg.probeProductUrls??[]).includes(a))||Number(/조디|jodie/i.test(decodeURIComponent(new URL(b).pathname)))-Number(/조디|jodie/i.test(decodeURIComponent(new URL(a).pathname))));
   records.push(summary(`PRODUCT_CANDIDATES_${candidates.length}`));
-  for(const url of candidates.slice(0,3)){
+  for(const url of (sitemapOnly?[]:candidates.slice(0,3))){
    const page=await get(url);let found=false;
    for(const script of page.text.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){
     let obj;try{obj=JSON.parse(script[1]);}catch{continue;}
@@ -147,7 +152,7 @@ export async function probeOfficialSite({contextFactory=options=>request.newCont
   if(directListing&&!listingProducts.length){records.push(summary('DIRECT_LISTING_PRICE_MISSING'));process.exitCode=1;}
  }catch(error){
   const status=/^(ACCESS_BLOCKED|UNAUTHORIZED_URL|REQUEST_LIMIT|RESPONSE_LIMIT|REDIRECT_LIMIT|HTTP_\d{3})$/.test(error.message)?error.message:'SOURCE_REQUEST_FAILED';
-  records.push(summary(status));
+  records.push(summary(status,activeSource));
   await fs.writeFile(path.join(run,'failure.json'),JSON.stringify({failureCode:status}));process.exitCode=1;
  }finally{
   await fs.writeFile(path.join(run,'summary.json'),JSON.stringify(records.slice(0,25)));

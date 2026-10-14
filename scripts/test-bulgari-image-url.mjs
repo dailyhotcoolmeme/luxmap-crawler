@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {bulgariOriginalImageUrl as original} from '../crawler/common/bulgari-image-url.js';
+const source='https://www.bulgari.com/on/demandware.static/-/Sites-masterCatalog/default/dwabc123/images/images/123456.png';
+const transformed=source.replace('/on/','/dw/image/v2/BCSG_PRD/on/')+'?sw=400&sh=400';
+assert.equal(original({link:transformed,disBaseLink:source}),source);
+assert.equal(original({link:source,disBaseLink:transformed}),source);
+assert.equal(original(source),source);
+assert.throws(()=>original(transformed),/ORIGINAL_UNPUBLISHED/);
+assert.throws(()=>original(source+'?sw=400'),/ORIGINAL_UNPUBLISHED/);
+assert.throws(()=>original({link:source,disBaseLink:transformed.replace('123456','654321')}),/SOURCE_CONFLICT/);
+for(const value of [source.replace('https:','http:'),source.replace('www.bulgari.com','evil.invalid'),source.replace('www.bulgari.com','www.bulgari.com.evil.invalid'),source+'#x',source.replace('/images/','/%69mages/'),source.replace('https://','https://user@')])assert.throws(()=>original(value),/SOURCE_PATH/);
+assert.throws(()=>original('https://www.bulgari.com/images/123456.png'),/ORIGINAL_UNPUBLISHED/);
+console.log('PASS: 13 Bulgari published original/rendition provenance checks');

@@ -6,6 +6,7 @@ import {createInterface} from 'node:readline';
 import {finished} from 'node:stream/promises';
 import sharp from 'sharp';
 import {celineOriginalImageUrl} from './celine-image-url.js';
+import {bulgariOriginalImageUrl} from './bulgari-image-url.js';
 
 const root=path.resolve(import.meta.dirname,'../..');
 export const IMAGE_PROCESSING_VERSION='original-cutout-v1';
@@ -31,6 +32,8 @@ export function originalImageUrl(imageUrl,expectedCode){
   const match=url.pathname.match(/^\/image\/upload\/(?:[^/]+\/)*?(v\d+\/[a-f0-9]+\/catalogue\/\d{4}\/upright-c\/m[0-9a-z]+-\d+)$/i);
   if(!match||!expectedCode||match[1].split('/').at(-1).replace(/[^a-z0-9]/gi,'').toUpperCase()!==expectedCode)throw Error('IMAGE_SOURCE_PATH');
   url.pathname=`/image/upload/${match[1]}`;url.search='';
+ }else if(url.hostname==='www.bulgari.com'){
+  return bulgariOriginalImageUrl(imageUrl);
  }else if(url.hostname==='image.celine.com'){
   return celineOriginalImageUrl(imageUrl,expectedCode);
  }else if(!['www.chanel.com','puls-img.chanel.com'].includes(url.hostname))throw Error('IMAGE_SOURCE_HOST');

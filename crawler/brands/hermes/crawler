@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+import {runBrandCollection} from '../../common/hermes-collection.js';
+import {probeOfficialSite} from '../../common/official-site-probe.js';
+import {discoverHermesReference} from '../../common/hermes-reference-collection.js';
+import {collectHermesReferenceBatch} from '../../common/hermes-reference-batch.js';
+import {probeHermesImageProperties} from '../../common/hermes-image-properties-probe.js';
+if(process.argv.includes('--discover-reference'))await discoverHermesReference();
+else if(process.argv.includes('--batch-offset'))await collectHermesReferenceBatch();
+else if(process.argv.includes('--probe-image-properties'))await probeHermesImageProperties();
+else if(process.argv.some(value=>value.startsWith('--probe-')))await probeOfficialSite();
+else await runBrandCollection('hermes');

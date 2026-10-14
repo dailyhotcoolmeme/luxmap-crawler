@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {validateOfficialReference} from '../crawler/common/official-reference-validation.js';
+const cfg={brand:'bulgari',siteHosts:['www.bulgari.com'],localePrefix:'/ko-kr/'};
+const record={brand:'bulgari',category:'jewelry',country:'KR',currency:'KRW',normalizedCode:'323532',modelKey:'sku-323532',productName:'fixture',parentModel:'fixture',officialUrl:'https://www.bulgari.com/ko-kr/323532.html',price:4990000,checkedAt:'2026-10-15T00:00:00Z',imageProcessingVersion:'original-cutout-v1',imageWidth:960,imageHeight:960,imageSha256:'a'.repeat(64),imagePath:'/fixture/image.webp',sourceImageUrl:'https://www.bulgari.com/fixture.png'};
+assert.equal(validateOfficialReference(record,cfg),'323532');
+for(const patch of [{brand:'dior'},{category:'bag'},{currency:'USD'},{normalizedCode:'323533'},{modelKey:'family'},{price:-1},{checkedAt:'invalid'},{imageWidth:400},{imageSha256:'_'.repeat(64)},{officialUrl:'https://www.bulgari.com/en-us/323532.html'},{officialUrl:'https://example.com/ko-kr/323532.html'}])assert.throws(()=>validateOfficialReference({...record,...patch},cfg));
+assert.equal(validateOfficialReference({...record,price:null},cfg),'323532');
+const hc={brand:'hermes',siteHosts:['www.hermes.com'],localePrefix:'/kr/ko/'};
+assert.equal(validateOfficialReference({...record,brand:'hermes',category:'bag',normalizedCode:'H073428CKO5',modelKey:'sku-h073428cko5',officialUrl:'https://www.hermes.com/kr/ko/product/lindy-26-H073428CKO5/'},hc),'H073428CKO5');
+console.log('PASS: official reference identity/category/currency/image/price validation and rejection');

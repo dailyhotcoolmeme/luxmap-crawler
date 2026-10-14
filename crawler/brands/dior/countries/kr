@@ -1,0 +1,26 @@
+{
+  "brand": "dior",
+  "country": "KR",
+  "currency": "KRW",
+  "locale": "ko_kr",
+  "entryUrl": "https://www.dior.com/ko_kr/fashion",
+  "localePrefix": "/ko_kr/",
+  "productPathPattern": "/products/[A-Z0-9]+_[A-Z0-9]+/?$",
+  "siteHosts": [
+    "www.dior.com"
+  ],
+  "allowedHosts": [
+    "www.dior.com"
+  ],
+  "imageHosts": [
+    "www.dior.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}
