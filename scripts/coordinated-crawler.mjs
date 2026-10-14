@@ -19,6 +19,8 @@ if(officialReference&&(officialProbe||rolexForeign||foreign||onboarding))throw E
 const probeBrands=new Set(['hermes','dior','saint-laurent','bulgari']);
 const probeModes=new Set(['--inspect-navigation','--probe-source','--inspect-listing','--inspect-detail-evidence','--probe-listing-source','--discover-candidates','--discover-reference','--probe-sitemap-source','--probe-product-source','--batch-offset','--probe-image-properties','--audit-reference','--probe-published-script','--probe-product-chunk','--probe-product-dependencies','--probe-product-api']);
 if(officialProbe&&(process.argv[2]!=='--official-probe'||!probeBrands.has(process.argv[3])||!probeModes.has(process.argv[4])||![5,6,7,9].includes(process.argv.length)))throw Error('invalid official probe arguments');
+if(officialProbe&&['--probe-product-api','--probe-product-dependencies'].includes(process.argv[4])&&process.argv[3]!=='hermes')throw Error('invalid official probe brand');
+if(officialProbe&&process.argv[4]==='--probe-product-chunk'&&!['hermes','bulgari'].includes(process.argv[3]))throw Error('invalid official chunk brand');
 if(officialProbe&&(rolexForeign||foreign||onboarding))throw Error('conflicting execution modes');
 if(rolexForeign&&!['--rolex-foreign','--rolex-foreign --smoke'].includes(process.argv.slice(2).join(' ')))throw Error('invalid Rolex foreign arguments');
 if(rolexForeign&&(foreign||onboarding))throw Error('conflicting execution modes');
