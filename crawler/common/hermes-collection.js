@@ -42,7 +42,7 @@ function dimensionsMm(product,visible){
  return result.every(Boolean)?result:null;
 }
 
-export function parseOfficialProduct(html,url,cfg,{expectedCode,listingUrl}={}){
+export function parseOfficialProduct(html,url,cfg,{expectedCode,listingUrl,priceOnly=false}={}){
  const target=new URL(url),rules=BRAND_RULES[cfg.brand];
  if(!rules||target.protocol!=='https:'||!rules.hosts.includes(target.hostname)||!target.pathname.startsWith(cfg.localePrefix))throw Error('UNAUTHORIZED_URL');
  const products=[],breadcrumbs=[];
@@ -60,6 +60,10 @@ export function parseOfficialProduct(html,url,cfg,{expectedCode,listingUrl}={}){
  const offers=[product.offers].flat().filter(Boolean),offer=offers.find(o=>o.priceCurrency===cfg.currency)??(offers.length===1&&!offers[0].priceCurrency?offers[0]:null),amount=Number(String(offer?.price??'').replaceAll(',',''));
  if(!offer||!Number.isFinite(amount)||amount<=0||offer.priceCurrency!==cfg.currency&&!visibleCurrencyProof(html,amount,cfg.currency)||offers.some(o=>o.priceCurrency===cfg.currency&&Number(String(o.price).replaceAll(',',''))!==amount))throw Error('EXACT_CURRENCY_PRICE_REQUIRED');
  const name=clean(product.name);if(!name)throw Error('PRODUCT_NAME_MISSING');
+ if(priceOnly){
+  if(cfg.country==='KR'||!expectedCode)throw Error('FOREIGN_REFERENCE_REQUIRED');
+  return {brand:cfg.brand,originalCode:sku,normalizedCode:sku,productName:name,price:amount,priceStatus:'confirmed',officialUrl:url,country:cfg.country,currency:cfg.currency,checkedAt:new Date().toISOString()};
+ }
  const breadcrumbBag=breadcrumbs.some(trail=>[trail.itemListElement].flat().flat().some(item=>rules.bagPath.test(String(item?.name??item?.item?.name??''))||(()=>{try{return rules.bagPath.test(new URL(item?.item?.url??item?.item??'',url).pathname);}catch{return false;}})()));
  const categoryBag=rules.bagPath.test(`/${String(product.category??'').trim()}/`),listingBag=listingUrl&&rules.bagPath.test(decodeURIComponent(new URL(listingUrl).pathname));
  if(!breadcrumbBag&&!categoryBag&&!listingBag)throw Error('BAG_CATEGORY_UNVERIFIED');

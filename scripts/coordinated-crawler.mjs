@@ -20,7 +20,7 @@ const foreign=process.argv.includes('--van-cleef-foreign');
 const rolexForeign=process.argv.includes('--rolex-foreign');
 const officialProbe=process.argv.includes('--official-probe');
 const officialReference=process.argv.includes('--official-reference');
-const hermesPrices=officialReference&&process.argv[3]==='hermes'&&process.argv[4]==='--prices-country'&&['all','jp','fr','it','es','us','sg','hk'].includes(process.argv[5])&&process.argv.length===6;
+const hermesPrices=officialReference&&process.argv[3]==='hermes'&&['--prices-country','--prices-sitemap-country'].includes(process.argv[4])&&['all','jp','fr','it','es','us','sg','hk'].includes(process.argv[5])&&process.argv.length===6;
 const hermesImageRefresh=officialReference&&process.argv[3]==='hermes'&&process.argv[4]==='--image-refresh-file'&&process.argv.length===6;
 const hermesListingBatch=officialReference&&process.argv[3]==='hermes'&&process.argv[4]==='--recover-source-run'&&process.argv.length===8&&process.argv[6]==='--batch-offset'&&/^\d+$/.test(process.argv[7]??'');
 if(officialReference&&!hermesPrices&&!hermesImageRefresh&&(process.argv[2]!=='--official-reference'||!['bulgari','hermes'].includes(process.argv[3])||(process.argv[3]==='hermes'&&process.argv[4]!=='--recover-source-run')||!['--batch-offset','--recover-source-run'].includes(process.argv[4])||(process.argv[4]==='--batch-offset'&&!/^\d+$/.test(process.argv[5]??''))||(!hermesListingBatch&&process.argv.length!==6)))throw Error('invalid official reference arguments');

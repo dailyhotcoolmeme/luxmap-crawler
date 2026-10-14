@@ -5,6 +5,49 @@ import {decodeHtml} from './prada-product.js';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {inspectHermesListingEvidence} from './hermes-listing-evidence.js';
+import {declaredCountrySitemapUrls} from './van-cleef-foreign.js';
+import {parseOfficialProduct} from './hermes-collection.js';
+
+export async function collectHermesSitemapPrices(){
+ const args=process.argv.slice(2),cfg=JSON.parse(await fs.readFile(args[1])),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..');
+ if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.CRAWL_BRAND!=='hermes'||args.length!==4||args[0]!=='--country-config'||args[2]!=='--prices-sitemap-offset'||!/^\d+$/.test(args[3])||!['JP','FR','IT','ES','US','SG','HK'].includes(cfg.country))throw Error('GUARDED_PRICE_RUN_REQUIRED');
+ const kr=await fs.readFile(root+'/crawler/brands/hermes/.reference-index.json'),index=JSON.parse(kr),fingerprint=createHash('sha256').update(kr).digest('hex'),folder=root+`/crawler/onboarding/hermes/foreign-sitemap/${cfg.country.toLowerCase()}`,cacheFile=folder+'/source-cache.json',offset=Number(args[3]),rows=[],records=[];
+ const row=(status,p={})=>({brand:'hermes',country:cfg.country,parentModel:'공식 사이트맵 동일 한국 SKU 가격',variantCode:p.normalizedCode??'RUN',price:p.price??null,currency:cfg.currency,status,officialUrl:p.officialUrl??cfg.entryUrl});
+ const context=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:cfg.navigationTimeoutMs});let calls=0,cache;
+ const save=()=>fs.writeFile(run+'/summary.json',JSON.stringify(rows),{mode:0o600});
+ async function get(address){
+  const u=new URL(address);if(u.protocol!=='https:'||u.host!=='www.hermes.com'||u.username||u.password||u.search||u.hash||!(u.pathname==='/robots.txt'||u.pathname.startsWith(cfg.localePrefix)))throw Error('UNAUTHORIZED_URL');
+  if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');
+  const r=await context.get(u.href,{maxRedirects:0,maxRetries:0});if([401,403,429].includes(r.status()))throw Error('ACCESS_BLOCKED');if(!r.ok())throw Error('HTTP_'+r.status());
+  const b=await r.body();if(b.length>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');const html=b.toString('utf8');if(/cf-chl|challenge-platform|px-captcha|captcha-delivery|verify you are human|datadome/i.test(html))throw Error('ACCESS_BLOCKED');
+  await fs.writeFile(run+`/raw/${calls}.source`,b,{mode:0o600});return {html,url:u.href};
+ }
+ try{
+  await fs.mkdir(folder,{recursive:true});await fs.mkdir(run+'/artifacts',{recursive:true});
+  try{cache=JSON.parse(await fs.readFile(cacheFile));}catch(e){if(e.code!=='ENOENT')throw e;}
+  if(cache&&(cache.fingerprint!==fingerprint||Date.now()-Date.parse(cache.checkedAt)>86400000))throw Error('SITEMAP_CACHE_STALE');
+  if(cache?.halted)throw Error('SITEMAP_STRATEGY_ALREADY_HALTED');
+  if(!cache){
+   const urls=await declaredCountrySitemapUrls(get,{...cfg,productPathPattern:'/product/',sitemapLocalePrefix:cfg.localePrefix});
+   let listed=[];try{const old=JSON.parse(await fs.readFile(root+`/crawler/brands/hermes/.foreign-listing-${cfg.country.toLowerCase()}.json`));if(old.fingerprint===fingerprint)listed=old.products??[];}catch{}
+   const targets=index.products.filter(p=>!listed.some(v=>v.sku===p.code)).map(p=>{const matches=urls.filter(url=>hermesReferenceCode(url)===p.code);return {code:p.code,url:matches.length===1?matches[0]:null};});
+   cache={fingerprint,checkedAt:new Date().toISOString(),sourceRun:run,targets,attempted:[]};await fs.writeFile(cacheFile,JSON.stringify(cache),{mode:0o600});
+   rows.push(row('DECLARED_COUNTRY_URLS_'+urls.length));
+  }
+  if(offset>=cache.targets.length)throw Error('NO_REMAINING_TARGETS');let failed=0;const batch=cache.targets.slice(offset,offset+25);
+  for(const p of batch){
+   const ref={normalizedCode:p.code,officialUrl:p.url??cfg.entryUrl};
+   if(!p.url){failed++;rows.push(row('COUNTRY_SITEMAP_REFERENCE_MISSING',ref));continue;}
+   if(cache.attempted.includes(p.code))throw Error('REFERENCE_ALREADY_ATTEMPTED');
+   cache.attempted.push(p.code);await fs.writeFile(cacheFile,JSON.stringify(cache),{mode:0o600});
+   try{const page=await get(p.url),parsed=parseOfficialProduct(page.html,page.url,cfg,{expectedCode:p.code,priceOnly:true});records.push(parsed);rows.push(row('COUNTRY_PRICE_READY',parsed));}
+   catch(e){if(/BLOCKED|LIMIT|UNAUTHORIZED|GUARD/.test(e.message))throw e;failed++;rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'PRODUCT_SOURCE_FAILED',ref));}
+   await save();
+  }
+  rows.push(...['BATCH_READY_'+records.length,'BATCH_FAILED_'+failed,'NEXT_OFFSET_'+(offset+batch.length),'REMAINING_'+Math.max(0,cache.targets.length-offset-batch.length)].map(s=>row(s)));if(failed)process.exitCode=2;
+ }catch(e){const status=/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'SITEMAP_SOURCE_FAILED';rows.push(row(status));if(cache){cache.halted=true;await fs.writeFile(cacheFile,JSON.stringify(cache),{mode:0o600});}else await fs.writeFile(cacheFile,JSON.stringify({fingerprint,checkedAt:new Date().toISOString(),halted:true}),{mode:0o600});process.exitCode=/UNAUTHORIZED|LIMIT|GUARD/.test(status)?78:1;
+ }finally{await fs.mkdir(run+'/artifacts',{recursive:true});await fs.writeFile(run+'/artifacts/records.json',JSON.stringify(records),{mode:0o600});await save();await context.dispose();}
+}
 
 export async function collectHermesForeignPrices(){
  const args=process.argv.slice(2),cfg=JSON.parse(await fs.readFile(args[1])),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..');

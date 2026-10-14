@@ -2,17 +2,18 @@ import {spawnSync} from 'node:child_process';
 import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'..'),[brand,mode,offset]=process.argv.slice(2);
 import fs from 'node:fs';
-if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='hermes'&&mode==='--prices-country'&&process.argv.length===5){
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='hermes'&&['--prices-country','--prices-sitemap-country'].includes(mode)&&process.argv.length===5){
+ const sitemap=mode==='--prices-sitemap-country';
  const countries=offset==='all'?['jp','fr','it','es','us','sg','hk']:[offset];if(countries.some(c=>!['jp','fr','it','es','us','sg','hk'].includes(c)))throw Error('COUNTRY_SCOPE_INVALID');
  const guard=file=>{if(spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status!==0)throw Error('SUMMARY_GUARD');return JSON.parse(fs.readFileSync(file));};let failed=false;
  for(const country of countries){
-  const cfg=JSON.parse(fs.readFileSync(root+`/crawler/brands/hermes/countries/${country}`)),folder=root+`/crawler/onboarding/hermes/foreign/${country}`;fs.mkdirSync(folder,{recursive:true});
+  const cfg=JSON.parse(fs.readFileSync(root+`/crawler/brands/hermes/countries/${country}`)),folder=root+`/crawler/onboarding/hermes/${sitemap?'foreign-sitemap':'foreign'}/${country}`;fs.mkdirSync(folder,{recursive:true});
   const checkpoint=folder+'/checkpoint.json',report=status=>{const file=folder+'/summary.json';fs.writeFileSync(file,JSON.stringify([{brand:'hermes',country:cfg.country,parentModel:'동일 한국 SKU 해외 가격',variantCode:'RUN',price:null,currency:cfg.currency,status,officialUrl:cfg.entryUrl}]));guard(file);};
   let start=0,incomplete=false;
   if(fs.existsSync(checkpoint)){const old=JSON.parse(fs.readFileSync(checkpoint));if(old.complete){failed||=old.failed;continue;}start=old.nextOffset;}
   try{for(let n=start;n<10000;){
    report('RUNNING_OFFSET_'+n);
-   const result=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['hermes',country,'--prices-offset',String(n)],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});
+   const result=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['hermes',country,sitemap?'--prices-sitemap-offset':'--prices-offset',String(n)],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});
    const base=root+`/crawler/runs/hermes/${country}`,run=base+'/'+fs.readdirSync(base).sort().at(-1),rows=guard(run+'/summary.json');
    if(result.status===78||rows.some(r=>/UNAUTHORIZED|LIMIT|GUARD|SANDBOX|TOKEN|NETWORK_POLICY/.test(r.status)))throw Error('SAFETY_STOP');
    if(![0,2].includes(result.status))throw Error(rows.some(r=>/BLOCKED/.test(r.status))?'COUNTRY_ACCESS_BLOCKED':'COLLECTION_OR_STORAGE_FAILED');

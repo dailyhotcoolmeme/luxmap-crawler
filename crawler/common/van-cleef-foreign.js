@@ -3,6 +3,21 @@ import path from 'node:path';
 import {request} from 'playwright-core';
 import {referenceCode,parseReferenceProduct,transientSourceError} from './jewelry-watch-product.js';
 import {selectRepairUrls} from './reference-repair.js';
+// Shared normal-source fallback used by the successful VCA foreign repairs.
+export async function declaredCountrySitemapUrls(get,cfg){
+ const robots=await get(new URL('/robots.txt',cfg.entryUrl).href),queue=[...robots.html.matchAll(/^Sitemap:\s*(https:\/\/\S+)/gim)].map(m=>m[1]),seen=new Set(),found=new Set();
+ const prefix=cfg.sitemapLocalePrefix??(cfg.brand==='rolex'?cfg.localePrefix:`/${cfg.country.toLowerCase()}/`);
+ const local=queue.filter(url=>{try{return new URL(url).pathname.startsWith(prefix);}catch{return false;}});if(local.length)queue.splice(0,queue.length,...local);
+ if(!queue.length)throw Error('SITEMAP_NOT_DECLARED');
+ while(queue.length){const address=queue.shift();if(seen.has(address))continue;if(seen.size>=Math.min(20,cfg.maxDiscoveryPages??20))throw Error('DISCOVERY_LIMIT');seen.add(address);
+  const xml=(await get(address)).html,children=[...xml.matchAll(/<(?:\w+:)?loc[^>]*>([\s\S]*?)<\/(?:\w+:)?loc>/gi)].map(m=>m[1].replace(/<!\[CDATA\[|\]\]>/g,'').trim().replaceAll('&amp;','&'));
+  if(/<sitemapindex[\s>]/i.test(xml)){const local=children.filter(url=>{try{return new URL(url).pathname.startsWith(prefix);}catch{return false;}});queue.push(...(local.length?local:children));}
+  else if(/<urlset[\s>]/i.test(xml)){for(const url of children){const u=new URL(url);if(u.protocol==='https:'&&!u.username&&!u.password&&cfg.allowedHosts.includes(u.hostname)&&u.pathname.startsWith(cfg.brand==='van-cleef-arpels'?prefix:cfg.localePrefix)&&new RegExp(cfg.productPathPattern,'i').test(u.pathname))found.add(u.href);}}
+  else throw Error('SITEMAP_FORMAT');
+  if(found.size>Math.min(10000,cfg.maxCandidates??10000))throw Error('CANDIDATE_LIMIT');
+ }
+ return [...found];
+}
 export function localizedReference(html,krUrl,cfg){
  const code=referenceCode(krUrl,cfg.brand)?.replace(/[^a-z0-9]/gi,'').toUpperCase(),urls=new Set();
  for(const tag of html.matchAll(/<(?:link|a)\b[^>]*>/gi)){
@@ -31,16 +46,7 @@ export async function collectVanCleefPrices(cfg){
  let sitemapUrls;
  async function sitemapReference(code){
   if(!sitemapUrls){
-   const robots=await get(new URL('/robots.txt',cfg.entryUrl).href),queue=[...robots.html.matchAll(/^Sitemap:\s*(https:\/\/\S+)/gim)].map(m=>m[1]),seen=new Set(),found=new Set();
-   if(!queue.length)throw Error('SITEMAP_NOT_DECLARED');
-   while(queue.length){const address=queue.shift();if(seen.has(address))continue;if(seen.size>=20)throw Error('DISCOVERY_LIMIT');seen.add(address);const xml=(await get(address)).html;
-    const children=[...xml.matchAll(/<(?:\w+:)?loc[^>]*>([\s\S]*?)<\/(?:\w+:)?loc>/gi)].map(m=>m[1].replace(/<!\[CDATA\[|\]\]>/g,'').trim().replaceAll('&amp;','&'));
-    if(/<sitemapindex[\s>]/i.test(xml)){const local=children.filter(url=>{try{return new URL(url).pathname.startsWith(cfg.brand==='rolex'?cfg.sitemapLocalePrefix:`/${cfg.country.toLowerCase()}/`);}catch{return false;}});queue.push(...(local.length?local:children));}
-    else if(/<urlset[\s>]/i.test(xml)){for(const url of children){const u=new URL(url);if(u.protocol==='https:'&&cfg.allowedHosts.includes(u.hostname)&&u.pathname.startsWith(cfg.brand==='rolex'?cfg.localePrefix:`/${cfg.country.toLowerCase()}/`)&&new RegExp(cfg.productPathPattern,'i').test(u.pathname))found.add(u.href);}}
-    else throw Error('SITEMAP_FORMAT');
-    if(found.size>10000)throw Error('CANDIDATE_LIMIT');
-   }
-   sitemapUrls=[...found];rows.push(row(`COUNTRY_SITEMAP_URLS_${found.size}`));await save();
+   sitemapUrls=await declaredCountrySitemapUrls(get,cfg);rows.push(row(`COUNTRY_SITEMAP_URLS_${sitemapUrls.length}`));await save();
   }
   const matches=sitemapUrls.filter(url=>referenceCode(url,cfg.brand)?.replace(/[^a-z0-9]/gi,'').toUpperCase()===code),preferred=matches.filter(url=>new URL(url).pathname.startsWith(cfg.localePrefix));
   if(preferred.length===1)return preferred[0];if(matches.length===1)return matches[0];throw Error(matches.length?'COUNTRY_SITEMAP_CONFLICT':'COUNTRY_SITEMAP_REFERENCE_MISSING');
