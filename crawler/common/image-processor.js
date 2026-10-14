@@ -104,5 +104,6 @@ export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expe
  if(info.width!==960||info.height!==960||!info.hasAlpha||output.length>4*1024*1024)throw Error('IMAGE_OUTPUT_INVALID');
  const sha256=crypto.createHash('sha256').update(output).digest('hex'),outputPath=path.join(artifactDir,`${sha256}.webp`);
  await fs.rename(temp,outputPath);
- return {sourceImageUrl,imagePath:outputPath,imageSha256:sha256,imageMimeType:'image/webp',imageWidth:960,imageHeight:960,imageBytes:output.length,imageProcessingVersion:IMAGE_PROCESSING_VERSION,originalImagePath:input};
+ const imageProof={schema:1,originalSourceVerified:true,cpuOfflineVerified:true,outputVerified:true,processingVersion:IMAGE_PROCESSING_VERSION,sourceUrl:sourceImageUrl,sourceSha256:crypto.createHash('sha256').update(source).digest('hex'),sha256,width:info.width,height:info.height,hasAlpha:info.hasAlpha};
+ return {sourceImageUrl,imagePath:outputPath,imageSha256:sha256,imageMimeType:'image/webp',imageWidth:960,imageHeight:960,imageBytes:output.length,imageProcessingVersion:IMAGE_PROCESSING_VERSION,originalImagePath:input,imageProof};
 }

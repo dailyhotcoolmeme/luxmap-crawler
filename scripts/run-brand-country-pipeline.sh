@@ -167,6 +167,21 @@ find "$RUN_DIR" -maxdepth 1 -type f -name '*.log' -exec chmod 000 {} + 2>/dev/nu
 node "$PROJECT_DIR/scripts/cleanup-image-originals.mjs" "$RECORD_FILE"
 storage_stage ORIGINALS_CLEANED
 chmod 000 "$RECORD_FILE" 2>/dev/null || true
+case "$BRAND/$COUNTRY" in
+ hermes/kr|dior/kr|saint-laurent/kr|bulgari/kr)
+  # Successful rows in one batch never prove whole-reference completion.
+  # No remote clients or credentials are available to this evidence-only gate.
+  WHOLE_AUDIT_EXIT=0
+  env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+    CRAWL_MODE=deterministic-only LUXURY_PIPELINE_GUARD=enabled \
+    /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network*)' \
+    node "$PROJECT_DIR/scripts/audit-official-reference.mjs" --brand "$BRAND" || WHOLE_AUDIT_EXIT=$?
+  if [ "$WHOLE_AUDIT_EXIT" -ne 0 ]; then
+    echo "PARTIAL: $BRAND/$COUNTRY stored rows verified; whole-reference audit is incomplete."
+    exit "$WHOLE_AUDIT_EXIT"
+  fi
+  ;;
+esac
 if [ -n "$CELINE_PARTIAL_RUN" ]; then
  echo 'PASS: Celine KR partial storage verified for 4 records; 420 candidates remain unresolved.'
 elif [ "$REFERENCE_EXIT" -eq 2 ]; then

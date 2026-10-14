@@ -2,6 +2,10 @@
 import {runCollection} from '../../common/saint-laurent-collection.js';
 import {probeOfficialSite} from '../../common/official-site-probe.js';
 import {probeOfficialProduct} from '../../common/official-product-probe.js';
-if(process.argv.includes('--probe-product-source'))await probeOfficialProduct();
+if(process.argv.includes('--audit-reference')){
+ const {auditOfficialReferenceCatalog}=await import('../../../scripts/audit-official-reference.mjs');
+ process.exitCode=(await auditOfficialReferenceCatalog({brand:'saint-laurent'})).exitCode;
+}
+else if(process.argv.includes('--probe-product-source'))await probeOfficialProduct();
 else if(process.argv.some(value=>value.startsWith('--probe-')))await probeOfficialSite();
 else await runCollection();

@@ -2,6 +2,14 @@
 import {probeOfficialSite} from '../../common/official-site-probe.js';
 import {collectBulgariReference} from '../../common/bulgari-reference-collection.js';
 import {probeOfficialProduct} from '../../common/official-product-probe.js';
-if(process.argv.includes('--probe-product-source'))await probeOfficialProduct();
+if(process.argv.includes('--audit-reference')){
+ const {auditOfficialReferenceCatalog}=await import('../../../scripts/audit-official-reference.mjs');
+ process.exitCode=(await auditOfficialReferenceCatalog({brand:'bulgari'})).exitCode;
+}
+else if(process.argv.includes('--probe-published-script')){
+ const {probeBulgariPublicScript}=await import('../../common/bulgari-public-script-probe.js');
+ await probeBulgariPublicScript();
+}
+else if(process.argv.includes('--probe-product-source'))await probeOfficialProduct();
 else if(process.argv.includes('--batch-offset')||process.argv.includes('--remaining')||process.argv.includes('--recover-source-run'))await collectBulgariReference();
 else await probeOfficialSite();

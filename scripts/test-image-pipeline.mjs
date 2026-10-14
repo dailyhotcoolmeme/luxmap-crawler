@@ -42,6 +42,8 @@ try{
  assert.equal(second.imageProcessingVersion,'original-cutout-v1');assert.notEqual(second.originalImagePath,image.originalImagePath);
  assert.equal(image.imageProcessingVersion,'original-cutout-v1');
  const meta=await sharp(image.imagePath).metadata();assert.equal(meta.width,960);assert.equal(meta.height,960);assert(meta.hasAlpha);
+ assert.equal(image.imageProof.originalSourceVerified,true);assert.equal(image.imageProof.cpuOfflineVerified,true);assert.equal(image.imageProof.outputVerified,true);
+ assert.equal(image.imageProof.sha256,image.imageSha256);assert.equal(image.imageProof.sourceUrl,image.sourceImageUrl);assert.equal(image.imageProof.width,960);assert.equal(image.imageProof.height,960);assert.equal(image.imageProof.hasAlpha,true);assert.match(image.imageProof.sourceSha256,/^[a-f0-9]{64}$/);
  assert(fs.existsSync(image.originalImagePath),'original retained until storage verification');
  await closeImageProcessor();
  const exit=child.exitCode??await new Promise(resolve=>child.once('exit',resolve));assert.equal(exit,0);

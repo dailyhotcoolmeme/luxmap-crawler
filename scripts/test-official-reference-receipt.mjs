@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {officialReferenceReceipt} from '../crawler/common/official-reference-receipt.js';
+const cfg={brand:'bulgari',siteHosts:['www.bulgari.com'],localePrefix:'/ko-kr/'};
+const r={brand:'bulgari',category:'jewelry',country:'KR',currency:'KRW',normalizedCode:'323532',modelKey:'sku-323532',productName:'fixture',parentModel:'fixture',officialUrl:'https://www.bulgari.com/ko-kr/323532.html',price:4990000,priceStatus:'confirmed',checkedAt:'2026-10-15T00:00:00Z',imageProcessingVersion:'original-cutout-v1',imageWidth:960,imageHeight:960,imageSha256:'a'.repeat(64),imagePath:'/fixture/image.webp',sourceImageUrl:'https://www.bulgari.com/fixture.png'};
+assert.equal(officialReferenceReceipt(r,cfg),null);
+r.referenceProof={schema:1,exactReferenceVerified:true,classificationEvidenceVerified:true,countryCurrencyVerified:true,brand:r.brand,category:r.category,country:r.country,currency:r.currency,code:r.normalizedCode,officialUrl:r.officialUrl};
+assert.equal(officialReferenceReceipt(r,cfg),null);
+r.imageProof={schema:1,originalSourceVerified:true,cpuOfflineVerified:true,outputVerified:true,processingVersion:'original-cutout-v1',sourceUrl:r.sourceImageUrl,sourceSha256:'b'.repeat(64),sha256:r.imageSha256,width:960,height:960,hasAlpha:true};
+const receipt=officialReferenceReceipt(r,cfg);
+assert.equal(receipt.ledger.image.sha256,r.imageSha256);assert.equal(receipt.public.price,r.price);assert.equal(receipt.public.imageSha256,r.imageSha256);
+for(const p of [{exactReferenceVerified:false},{countryCurrencyVerified:false},{classificationEvidenceVerified:false},{code:'323533'},{officialUrl:'https://www.bulgari.com/en-us/323532.html'}])assert.equal(officialReferenceReceipt({...r,referenceProof:{...r.referenceProof,...p}},cfg),null);
+for(const p of [{originalSourceVerified:false},{cpuOfflineVerified:false},{outputVerified:false},{hasAlpha:false},{width:320},{sha256:'c'.repeat(64)},{sourceUrl:'https://other.invalid/p.png'},{sourceSha256:'invalid'}])assert.equal(officialReferenceReceipt({...r,imageProof:{...r.imageProof,...p}},cfg),null);
+assert.throws(()=>officialReferenceReceipt({...r,normalizedCode:'323533'},cfg));
+console.log('PASS: independent reference/image processing proof required; legacy evidence not upgraded; identity/source/hash/CPU/alpha failures rejected');

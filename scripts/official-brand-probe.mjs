@@ -11,6 +11,8 @@ const supported={
  '--probe-product-source':2,
  '--batch-offset':1,
  '--probe-image-properties':4,
+ '--audit-reference':0,
+ '--probe-published-script':4,
  '--inspect-listing':2,'--inspect-detail-evidence':2,
 };
 if(!(mode in supported)||args.length!==supported[mode])throw Error('invalid probe mode');
