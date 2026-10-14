@@ -62,7 +62,8 @@ export async function probePublishedScript(options={}){
  const env=options.env??process.env,args=options.args??process.argv.slice(2),root=options.root??projectRoot,brand=env.CRAWL_BRAND,rule=rules[brand];
  if(!rule||env.CRAWL_MODE!=='deterministic-only'||env.LUXURY_PIPELINE_GUARD!=='enabled'||env.LUXURY_NETWORK_ISOLATED!=='enabled')throw Error('GUARDED_RUN_REQUIRED');proxyUrl(env.LUXURY_NETWORK_PROXY);
  if(spawnSync(path.join(projectRoot,'scripts/crawl-preflight.sh'),[],{stdio:'ignore'}).status!==0)throw Error('PREFLIGHT_FAILED');
- if(args.length!==7||args[0]!=='--country-config'||args[2]!=='--probe-published-script'||args[3]!=='--source-run'||args[5]!=='--script-url')throw Error('INVALID_PROBE_ARGS');
+ const chunk=args[2]==='--probe-product-chunk';
+ if(args.length!==7||args[0]!=='--country-config'||!['--probe-published-script','--probe-product-chunk'].includes(args[2])||args[3]!=='--source-run'||args[5]!=='--script-url'||chunk&&brand!=='hermes')throw Error('INVALID_PROBE_ARGS');
  const target=validatePublishedScriptUrl(args[6],brand),cfg=options.config??JSON.parse(await fs.readFile(args[1],'utf8'));
  if(cfg.brand!==brand||cfg.country!=='KR'||cfg.currency!=='KRW'||cfg.localePrefix!==rule.locale||!Array.isArray(cfg.allowedHosts)||!cfg.allowedHosts.includes(rule.host)||!Number.isSafeInteger(cfg.maxResponseBytes)||cfg.maxResponseBytes<1||cfg.maxResponseBytes>8388608||!Number.isSafeInteger(cfg.maxRequestsPerRun)||cfg.maxRequestsPerRun<1)throw Error('CONFIG_INVALID');
  const base=path.join(root,'crawler/runs',brand,'kr'),source=path.resolve(args[4]),run=path.resolve(env.CRAWL_RUN_DIR??'');
@@ -81,9 +82,26 @@ export async function probePublishedScript(options={}){
   const urls=prior.filter(r=>r.brand===brand&&r.country==='KR'&&(['PUBLISHED_BAG_LIST_VISITED','PUBLISHED_BAG_LINK','SCHEMA_OFFER','SCHEMA_OFFER_CURRENCY_MISSING'].includes(r.status)||/^LISTING_LINKS_\d+$/.test(r.status))).map(r=>r.officialUrl).filter(raw=>{try{const u=new URL(raw);return u.origin===`https://${rule.host}`&&u.pathname.startsWith(rule.locale)&&!u.username&&!u.password&&!u.hash;}catch{return false;}});
   if(!urls.length)throw Error('PRIOR_SOURCE_PROOF_MISSING');
   const folder=path.join(source,'raw');if(await fs.realpath(folder)!==folder)throw Error('RAW_SCOPE_INVALID');const names=(await fs.readdir(folder)).filter(n=>/^\d+\.source$/.test(n));if(!names.length||names.length>100)throw Error('SOURCE_FILE_LIMIT');let total=0;
+  let chunkSources;
+  if(chunk){
+   if(source!==path.join(base,'20261014T152003Z-93283'))throw Error('CHUNK_SOURCE_SCOPE');
+   const readScript=async(id,url)=>{
+    const dir=path.join(base,id);if(await fs.realpath(dir)!==dir)throw Error('CHUNK_SOURCE_SCOPE');
+    const proof=path.join(dir,'summary.json'),p=await fs.lstat(proof);
+    if(!p.isFile()||p.isSymbolicLink()||p.size>32768||spawnSync(path.join(projectRoot,'scripts/crawl-output-guard.sh'),[proof],{stdio:'ignore'}).status!==0)throw Error('CHUNK_SOURCE_GUARD');
+    if(!JSON.parse(await fs.readFile(proof,'utf8')).some(r=>r.brand==='hermes'&&r.country==='KR'&&r.status==='SCRIPT_FETCH_HTTP_200'&&r.officialUrl===url))throw Error('CHUNK_SOURCE_PROOF');
+    const file=path.join(dir,'raw/published-script.source'),s=await fs.lstat(file);
+    if(!s.isFile()||s.isSymbolicLink()||await fs.realpath(file)!==file||s.size>8388608)throw Error('CHUNK_SOURCE_LIMIT');
+    try{await fs.chmod(file,0o600);return await fs.readFile(file,'utf8');}finally{await fs.chmod(file,s.mode&0o777);}
+   };
+   chunkSources={main:await readScript('20261014T163806Z-77800','https://www.hermes.com/kr/ko/main.512d3bc35b6ae972.js'),runtime:await readScript('20261014T165050Z-85419','https://www.hermes.com/kr/ko/runtime.d9db7c0cd2a87d6b.js')};
+  }
   for(const name of names){const file=path.join(folder,name),s=await fs.lstat(file);total+=s.size;if(!s.isFile()||s.isSymbolicLink()||s.size>8388608||total>67108864)throw Error('SOURCE_FILE_LIMIT');let html;
    try{await fs.chmod(file,0o600);html=await fs.readFile(file,'utf8');}finally{await fs.chmod(file,s.mode&0o777);}
-   provenance??=publishedScriptProvenance(html,target,brand,urls);
+   if(chunk){
+    const {validateHermesProductChunk}=await import('./hermes-product-chunk-proof.js');
+    if(validateHermesProductChunk(html,chunkSources.main,chunkSources.runtime,target))provenance='PUBLISHED_PRODUCT_CHUNK';
+   }else provenance??=publishedScriptProvenance(html,target,brand,urls);
   }
   if(!provenance)throw Error('PUBLISHED_SCRIPT_PROOF_MISSING');
   const out=path.join(run,'raw');await fs.mkdir(out,{recursive:true,mode:0o700});if(await fs.realpath(out)!==out)throw Error('RAW_SCOPE_INVALID');const destination=path.join(out,'published-script.source');
