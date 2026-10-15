@@ -104,7 +104,7 @@ fi
 RENDER_FOREIGN=0
 for option in "$@"; do
  if [ "$option" = '--render-foreign-listing' ]; then
-  case "$BRAND/$COUNTRY" in hermes/jp|hermes/sg) RENDER_FOREIGN=1 ;; *) exit 78 ;; esac
+  case "$BRAND/$COUNTRY" in hermes/jp|hermes/fr|hermes/it|hermes/es|hermes/us|hermes/sg|hermes/hk) RENDER_FOREIGN=1 ;; *) exit 78 ;; esac
  fi
 done
 if [ "$IMAGE_REFRESH" = 0 ] && { [ "$RENDER_FOREIGN" = 1 ] || jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; }; then
@@ -124,6 +124,7 @@ if [ "$IMAGE_REFRESH" = 0 ] && { [ "$RENDER_FOREIGN" = 1 ] || jq -e '.browserMod
   env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
     USER="${USER:-}" LOGNAME="${LOGNAME:-}" LANG="${LANG:-C.UTF-8}" \
     LUXURY_BROWSER_MAINTENANCE_SINK="${LUXURY_BROWSER_MAINTENANCE_SINK:-0}" \
+    LUXURY_BROWSER_REJECT_UNLISTED="${LUXURY_BROWSER_REJECT_UNLISTED:-0}" \
     LUXURY_NETWORK_STATUS_FILE="$RUN_DIR/browser-network-status.json" \
     node "$PROJECT_DIR/scripts/network-isolate.mjs" "$(jq -c '.allowedHosts' "$COUNTRY_CONFIG")" "$CDP_PORT" "$BROWSER_EXECUTABLE" \
     --remote-debugging-port="$CDP_PORT" \

@@ -8,28 +8,35 @@ import {inspectHermesListingEvidence,hermesVisiblePrices} from './hermes-listing
 import {declaredCountrySitemapUrls} from './van-cleef-foreign.js';
 import {parseOfficialProduct} from './hermes-collection.js';
 
+export function hermesRenderChallenge(html){
+ // A vendor SDK name alone is not an access challenge.
+ return /cf-chl|challenge-platform|px-captcha|captcha-delivery|verify you are human|<title[^>]*>\s*(?:access denied|just a moment|attention required)/i.test(html);
+}
+
 export async function renderHermesForeignListing(){
  const args=process.argv.slice(2),cfg=JSON.parse(await fs.readFile(args[1])),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..'),country=cfg.country.toLowerCase();
- if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||!process.env.CRAWL_CDP_URL||args.length!==3||args[2]!=='--render-foreign-listing'||!['JP','SG'].includes(cfg.country))throw Error('GUARDED_RENDER_REQUIRED');
+ if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||!process.env.CRAWL_CDP_URL||args.length!==3||args[2]!=='--render-foreign-listing'||!['JP','FR','IT','ES','US','SG','HK'].includes(cfg.country))throw Error('GUARDED_RENDER_REQUIRED');
  const kr=await fs.readFile(root+'/crawler/brands/hermes/.reference-index.json'),fingerprint=createHash('sha256').update(kr).digest('hex'),codes=new Set(JSON.parse(kr).products.map(p=>p.code)),file=root+`/crawler/brands/hermes/.foreign-render-${country}.json`,rows=[];let cache,browser,requests=0,limited=false;
  const row=status=>({brand:'hermes',country:cfg.country,parentModel:'정상 공식 목록 렌더링 가격 확인',variantCode:'RUN',price:null,currency:cfg.currency,status,officialUrl:cfg.entryUrl});
  const guard=file=>{if(spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status)throw Error('SOURCE_GUARD');};
  try{
+  browser=await chromium.connectOverCDP(process.env.CRAWL_CDP_URL,{timeout:10000});const context=browser.contexts()[0];
+  await context.route('**/*',async route=>{const request=route.request(),u=new URL(request.url());if(['image','media','font'].includes(request.resourceType()))return route.abort('blockedbyclient');if(['data:','blob:'].includes(u.protocol))return route.continue();if(!cfg.allowedHosts.includes(u.hostname))return route.abort('blockedbyclient');if(++requests>cfg.maxRequestsPerRun){limited=true;return route.abort('blockedbyclient');}return route.continue();});
+  const page=context.pages()[0]??await context.newPage();
   try{cache=JSON.parse(await fs.readFile(file));}catch(e){if(e.code!=='ENOENT')throw e;}
   if(cache&&(cache.halted||cache.fingerprint!==fingerprint||Date.now()-Date.parse(cache.checkedAt)>86400000))throw Error('RENDER_ALREADY_HALTED');
   if(cache)guard(cache.sourceRun+'/summary.json');else{
-   const prior=JSON.parse(await fs.readFile(root+`/crawler/brands/hermes/.foreign-listing-${country}.json`));if(prior.fingerprint!==fingerprint||Date.now()-Date.parse(prior.checkedAt)>86400000||!prior.sourceRun?.startsWith(root+`/crawler/runs/hermes/${country}/`))throw Error('SOURCE_GUARD');guard(prior.sourceRun+'/summary.json');
-   const home=prior.sourceRun+'/raw/1.source',mode=(await fs.stat(home)).mode&0o777;let html;try{await fs.chmod(home,0o600);html=await fs.readFile(home,'utf8');}finally{await fs.chmod(home,mode);}
-   cache={fingerprint,country:cfg.country,currency:cfg.currency,checkedAt:new Date().toISOString(),sourceRun:prior.sourceRun,pending:[...hermesReferenceLinks(html,cfg.entryUrl,cfg).listings],attempted:[],products:prior.products};
+   let prior;try{prior=JSON.parse(await fs.readFile(root+`/crawler/brands/hermes/.foreign-listing-${country}.json`));}catch(e){if(e.code!=='ENOENT')throw e;}let html;
+   if(prior&&!prior.blocked){if(prior.fingerprint!==fingerprint||Date.now()-Date.parse(prior.checkedAt)>86400000||!prior.sourceRun?.startsWith(root+`/crawler/runs/hermes/${country}/`))throw Error('SOURCE_GUARD');guard(prior.sourceRun+'/summary.json');const home=prior.sourceRun+'/raw/1.source',mode=(await fs.stat(home)).mode&0o777;try{await fs.chmod(home,0o600);html=await fs.readFile(home,'utf8');}finally{await fs.chmod(home,mode);}}
+   else{const response=await page.goto(cfg.entryUrl,{waitUntil:'domcontentloaded',timeout:cfg.navigationTimeoutMs});rows.push(row('HOME_HTTP_'+(response?.status()??0)));if([401,403,429].includes(response?.status()))throw Error('ACCESS_BLOCKED');if(!response?.ok())throw Error('HOME_HTTP_FAILED');html=await page.content();if(Buffer.byteLength(html)>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');await fs.writeFile(run+'/raw/home.source',html,{mode:0o600});if(hermesRenderChallenge(html))throw Error('ACCESS_CHALLENGE_DETECTED');}
+   cache={fingerprint,country:cfg.country,currency:cfg.currency,checkedAt:new Date().toISOString(),sourceRun:run,pending:[...hermesReferenceLinks(html,cfg.entryUrl,cfg).listings],attempted:[],products:prior&&!prior.blocked?prior.products:[]};
   }
   if(cache.discoveryComplete)throw Error('RENDER_ALREADY_COMPLETE');const address=cache.pending[0];if(!address||cache.attempted.includes(address))throw Error('RENDER_REFERENCE_INVALID');cache.attempted.push(address);await fs.writeFile(file,JSON.stringify(cache),{mode:0o600});
-  browser=await chromium.connectOverCDP(process.env.CRAWL_CDP_URL,{timeout:10000});const context=browser.contexts()[0];
-  await context.route('**/*',async route=>{const request=route.request(),u=new URL(request.url());if(['image','media','font'].includes(request.resourceType()))return route.abort('blockedbyclient');if(['data:','blob:'].includes(u.protocol))return route.continue();if(!cfg.allowedHosts.includes(u.hostname))return route.abort('blockedbyclient');if(++requests>cfg.maxRequestsPerRun){limited=true;return route.abort('blockedbyclient');}return route.continue();});
-  const page=context.pages()[0]??await context.newPage(),response=await page.goto(address,{waitUntil:'domcontentloaded',timeout:cfg.navigationTimeoutMs});if([401,403,429].includes(response?.status()))throw Error('ACCESS_BLOCKED');if(!response?.ok())throw Error('RENDER_HTTP_FAILED');
+  const response=await page.goto(address,{waitUntil:'domcontentloaded',timeout:cfg.navigationTimeoutMs});rows.push(row('RENDER_HTTP_'+(response?.status()??0)));if([401,403,429].includes(response?.status()))throw Error('ACCESS_BLOCKED');if(!response?.ok())throw Error('RENDER_HTTP_FAILED');
   await page.locator('a[href*="/product/"]').first().waitFor({state:'attached',timeout:15000}).catch(()=>{});
   const found=new Map(cache.products.map(p=>[p.sku,p]));let previous=-1,quiet=0,complete=false;
   for(let step=0;step<cfg.maxDiscoveryPages;step++){
-   if(limited)throw Error('REQUEST_LIMIT');const html=await page.content();if(Buffer.byteLength(html)>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');if(/cf-chl|challenge-platform|px-captcha|captcha-delivery|verify you are human|datadome/i.test(html))throw Error('ACCESS_BLOCKED');await fs.writeFile(run+`/raw/render-${step}.source`,html,{mode:0o600});
+   if(limited)throw Error('REQUEST_LIMIT');const html=await page.content();if(Buffer.byteLength(html)>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');await fs.writeFile(run+`/raw/render-${step}.source`,html,{mode:0o600});if(hermesRenderChallenge(html))throw Error('ACCESS_CHALLENGE_DETECTED');
    const links=hermesReferenceLinks(html,address,cfg).product,prices=hermesVisiblePrices(html,cfg);for(const[sku,values]of prices){if(!codes.has(sku)||!links.has(sku))continue;if(values.size!==1)throw Error('PRICE_CONFLICT');const price=[...values][0];if(found.has(sku)&&found.get(sku).price!==price)throw Error('PRICE_CONFLICT');found.set(sku,{sku,url:links.get(sku),price,name:null});}
    const count=await page.locator('a[href*="/product/"]').count(),more=page.getByRole('button').filter({hasText:/^(?:もっと見る|さらに表示(?:する)?|load more(?: products)?|show more(?: products)?|see more(?: products)?)$/i}).first();
    if(await more.count()&&await more.isVisible()){await more.click({timeout:5000});await page.waitForFunction(n=>document.querySelectorAll('a[href*="/product/"]').length>n,count,{timeout:10000}).catch(()=>{});quiet=0;}

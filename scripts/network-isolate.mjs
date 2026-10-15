@@ -13,10 +13,13 @@ let logLimited = false;
 let capturedBytes = 0;
 const discardMaintenance = process.env.LUXURY_BROWSER_MAINTENANCE_SINK === '1'
   && new Set(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Aside.app/Contents/MacOS/Aside']).has(command);
+// Explicit browser-only policy: deny unlisted resources locally, without
+// terminating the approved page. Never create upstream sockets for them.
+const rejectUnlisted = discardMaintenance && process.env.LUXURY_BROWSER_REJECT_UNLISTED === '1';
 // These browser services receive only a local rejection, never an upstream socket.
 const maintenanceHosts = new Set(['clients1.google.com', 'clients2.google.com', 'www.gstatic.com', 'www.google.com', 'accounts.google.com', 'android.clients.google.com', 'update.googleapis.com']);
 // Exact observed page telemetry endpoint: reject locally, never forward.
-const rejectedTelemetryHosts = new Set(['sec51707.live.dynatrace.com', 'se.monetate.net']);
+const rejectedTelemetryHosts = new Set(['sec51707.live.dynatrace.com', 'se.monetate.net', 'www.googletagmanager.com']);
 function stop(host = null) {
   blocked = true;
   if (process.env.LUXURY_NETWORK_STATUS_FILE && host) {
@@ -29,7 +32,7 @@ function stop(host = null) {
 const proxy = http.createServer((req, res) => {
   let host;
   try { host = new URL(req.url).hostname; } catch {}
-  if (discardMaintenance && (maintenanceHosts.has(host) || rejectedTelemetryHosts.has(host))) {
+  if ((rejectUnlisted && host) || (discardMaintenance && (maintenanceHosts.has(host) || rejectedTelemetryHosts.has(host)))) {
     req.resume(); res.writeHead(403); res.end(); return;
   }
   if (process.env.LUXURY_NETWORK_DIAGNOSTIC === '1') {
@@ -38,7 +41,14 @@ const proxy = http.createServer((req, res) => {
   res.writeHead(403); res.end(); stop(host || 'INVALID');
 });
 proxy.on('connect', (req, socket, head) => {
+  // A rejected CONNECT may be reset by Chromium before the 403 is flushed.
+  // Handle that reset on the rejection path as well as on forwarded sockets;
+  // otherwise Node exits 1 before the safety-stop result (78) can be delivered.
+  socket.on('error', () => {});
   const match = /^([a-z0-9.-]+):443$/i.exec(req.url || '');
+  if (rejectUnlisted && match && !hosts.has(match[1].toLowerCase())) {
+    socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return;
+  }
   if (discardMaintenance && (maintenanceHosts.has(match?.[1].toLowerCase()) || rejectedTelemetryHosts.has(match?.[1].toLowerCase()))) {
     socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return;
   }
