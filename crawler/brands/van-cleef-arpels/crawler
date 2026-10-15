@@ -5,5 +5,5 @@ import {discoverVanCleefLocales} from '../../common/van-cleef-locales.js';
 import fs from 'node:fs/promises';
 import {collectVanCleefPrices} from '../../common/van-cleef-foreign.js';
 if(process.argv.includes('--discover-locales'))await discoverVanCleefLocales(JSON.parse(await fs.readFile(process.argv[3])));
-else if(process.argv.includes('--prices-offset')||(process.argv.includes('--reference-codes-file')&&JSON.parse(await fs.readFile(process.argv[3])).country!=='KR'))await collectVanCleefPrices(JSON.parse(await fs.readFile(process.argv[3])));
+else if(process.argv.includes('--prices-offset')||((process.argv.includes('--reference-codes-file')||process.argv.includes('--reference-urls-file'))&&JSON.parse(await fs.readFile(process.argv[3])).country!=='KR'))await collectVanCleefPrices(JSON.parse(await fs.readFile(process.argv[3])));
 else if(process.argv.some(v=>v.startsWith('--probe-')))await probeOfficialSite();else await collectReference();
