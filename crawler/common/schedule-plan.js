@@ -1,3 +1,13 @@
+export function scheduleCalendar(schedule) {
+  if(schedule.frequency!=='weekly'||schedule.weekday!==1||schedule.timeZone!=='Asia/Seoul')throw new Error('Monday Korean-time schedule required');
+  const hours=schedule.primary==='github'?schedule.fallbackHours:[schedule.hour];
+  if(!Array.isArray(hours)||!hours.length||hours.some(hour=>!Number.isInteger(hour)||hour<0||hour>23)||!Number.isInteger(schedule.minute)||schedule.minute<0||schedule.minute>59)throw new Error('invalid weekly timing');
+  return hours.map(hour=>({Weekday:schedule.weekday,Hour:hour,Minute:schedule.minute}));
+}
+export function isScheduledDay(schedule, now=new Date()) {
+  scheduleCalendar(schedule);
+  return new Intl.DateTimeFormat('en-US',{timeZone:schedule.timeZone,weekday:'short'}).format(now)==='Mon';
+}
 export function schedulePlan(schedule, {smoke=false}={}) {
   if(schedule.version!==1||schedule.referenceCountry!=='KR'||schedule.discoverReferenceProducts!==true||!Array.isArray(schedule.jobs)||!schedule.jobs.length)throw new Error('Korean reference policy required');
   const brands=new Map(),seen=new Set();

@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {schedulePlan,executePlan} from '../crawler/common/schedule-plan.js';
+import {schedulePlan,executePlan,scheduleCalendar,isScheduledDay} from '../crawler/common/schedule-plan.js';
 const schedule=JSON.parse(fs.readFileSync(new URL('../crawler/schedule.json',import.meta.url)));
+assert.equal(schedule.hour,9);assert.equal(schedule.minute,0);
+assert(fs.readFileSync(new URL('../.github/workflows/crawler.yml',import.meta.url),'utf8').includes("cron: '0 0 * * 1'"));
+assert(scheduleCalendar(schedule).every(interval=>interval.Weekday===1));
+assert(isScheduledDay(schedule,new Date('2026-10-19T00:00:00Z')));
+assert(!isScheduledDay(schedule,new Date('2026-10-18T14:59:59Z')));
+assert(isScheduledDay(schedule,new Date('2026-10-18T15:00:00Z')),'weekday uses Seoul, not UTC');
+assert(!isScheduledDay(schedule,new Date('2026-10-19T15:00:00Z')));
+assert.throws(()=>scheduleCalendar({...schedule,weekday:2}));
+assert.throws(()=>scheduleCalendar({...schedule,frequency:'daily'}));
+assert.throws(()=>scheduleCalendar({...schedule,timeZone:'UTC'}));
 const fullPlan=schedulePlan(schedule);
 const plan=fullPlan.filter(job=>job.brand==='chanel');
 for(const brand of new Set(schedule.jobs.map(job=>job.brand))){
