@@ -8,6 +8,7 @@ import {bottegaModel} from './bottega-model.js';
 import {resolveBottegaListingReference} from './bottega-listing-reference.js';
 import crypto from 'node:crypto';
 import {downloadAndOptimizeImage,closeImageProcessor} from './image-processor.js';
+import {recordAvailability} from './catalog-availability.js';
 
 export async function collectBottega(){
  if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled')throw Error('ISOLATED_PIPELINE_REQUIRED');
@@ -28,7 +29,7 @@ export async function collectBottega(){
    const r=await context.get(target,{maxRedirects:0});
    if([403,429].includes(r.status()))throw Error('ACCESS_BLOCKED');
    if([301,302,303,307,308].includes(r.status())){target=approved(new URL(r.headers().location,target)).href;continue;}
-   if(!r.ok())throw Error(`HTTP_${r.status()}`);
+   if(!r.ok()){recordAvailability(run,cfg,target,r.status());throw Error(`HTTP_${r.status()}`);}
    const body=await r.body();if(body.length>8*1024*1024)throw Error('RESPONSE_LIMIT');
    await fs.writeFile(path.join(run,'raw',`${calls}.source`),body,{mode:0o600});
    const text=body.toString('utf8');if(/cf-chl|challenge-platform|px-captcha|captcha-delivery|verify you are human/i.test(text))throw Error('ACCESS_BLOCKED');
@@ -102,6 +103,7 @@ export async function collectBottega(){
      options={expectedCode:expected,expectedProductId:alias};
     }
     const row=parseBottegaProduct(page.text,url,cfg,options);
+    if(!proof)recordAvailability(run,cfg,url,200,true);
     if(proof){if(row.normalizedCode!==proof.normalizedCode||row.price!==proof.price||row.currency!==proof.currency)throw Error('METADATA_PROOF_MISMATCH');row.checkedAt=(await fs.stat(proof.proofFile)).mtime.toISOString();}
     if(/키링|백\s*참|백\s*장식|스트랩|헤어|카드\s*홀더/.test(row.productName)){
      summaries.push(summarize('OFFICIAL_ACCESSORY_EXCLUDED',row));await save();continue;

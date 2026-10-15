@@ -37,6 +37,6 @@ try{
  }
  // Discovery already refreshes every discovered KR price in the same run.
  // The scheduled refresh phase re-verifies storage instead of crawling twice.
- if(!smoke){if(execute(process.execPath,[path.join(root,'scripts/audit-rolex-catalog.mjs'),'kr'])!==0)throw Error('PUBLIC_AUDIT_FAILED');report('DAILY_PHASE_VERIFIED');}
+ if(!smoke){if(!discover&&execute(process.execPath,[path.join(root,'scripts/refresh-missing-jewelry-references.mjs'),'rolex'])!==0)throw Error('MISSING_REFERENCE_CHECK_FAILED');if(execute(process.execPath,[path.join(root,'scripts/audit-rolex-catalog.mjs'),'kr'])!==0)throw Error('PUBLIC_AUDIT_FAILED');report('DAILY_PHASE_VERIFIED');}
 }catch(e){report(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'DAILY_FAILED');process.exitCode=e.exitCode??1;}
 

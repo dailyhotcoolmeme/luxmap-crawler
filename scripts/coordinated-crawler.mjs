@@ -16,6 +16,8 @@ const source=process.env.GITHUB_ACTIONS==='true'?'github':'local';
 const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const owner=`${source}:${randomUUID()}`;
 const onboarding=process.argv.includes('--onboard-reference');
+const verifyReferenceSmoke=process.argv.includes('--verify-reference-smoke');
+if(verifyReferenceSmoke&&process.argv.slice(2).join(' ')!=='--verify-reference-smoke')throw Error('invalid verification scope');
 const foreign=process.argv.includes('--van-cleef-foreign');
 const rolexForeign=process.argv.includes('--rolex-foreign');
 const officialProbe=process.argv.includes('--official-probe');
@@ -38,7 +40,7 @@ if(rolexForeign&&!['--rolex-foreign','--rolex-foreign --smoke'].includes(process
 if(rolexForeign&&(foreign||onboarding))throw Error('conflicting execution modes');
 if(foreign&&!['--van-cleef-foreign','--van-cleef-foreign --smoke'].includes(process.argv.slice(2).join(' ')))throw Error('invalid foreign arguments');
 if(onboarding&&(process.argv.length!==3||process.argv[2]!=='--onboard-reference'))throw Error('invalid onboarding arguments');
-const partial=officialReference||officialProbe||foreign||rolexForeign||onboarding||process.argv.includes('--smoke')||process.argv.includes('--countries')||process.argv.includes('--brands');
+const partial=verifyReferenceSmoke||officialReference||officialProbe||foreign||rolexForeign||onboarding||process.argv.includes('--smoke')||process.argv.includes('--reference-smoke')||process.argv.includes('--countries')||process.argv.includes('--brands');
 const rpc=async(name,args)=>{
  const response=await fetch(`https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw new Error('coordination request failed');
@@ -61,7 +63,7 @@ if(!acquired){
 let child,timer,heartbeatFailed=false,renewing=false,killTimer,finished=false;
 const stop=()=>{if(child){try{process.kill(-child.pid,'SIGTERM');}catch{}killTimer??=setTimeout(()=>{try{process.kill(-child.pid,'SIGKILL');}catch{}},5000);}};
 try{
- child=spawn(process.execPath,[path.join(root,officialReference?'scripts/official-brand-reference.mjs':officialProbe?'scripts/official-brand-probe.mjs':rolexForeign?'scripts/rolex-foreign.mjs':foreign?'scripts/van-cleef-foreign.mjs':onboarding?'scripts/jewelry-watch-onboarding.mjs':'scripts/crawler-daily.mjs'),...(officialReference||officialProbe?process.argv.slice(3):foreign||rolexForeign?process.argv.slice(3):onboarding?[]:process.argv.slice(2))],{cwd:root,env:process.env,detached:true,stdio:'ignore'});
+ child=spawn(process.execPath,[path.join(root,verifyReferenceSmoke?'scripts/verify-reference-smoke.mjs':officialReference?'scripts/official-brand-reference.mjs':officialProbe?'scripts/official-brand-probe.mjs':rolexForeign?'scripts/rolex-foreign.mjs':foreign?'scripts/van-cleef-foreign.mjs':onboarding?'scripts/jewelry-watch-onboarding.mjs':'scripts/crawler-daily.mjs'),...(officialReference||officialProbe?process.argv.slice(3):foreign||rolexForeign?process.argv.slice(3):onboarding?[]:process.argv.slice(2))],{cwd:root,env:process.env,detached:true,stdio:'ignore'});
  timer=setInterval(async()=>{if(renewing||finished)return;renewing=true;try{if(!await rpc('heartbeat_crawler_execution',{p_owner:owner})&&!finished)throw new Error('lost lease');}catch{if(!finished){heartbeatFailed=true;stop();}}finally{renewing=false;}},30000);
  for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{heartbeatFailed=true;stop();});
  const code=await new Promise(resolve=>{child.once('error',()=>{finished=true;resolve(1);});child.once('exit',code=>{finished=true;resolve(code??1);});});

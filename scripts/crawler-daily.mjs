@@ -8,7 +8,10 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 if(process.env.LUXURY_SERVICE_GUARD!=='enabled')throw new Error('scheduled service required');
 if(spawnSync(process.execPath,[path.join(root,'scripts/crawler-schedule-check.mjs')],{stdio:'ignore'}).status!==0)throw new Error('invalid schedule');
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
-let plan=schedulePlan(schedule,{smoke:process.argv.includes('--smoke')});
+const referenceSmoke=process.argv.includes('--reference-smoke');
+if(referenceSmoke&&(process.argv.includes('--smoke')||process.argv.includes('--countries')))throw Error('conflicting sample scope');
+let plan=schedulePlan(schedule,{smoke:process.argv.includes('--smoke')||referenceSmoke});
+if(referenceSmoke)plan=plan.filter(job=>job.country==='kr');
 const brandSelection=process.argv.indexOf('--brands');
 if(brandSelection>=0){const brands=String(process.argv[brandSelection+1]??'').split(',');if(!brands.length||brands.some(brand=>!schedule.jobs.some(job=>job.brand===brand)))throw Error('invalid targeted brands');plan=plan.filter(job=>brands.includes(job.brand));}
 const selection=process.argv.indexOf('--countries');
@@ -35,4 +38,5 @@ try{
   [process.execPath,path.join(root,job.adapter),job.country,...job.args],
   {cwd:root,env:process.env,signal,abortAll}
  ),{concurrency,signal:cancellation.signal});
+ if(referenceSmoke&&brandSelection<0&&process.exitCode===0){const result=spawnSync(process.execPath,[path.join(root,'scripts/verify-reference-smoke.mjs')],{cwd:root,env:process.env,stdio:'ignore',timeout:180000});process.exitCode=result.signal||result.error?78:result.status??1;}
 }finally{for(const signal of ['SIGTERM','SIGINT'])process.removeListener(signal,stop);}

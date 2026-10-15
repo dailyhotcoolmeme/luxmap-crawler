@@ -101,11 +101,26 @@ if [ -n "$CELINE_PARTIAL_RUN" ]; then
 else
  if LUXURY_PIPELINE_GUARD=enabled "$PROJECT_DIR/scripts/run-crawler.sh" "$BRAND" "$COUNTRY" "$@"; then :; else
   REFERENCE_EXIT=$?
-  case "$BRAND/$COUNTRY/$REFERENCE_EXIT" in van-cleef-arpels/*/2|rolex/*/2|bulgari/kr/2|hermes/*/2) ;; *) exit "$REFERENCE_EXIT";; esac
+  case "$BRAND/$COUNTRY/$REFERENCE_EXIT" in
+   van-cleef-arpels/*/2|rolex/*/2|bulgari/kr/2|hermes/*/2) ;;
+   *)
+    # Only already recorded, exact official KR evidence is eligible. A safety
+    # stop never changes visibility, and ordinary failures remain failed.
+    if [ "$COUNTRY" = kr ] && [ "$REFERENCE_EXIT" -ne 78 ]; then
+     failed_run=$(find "$PROJECT_DIR/crawler/runs/$BRAND/$COUNTRY" -mindepth 1 -maxdepth 1 -type d -print | sort | tail -n 1)
+     if [ -n "$failed_run" ] && [ -f "$failed_run/artifacts/availability.json" ]; then
+      LUXURY_PIPELINE_GUARD=enabled SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" node "$PROJECT_DIR/scripts/ingest-catalog-availability.mjs" "$failed_run" || exit "$?"
+     fi
+    fi
+    exit "$REFERENCE_EXIT" ;;
+  esac
  fi
  RUN_DIR=$(find "$PROJECT_DIR/crawler/runs/$BRAND/$COUNTRY" -mindepth 1 -maxdepth 1 -type d -print | sort | tail -n 1)
 fi
 RECORD_FILE="$RUN_DIR/artifacts/records.json"
+if [ "$COUNTRY" = kr ]; then
+ LUXURY_PIPELINE_GUARD=enabled SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" node "$PROJECT_DIR/scripts/ingest-catalog-availability.mjs" "$RUN_DIR"
+fi
 [ -f "$RECORD_FILE" ] || { echo "BLOCKED: validated records missing." >&2; exit 1; }
 if [ "$REFERENCE_EXIT" -eq 2 ]; then
  "$PROJECT_DIR/scripts/crawl-output-guard.sh" "$RUN_DIR/summary.json" >/dev/null
@@ -160,6 +175,9 @@ env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   '["nxgnbrdxxmlhtcnymqsl.supabase.co","api.cloudflare.com","4c0f5d706177b84ade4d424a08ec46e8.r2.cloudflarestorage.com","luxury-assets.dailyhotcoolmeme.workers.dev"]' 0 \
   "$INGEST_SCRIPT" "$RECORD_FILE"
 storage_stage INGEST_VERIFIED
+if [ "$COUNTRY" = kr ]; then
+ LUXURY_PIPELINE_GUARD=enabled SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" node "$PROJECT_DIR/scripts/ingest-catalog-availability.mjs" "$RUN_DIR"
+fi
 unset ACCESS_TOKEN KEYS_JSON SERVICE_KEY PUBLIC_KEY
 storage_stage CREDENTIALS_CLEARED
 

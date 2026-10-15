@@ -19,7 +19,7 @@ async function request(method,body){
  }catch(error){throw Object.assign(Error('REFERENCE_STORAGE_FAILED'),{failureCode:'REFERENCE_STORAGE_FAILED',exitCode:error.status===78||error.code==='ERR_CHILD_PROCESS_STDIO_MAXBUFFER'?78:1});}
  finally{if(fs.existsSync(file))fs.unlinkSync(file);fs.rmdirSync(temp);}
 }
-const variants=[];for(let offset=0;;offset+=100){const rows=await guardedRest(`product_variants?brands.slug=eq.bottega-veneta&active=eq.true&select=normalized_code,brands!inner(slug),market_products(country_code,official_product_code,currency_code,current_price,official_url)&order=id&limit=100&offset=${offset}`);variants.push(...rows);if(rows.length<100)break;}
+const variants=[];for(let offset=0;;offset+=100){const rows=await guardedRest(`product_variants?brands.slug=eq.bottega-veneta&select=normalized_code,brands!inner(slug),market_products(country_code,official_product_code,currency_code,current_price,official_url)&order=id&limit=100&offset=${offset}`);variants.push(...rows);if(rows.length<100)break;}
 let state;
 if(mode==='push'){
  if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[path.join(folder,'summary.json')],{stdio:'ignore'}).status)throw Error('REFERENCE_SUMMARY_UNVERIFIED');state=referenceState(JSON.parse(fs.readFileSync(path.join(folder,'validated-products.json'))));validateReferenceMarkets(state,variants);

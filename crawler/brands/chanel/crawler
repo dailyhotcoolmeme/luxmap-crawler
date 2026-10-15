@@ -6,6 +6,7 @@ import { downloadAndOptimizeImage,closeImageProcessor } from "../../common/image
 import {refreshImages} from '../../common/image-refresh.js';
 import { normalizeProductCode, originalCodeFromText, parseDimensions } from "../../common/product-normalizer.js";
 import {productReady} from '../../common/product-ready.js';
+import {recordAvailability} from '../../common/catalog-availability.js';
 
 const args = process.argv.slice(2);
 const probeOnly=args.includes('--probe-page');
@@ -196,7 +197,7 @@ try {
       await navigate(page, officialUrl);
       // A fixed sleep is not a readiness signal: regional pages hydrate at different speeds.
       const expectedCode=normalizeProductCode(new URL(officialUrl).pathname.match(/\/p\/([^/]+)/)?.[1]);
-      if(lastNavigationStatus===404){const error=new Error('official detail not found');error.failureCode='DETAIL_HTTP_404';throw error;}
+      if([404,410].includes(lastNavigationStatus)){recordAvailability(runDir,config,officialUrl,lastNavigationStatus);const error=new Error('official detail not found');error.failureCode=`DETAIL_HTTP_${lastNavigationStatus}`;throw error;}
       await page.waitForFunction(productReady,expectedCode,{timeout:Math.min(config.navigationTimeoutMs,15000)}).catch(()=>{
         const error=new Error('product structured data missing');error.failureCode='STRUCTURED_DATA_MISSING';throw error;
       });
@@ -284,6 +285,7 @@ try {
 
       stage = "IMAGE";
       // Foreign markets attach prices to Korean variants; never recollect/store their images.
+      recordAvailability(runDir,config,officialUrl,200,true);
       const image = config.country==='KR'&&!auditVariants?await downloadAndOptimizeImage({ request: imageRequest }, imageUrl, artifactDir):{};
       const checkedAt = new Date().toISOString();
       const material = typeof product.material === "string" ? product.material.trim() : null;

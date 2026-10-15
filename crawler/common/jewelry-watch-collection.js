@@ -4,10 +4,11 @@ import {request} from 'playwright-core';
 import {parseReferenceProduct,referenceCode,transientSourceError} from './jewelry-watch-product.js';
 import {downloadAndOptimizeImage,closeImageProcessor} from './image-processor.js';
 import {selectRepairUrls} from './reference-repair.js';
+import {recordAvailability} from './catalog-availability.js';
 export async function collectReference(){
  if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled')throw Error('GUARDED_RUN_REQUIRED');
  const args=process.argv.slice(2),cfg=JSON.parse(await fs.readFile(args[1])),run=process.env.CRAWL_RUN_DIR;
- const repair=args[2]==='--reference-codes-file';
+ const direct=args[2]==='--reference-urls-file',repair=direct||args[2]==='--reference-codes-file';
  const sample=args.length===6&&args[4]==='--limit'&&args[5]==='1'&&!repair;
  if(args[0]!=='--country-config'||(!sample&&args.length!==4)||(!repair&&(args[2]!=='--batch-offset'||!/^\d+$/.test(args[3]))))throw Error('BATCH_REQUIRED');
  const offset=repair?0:Number(args[3]),root=path.resolve(import.meta.dirname,'../..'),indexFile=path.join(root,'crawler/brands',cfg.brand,'.reference-index.json');
@@ -25,7 +26,7 @@ export async function collectReference(){
    catch(e){const transient=transientSourceError(e);if(transient&&attempt<2)continue;throw Error(transient??'SOURCE_REQUEST_FAILED');}
   }
   if([403,429].includes(r.status()))throw Error('ACCESS_BLOCKED');
-  if(!r.ok())throw Error(`HTTP_${r.status()}`);
+  if(!r.ok()){recordAvailability(run,cfg,u.href,r.status());throw Error(`HTTP_${r.status()}`);}
   const b=await r.body();if(b.length>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');
   const html=b.toString('utf8');if(/<title[^>]*>\s*(?:just a moment|access denied)|cf-chl|px-captcha|captcha-delivery/i.test(html))throw Error('ACCESS_BLOCKED');
   await fs.writeFile(path.join(run,'raw',`${calls}.source`),b,{mode:0o600});return html;
@@ -35,8 +36,11 @@ export async function collectReference(){
   if(repair){
    const allowed=await fs.realpath(path.join(root,'crawler/onboarding',cfg.brand));
    const file=await fs.realpath(args[3]);
-   if(!file.startsWith(allowed+path.sep)||(await fs.stat(file)).size>4096)throw Error('REPAIR_SCOPE_INVALID');
-   urls=selectRepairUrls(JSON.parse(await fs.readFile(indexFile)),JSON.parse(await fs.readFile(file)),cfg);
+   if(!file.startsWith(allowed+path.sep)||(await fs.stat(file)).size>32768)throw Error('REPAIR_SCOPE_INVALID');
+   if(direct){
+    urls=JSON.parse(await fs.readFile(file));
+    if(!Array.isArray(urls)||!urls.length||urls.length>cfg.maxProductsPerRun||new Set(urls).size!==urls.length||urls.some(url=>{const u=new URL(url);return u.protocol!=='https:'||!cfg.allowedHosts.includes(u.hostname)||!u.pathname.startsWith(cfg.localePrefix)||!new RegExp(cfg.productPathPattern,'i').test(u.pathname)||u.username||u.password||!referenceCode(url,cfg.brand);}))throw Error('REPAIR_SCOPE_INVALID');
+   }else urls=selectRepairUrls(JSON.parse(await fs.readFile(indexFile)),JSON.parse(await fs.readFile(file)),cfg);
    rows.push(row('TARGETED_REPAIR_NOT_FULL_CATALOG'));
   }else if(offset===0){
    const robots=await get(new URL('/robots.txt',cfg.entryUrl).href),queue=[...robots.matchAll(/^Sitemap:\s*(https:\/\/\S+)/gim)].map(m=>m[1]),seen=new Set(),found=new Set();
@@ -63,6 +67,7 @@ export async function collectReference(){
   for(const url of batch){
    try{
     const product=parseReferenceProduct(await get(url),url,cfg);
+    recordAvailability(run,cfg,url,200,true);
     const image=await downloadAndOptimizeImage({request:{get:(url,options)=>{
      if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');
      const target=new URL(url);if(target.protocol!=='https:'||!cfg.allowedHosts.includes(target.hostname))throw Error('UNAUTHORIZED_URL');

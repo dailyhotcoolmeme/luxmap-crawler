@@ -6,11 +6,12 @@ const root=path.resolve(import.meta.dirname,'..'),base=path.join(root,'crawler/r
 if(spawnSync(path.join(root,'scripts/crawl-preflight.sh'),[],{stdio:'ignore'}).status)throw Error('blocked');
 const dir=fs.readdirSync(base).sort().reverse().map(d=>path.join(base,d)).find(d=>fs.existsSync(path.join(d,'artifacts/catalog-source-products.json')));
 if(!dir||spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[path.join(dir,'summary.json')],{stdio:'ignore'}).status||!JSON.parse(fs.readFileSync(path.join(dir,'summary.json'))).some(r=>r.status==='PUBLISHED_LISTING_TRAVERSAL_COMPLETE'))throw Error('GUARDED_DISCOVERY_REQUIRED');
-const sample=process.argv.includes('--sample'),remaining=process.argv.includes('--remaining');if(process.argv.slice(2).some(a=>!['--sample','--remaining'].includes(a)))throw Error('INVALID_ARGUMENT');
+const sample=process.argv.includes('--sample'),remaining=process.argv.includes('--remaining'),fresh=process.argv.includes('--fresh');if(process.argv.slice(2).some(a=>!['--sample','--remaining','--fresh'].includes(a))||(fresh&&(sample||remaining)))throw Error('INVALID_ARGUMENT');
 const metadata=path.join(root,'crawler/completeness/bottega-veneta/reconciled-metadata');
 if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[path.join(metadata,'summary.json')],{stdio:'ignore'}).status)throw Error('METADATA_AUDIT_PENDING');
 const validated=JSON.parse(fs.readFileSync(path.join(metadata,'validated-products.json')));
-const selected=sample?validated.filter(t=>t.normalizedCode==='874957V5ZZ14303'):validated;
+const since=fresh?fs.statSync(path.join(root,'crawler/completeness/bottega-veneta/audit-start.json')).mtimeMs:0;
+const selected=sample?validated.filter(t=>t.normalizedCode==='874957V5ZZ14303'):fresh?validated.filter(t=>Date.parse(t.checkedAt)>=since):validated;
 if(!selected.length||selected.some(t=>!t.officialCategories.includes('Bags')||!t.sourceImageUrl))throw Error('METADATA_AUDIT_PENDING');
 const fullTargets=selected.map(t=>({sku:t.normalizedCode,url:t.officialUrl}));
 let reusable=[];

@@ -11,7 +11,7 @@ on:
         required: true
         default: smoke
         type: choice
-        options: [smoke, full, image-check]
+        options: [smoke, reference-smoke, full, image-check]
       brand:
         description: Optional diagnostic scope (daily schedule always includes all brands)
         required: true
@@ -48,6 +48,7 @@ jobs:
           node scripts/test-catalog-target-batches.mjs
           node scripts/test-prada-sitemap.mjs
           node scripts/test-crawler-schedule.mjs
+          node scripts/test-catalog-availability.mjs
           test -x '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
           /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)' /usr/bin/true
           mkdir -p app crawler/service
@@ -66,7 +67,9 @@ jobs:
         run: |
           set --
           if [ "$RUN_BRAND" != all ]; then set -- --brands "$RUN_BRAND"; fi
-          if [ "$RUN_MODE" = smoke ]; then
+          if [ "$RUN_MODE" = reference-smoke ]; then
+            node scripts/coordinated-crawler.mjs --reference-smoke "$@" > /dev/null 2>&1
+          elif [ "$RUN_MODE" = smoke ]; then
             node scripts/coordinated-crawler.mjs --smoke "$@" > /dev/null 2>&1
           else
             node scripts/coordinated-crawler.mjs "$@" > /dev/null 2>&1
@@ -76,6 +79,8 @@ jobs:
         run: node scripts/close-finished-crawl-browsers.mjs > /dev/null 2>&1
       - name: Prepare guarded diagnostic summary
         if: always()
+        env:
+          RUN_MODE: ${{ inputs.mode || 'full' }}
         run: node scripts/ci-crawler-report.mjs > /dev/null 2>&1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

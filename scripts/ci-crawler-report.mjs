@@ -3,6 +3,8 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const sample=path.join(root,'crawler/service/weekly-samples/summary.json');
+if(process.env.RUN_MODE==='reference-smoke'&&fs.existsSync(sample)&&Date.now()-fs.statSync(sample).mtimeMs<3600000&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[sample],{stdio:'ignore'}).status===0){fs.mkdirSync(path.join(root,'.ci-report'),{recursive:true});fs.copyFileSync(sample,path.join(root,'.ci-report/summary.json'));process.exit(0);}
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const rows=[];
 for(const job of schedule.jobs){
@@ -72,5 +74,5 @@ for(const job of schedule.jobs){
 }
 fs.mkdirSync(path.join(root,'.ci-report'),{recursive:true});
 const file=path.join(root,'.ci-report/summary.json');
-fs.writeFileSync(file,JSON.stringify(rows));
+fs.writeFileSync(file,JSON.stringify([...new Map(rows.map(row=>[JSON.stringify(row),row])).values()]));
 if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0){fs.unlinkSync(file);throw new Error('CI summary blocked');}

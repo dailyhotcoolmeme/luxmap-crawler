@@ -8,7 +8,15 @@ if(!['kr','jp','fr','it','es','us','sg','hk'].includes(country)||args.some(a=>![
 const smoke=args.includes('--limit')||args.includes('--readonly-smoke');
 const cfg=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands/bottega-veneta/countries',country))),jobFolder=path.join(root,'crawler/bottega-progress',country);
 function report(status){fs.mkdirSync(jobFolder,{recursive:true});const file=path.join(jobFolder,'summary.json');fs.writeFileSync(file,JSON.stringify([{brand:'bottega-veneta',country:cfg.country,parentModel:'등록된 일일 실행 상태',variantCode:'RUN',price:null,currency:cfg.currency,status,officialUrl:cfg.entryUrl}]));if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status)throw Error('SUMMARY_BLOCKED');}
-function execute(script,params=[],acceptable=[0]){const result=spawnSync(script.endsWith('.sh')?path.join(root,script):process.execPath,script.endsWith('.sh')?params:[path.join(root,script),...params],{cwd:root,env:process.env,stdio:'ignore',timeout:2*60*60*1000});if(!acceptable.includes(result.status))throw Object.assign(Error('GUARDED_JOB_FAILED'),{exitCode:result.status===78||result.signal||result.error?78:1});return result.status;}
+function execute(script,params=[],acceptable=[0]){
+ const result=spawnSync(script.endsWith('.sh')?path.join(root,script):process.execPath,script.endsWith('.sh')?params:[path.join(root,script),...params],{cwd:root,env:process.env,stdio:'pipe',encoding:'utf8',maxBuffer:1048576,timeout:2*60*60*1000});
+ if(!acceptable.includes(result.status)){
+  const output=Buffer.from(String(result.stdout??'')+String(result.stderr??'')).subarray(0,1048576).toString('utf8');
+  fs.mkdirSync(jobFolder,{recursive:true});fs.writeFileSync(path.join(jobFolder,'last-step.private-log'),output,{mode:0o600});
+  const code=output.match(/(?:FAILED|BLOCKED): ([A-Z][A-Z0-9_]{1,35})\b/)?.[1];
+  throw Object.assign(Error(code??`STEP_${path.basename(script).replace(/\.(?:sh|mjs)$/,'').replace(/-/g,'_').toUpperCase().slice(0,28)}_${result.status??'SIGNAL'}`),{exitCode:result.status===78||result.signal||result.error?78:1});
+ }return result.status;
+}
 try{
  execute('scripts/crawl-preflight.sh');
  report('DAILY_ADAPTER_RUNNING');
@@ -18,8 +26,8 @@ try{
  const folder=path.join(root,'crawler/completeness/bottega-veneta/reconciled-metadata'),master=JSON.parse(fs.readFileSync(path.join(folder,'validated-products.json')));
  if(country==='kr'){
   if(args.includes('--discover-reference'))execute('scripts/continue-bottega-reference-discovery.mjs');
-  else if(smoke){const file=path.join(folder,'smoke-urls.json');fs.writeFileSync(file,JSON.stringify([master[0].officialUrl]),{mode:0o600});execute('scripts/run-brand-country-pipeline.sh',['bottega-veneta','kr','--crawl-only','--metadata-only','--urls-file',file]);}
-  else{execute('scripts/import-bottega-catalog.mjs',['--remaining']);execute('scripts/bottega-reference-state.mjs',['push']);}
+  else if(smoke){const file=path.join(folder,'smoke-urls.json');fs.writeFileSync(file,JSON.stringify([master[0].officialUrl]),{mode:0o600});execute('scripts/run-brand-country-pipeline.sh',['bottega-veneta','kr',...(args.includes('--readonly-smoke')?['--crawl-only','--metadata-only']:[]),'--urls-file',file]);}
+  else{execute('scripts/import-bottega-catalog.mjs',['--fresh']);execute('scripts/bottega-reference-state.mjs',['push']);}
  }else{
   const cfg=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands/bottega-veneta/countries',country))),folder=path.join(root,'crawler/completeness/bottega-veneta/country-targets',country);fs.mkdirSync(folder,{recursive:true});const markets=[];
   for(let offset=0;;offset+=100){const rows=await guardedRest(`market_products?country_code=eq.${cfg.country}&select=official_product_code,official_url,current_price,currency_code&order=id&limit=100&offset=${offset}`);markets.push(...rows);if(rows.length<100)break;}
