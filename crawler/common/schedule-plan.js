@@ -1,3 +1,10 @@
+export function validateMaintenancePolicy(schedule) {
+  const policy=schedule.maintenancePolicy,countries=['kr','jp','fr','it','es','us','sg','hk'];
+  if(!policy||policy.includeNewRegisteredBrands!==true||JSON.stringify(policy.requiredCountries)!==JSON.stringify(countries)||policy.imageProcessingVersion!=='original-cutout-v1'||policy.priceHistory!=='append-on-change'||policy.missingProduct!=='official-404-410-twice-after-24h'||policy.restoreProduct!=='validated-official-200'||policy.onboardingSample!=='same-korean-sku-each-country')throw Error('common brand maintenance policy required');
+  for(const brand of new Set(schedule.jobs.map(job=>job.brand))){
+    if(countries.some(country=>!schedule.jobs.some(job=>job.brand===brand&&job.country===country)))throw Error('eight country jobs required for every registered brand');
+  }
+}
 export function scheduleCalendar(schedule) {
   if(schedule.frequency!=='weekly'||schedule.weekday!==1||schedule.timeZone!=='Asia/Seoul')throw new Error('Monday Korean-time schedule required');
   const hours=schedule.primary==='github'?schedule.fallbackHours:[schedule.hour];

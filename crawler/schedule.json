@@ -17,6 +17,15 @@
   "scope": "korean_reference_discovery_and_country_price_refresh",
   "referenceCountry": "KR",
   "discoverReferenceProducts": true,
+  "maintenancePolicy": {
+    "includeNewRegisteredBrands": true,
+    "requiredCountries": ["kr", "jp", "fr", "it", "es", "us", "sg", "hk"],
+    "imageProcessingVersion": "original-cutout-v1",
+    "priceHistory": "append-on-change",
+    "missingProduct": "official-404-410-twice-after-24h",
+    "restoreProduct": "validated-official-200",
+    "onboardingSample": "same-korean-sku-each-country"
+  },
   "referenceAudits": {
     "van-cleef-arpels": "scripts/audit-van-cleef-catalog.mjs",
     "chanel": "scripts/audit-chanel-catalog.mjs",

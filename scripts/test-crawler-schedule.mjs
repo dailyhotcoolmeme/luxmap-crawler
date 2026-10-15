@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {schedulePlan,executePlan,scheduleCalendar,isScheduledDay} from '../crawler/common/schedule-plan.js';
+import {schedulePlan,executePlan,scheduleCalendar,isScheduledDay,validateMaintenancePolicy} from '../crawler/common/schedule-plan.js';
 const schedule=JSON.parse(fs.readFileSync(new URL('../crawler/schedule.json',import.meta.url)));
 assert.equal(schedule.hour,9);assert.equal(schedule.minute,0);
+validateMaintenancePolicy(schedule);
+assert.throws(()=>validateMaintenancePolicy({...schedule,maintenancePolicy:undefined}));
+assert.throws(()=>validateMaintenancePolicy({...schedule,maintenancePolicy:{...schedule.maintenancePolicy,priceHistory:'overwrite'}}));
+assert.throws(()=>validateMaintenancePolicy({...schedule,jobs:schedule.jobs.filter(job=>!(job.brand==='prada'&&job.country==='hk'))}));
+const future={...schedule,referenceAudits:{...schedule.referenceAudits,'future-brand':'scripts/future-audit.mjs'},jobs:[...schedule.jobs,...schedule.maintenancePolicy.requiredCountries.map(country=>({brand:'future-brand',country,adapter:'scripts/future-market.mjs'}))]};
+validateMaintenancePolicy(future);
+assert.equal(schedulePlan(future).filter(job=>job.brand==='future-brand').length,10,'new registered brands join the same discovery/audit/KR/foreign plan');
 assert(fs.readFileSync(new URL('../.github/workflows/crawler.yml',import.meta.url),'utf8').includes("cron: '0 0 * * 1'"));
 assert(scheduleCalendar(schedule).every(interval=>interval.Weekday===1));
 assert(isScheduledDay(schedule,new Date('2026-10-19T00:00:00Z')));
