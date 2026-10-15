@@ -37,4 +37,19 @@ for(const mode of ['--prices-country','--prices-facet-country','--prices-render-
  try{vm.runInNewContext(wrapper,{__dirname:import.meta.dirname,path,fs:{existsSync(f){return f.endsWith('/foreign-safety-stop.json');}},spawnSync(){throw Error('PERSISTED_STOP_MUST_NOT_EXECUTE');},process:{env:{LUXURY_SERVICE_GUARD:'enabled'},argv:['node','worker','hermes',mode,'all'],exit(code){stopped=code;throw stop;}}});}catch(e){assert.equal(e,stop);}
  assert.equal(stopped,78,'persisted safety stop prevents new execution');
 }
-console.log('PASS: Hermes official exact SKU discovery, country/host isolation, published pagination, facet/static exclusion');
+for(const legacy of [false,true]){
+ const files=new Map();let runs=0,exitCode;const stop=Error('test exit');
+ const fakeFs={mkdirSync(){},existsSync(f){return legacy&&f.endsWith('/checkpoint.json');},writeFileSync(f,s){files.set(f,s);},readdirSync(){return ['unit-run'];},readFileSync(f){
+  if(files.has(f))return files.get(f);
+  if(f.endsWith('/checkpoint.json'))return JSON.stringify({nextOffset:72,complete:true,failed:true});
+  if(f.includes('/countries/'))return JSON.stringify({country:'JP',currency:'JPY',entryUrl:'https://www.hermes.com/jp/ja/'});
+  if(f.includes('/artifacts/verified/'))return '[]';
+  if(f.endsWith('/summary.json'))return JSON.stringify([{status:'NEXT_OFFSET_72'},{status:'REMAINING_0'},{status:'UNPROCESSED_COUNTRY_LISTING'}]);
+  throw Error('unexpected file');
+ }};
+ try{vm.runInNewContext(wrapper,{__dirname:import.meta.dirname,path,fs:fakeFs,spawnSync(f){if(f.endsWith('crawl-output-guard.sh'))return {status:0};runs++;return {status:2};},process:{env:{LUXURY_SERVICE_GUARD:'enabled'},argv:['node','worker','hermes','--prices-country','jp'],exit(code){exitCode=code;throw stop;}}});}catch(e){assert.equal(e,stop);}
+ assert.equal(exitCode,1);assert.equal(runs,legacy?0:1);
+ assert([...files.entries()].some(([f,s])=>f.endsWith('/summary.json')&&JSON.parse(s).some(r=>r.status==='FOLLOWUP_REQUIRED')));
+ if(!legacy){const state=JSON.parse([...files.entries()].find(([f])=>f.endsWith('/checkpoint.json'))[1]);assert.equal(state.complete,false);assert.equal(state.passFinished,true);assert.equal(state.needsFollowup,true);}
+}
+console.log('PASS: Hermes exact SKU/country safeguards; incomplete pass requires followup without repeating finished routes');

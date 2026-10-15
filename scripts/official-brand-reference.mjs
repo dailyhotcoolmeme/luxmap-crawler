@@ -12,7 +12,7 @@ if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='hermes'&&['--prices-co
   const cfg=JSON.parse(fs.readFileSync(root+`/crawler/brands/hermes/countries/${country}`)),folder=root+`/crawler/onboarding/hermes/${render?'foreign-render':facets?'foreign-facets':mapped?'foreign-mapped':search?'foreign-search':sitemap?'foreign-sitemap':'foreign'}/${country}`;fs.mkdirSync(folder,{recursive:true});
   const checkpoint=folder+'/checkpoint.json',report=status=>{const file=folder+'/summary.json';fs.writeFileSync(file,JSON.stringify([{brand:'hermes',country:cfg.country,parentModel:'동일 한국 SKU 해외 가격',variantCode:'RUN',price:null,currency:cfg.currency,status,officialUrl:cfg.entryUrl}]));guard(file);};
   let start=0,incomplete=false;
-  if(fs.existsSync(checkpoint)){const old=JSON.parse(fs.readFileSync(checkpoint));if(old.complete){failed||=old.failed;continue;}start=old.nextOffset;}
+  if(fs.existsSync(checkpoint)){const old=JSON.parse(fs.readFileSync(checkpoint));if(old.passFinished||old.complete){if(old.failed||old.needsFollowup){failed=true;report('FOLLOWUP_REQUIRED');}continue;}start=old.nextOffset;}
   try{
    if(facets||render){
     const file=root+`/crawler/brands/hermes/.foreign-${render?'render':'facets'}-${country}.json`;let state;try{state=JSON.parse(fs.readFileSync(file));}catch(e){if(e.code!=='ENOENT')throw e;}
@@ -34,7 +34,7 @@ if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='hermes'&&['--prices-co
    const stored=guard(run+'/artifacts/verified/summary.json'),ready=rows.filter(r=>r.status==='COUNTRY_PRICE_READY');
    if(stored.length!==ready.length||ready.some(r=>!stored.some(s=>s.status==='COUNTRY_MARKET_VERIFIED'&&s.variantCode===r.variantCode&&s.price===r.price&&s.officialUrl===r.officialUrl)))throw Error('STORAGE_VERIFICATION_MISMATCH');
    const next=Number(rows.find(r=>r.status.startsWith('NEXT_OFFSET_'))?.status.slice(12)),left=Number(rows.find(r=>r.status.startsWith('REMAINING_'))?.status.slice(10));if(!Number.isInteger(next)||next<=n||!Number.isInteger(left)||left<0)throw Error('PROGRESS_INVALID');
-   incomplete||=result.status===2;fs.writeFileSync(checkpoint,JSON.stringify({nextOffset:next,complete:left===0,failed:incomplete,lastRun:run}),{mode:0o600});if(left===0){report(incomplete?'FINISHED_WITH_UNPROCESSED':'ALL_LISTED_REFERENCE_PRICES_STORED');break;}n=next;
+   incomplete||=result.status===2;fs.writeFileSync(checkpoint,JSON.stringify({nextOffset:next,passFinished:left===0,complete:left===0&&!incomplete,needsFollowup:left===0&&incomplete,failed:incomplete,lastRun:run}),{mode:0o600});if(left===0){report(incomplete?'FOLLOWUP_REQUIRED':'ALL_LISTED_REFERENCE_PRICES_STORED');break;}n=next;
   }}catch(e){failed=true;report(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'COUNTRY_RUN_FAILED');if(e.message==='SAFETY_STOP'){fs.writeFileSync(safetyStop,JSON.stringify({status:'SAFETY_STOP',mode,country,checkedAt:new Date().toISOString()}),{mode:0o600});process.exit(78);}}
   failed||=incomplete;
  }
