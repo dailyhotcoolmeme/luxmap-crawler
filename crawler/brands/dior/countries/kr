@@ -10,12 +10,14 @@
     "www.dior.com"
   ],
   "allowedHosts": [
-    "www.dior.com"
+    "www.dior.com",
+    "assets.christiandior.com"
   ],
   "imageHosts": [
-    "www.dior.com"
+    "www.dior.com",
+    "assets.christiandior.com"
   ],
-  "browserMode": "http",
+  "browserMode": "headed-cdp",
   "maxDiscoveryPages": 20,
   "maxProductsPerRun": 25,
   "maxRequestsPerRun": 80,

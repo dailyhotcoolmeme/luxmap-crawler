@@ -8,6 +8,8 @@ const supported={
  '--inspect-navigation':0,'--probe-source':0,'--probe-listing-source':0,'--discover-candidates':0,
  '--discover-reference':0,
  '--probe-sitemap-source':0,
+ '--probe-browser-source':0,
+ '--collect-candidates':4,
  '--probe-product-source':2,
  '--batch-offset':1,
  '--probe-image-properties':4,

@@ -33,6 +33,12 @@ export function originalImageUrl(imageUrl,expectedCode,sourceProperties){
   const match=url.pathname.match(/^\/image\/upload\/(?:[^/]+\/)*?(v\d+\/[a-f0-9]+\/catalogue\/\d{4}\/upright-c\/m[0-9a-z]+-\d+)$/i);
   if(!match||!expectedCode||match[1].split('/').at(-1).replace(/[^a-z0-9]/gi,'').toUpperCase()!==expectedCode)throw Error('IMAGE_SOURCE_PATH');
   url.pathname=`/image/upload/${match[1]}`;url.search='';
+ }else if(url.hostname==='assets.christiandior.com'){
+  const asset=url.pathname.match(/^\/is\/image\/diorprod\/([A-Z0-9]+)_E\d{2}(?:-\d+)?$/);
+  if(!asset||!expectedCode||asset[1]!==expectedCode)throw Error('IMAGE_SOURCE_PATH');
+  // The official schema publishes a cropped Scene7 rendition. Keep the exact
+  // SKU asset identity and remove only server-side crop/size transforms.
+  url.search='';
  }else if(url.hostname==='assets.hermes.com'){
   return hermesOriginalImageUrl(imageUrl,expectedCode,[imageUrl],sourceProperties);
  }else if(url.hostname==='www.bulgari.com'){

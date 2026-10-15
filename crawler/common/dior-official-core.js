@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import {request} from 'playwright-core';
+import {request,chromium} from 'playwright-core';
 import {parseLouisVuittonProduct} from './louis-vuitton-product.js';
 
 const bagWords=/(?:handbags?|shoulder bags?|tote bags?|crossbody bags?|clutches?|가방|핸드백|숄더백|토트백|크로스백|バッグ|sacs?|borse|bolsos?)/i;
@@ -49,7 +49,8 @@ export function parseOfficialProduct(html,url,cfg,expectedCode=null,{handbagEvid
  for(const offer of offers)if(offer.url){
   const offered=new URL(officialUrl(offer.url,cfg,url)),canonical=new URL(url);
   const variantOnly=[...offered.searchParams.keys()].every(k=>k==='variant')&&/^\d+$/.test(offered.searchParams.get('variant')??'');
-  if(offered.origin!==canonical.origin||offered.pathname!==canonical.pathname||(offered.search&&!variantOnly)||offers.length>1&&offered.href!==url)throw Error('OFFER_URL_MISMATCH');
+  const diorOneSize=cfg.brand==='dior'&&offered.pathname===canonical.pathname+'_TU'&&!offered.search&&!offered.hash&&offers.length===1&&(!offer.sku||normalizeOfficialCode(offer.sku)===code||normalizeOfficialCode(offer.sku)===code+'TU');
+  if(offered.origin!==canonical.origin||(!diorOneSize&&offered.pathname!==canonical.pathname)||(offered.search&&!variantOnly)||offers.length>1&&offered.href!==url)throw Error('OFFER_URL_MISMATCH');
  }
  const amounts=[...new Set(offers.filter(o=>o.priceCurrency===cfg.currency&&o.price!==undefined).map(o=>Number(String(o.price).replaceAll(',',''))))];
  if(amounts.length>1||amounts.some(n=>!Number.isFinite(n)||n<=0))throw Error('PRICE_CONFLICT');
@@ -93,7 +94,7 @@ export async function runOfficialBrand(expectedBrand){
   if(!Array.isArray(input)||!input.length||input.length>10000||input.some(x=>typeof x!=='string'||!normalizeOfficialCode(x)))throw Error('REFERENCE_CODES_INVALID');
   references=new Set(input.map(normalizeOfficialCode));
  }
- const run=process.env.CRAWL_RUN_DIR;let context,calls=0,current=cfg.entryUrl;
+ const run=process.env.CRAWL_RUN_DIR;let context,browser,page,browserBlock,calls=0,documentCalls=0,current=cfg.entryUrl;
  let batch=null;
  if(mode==='--collect-candidates'){
   const source=path.resolve(args[4]),root=path.resolve(path.dirname(run),'..');
@@ -108,7 +109,10 @@ export async function runOfficialBrand(expectedBrand){
   let url=officialUrl(value,cfg);
   for(let redirect=0;redirect<4;redirect++){
    current=url;if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');
-   const response=await context.get(url,{maxRedirects:0,timeout:cfg.navigationTimeoutMs});
+   let response;
+   try{response=page?await page.goto(url,{waitUntil:'domcontentloaded',timeout:cfg.navigationTimeoutMs}):await context.get(url,{maxRedirects:0,timeout:cfg.navigationTimeoutMs});}catch(error){if(browserBlock)throw Error(browserBlock);throw error;}
+   if(!response)throw Error('SOURCE_RESPONSE_MISSING');
+   if(page)current=officialUrl(response.url(),cfg);
    if([401,403,429].includes(response.status()))throw Error('ACCESS_BLOCKED');
    if([301,302,303,307,308].includes(response.status())){
     const next=new URL(response.headers().location,url);
@@ -122,7 +126,20 @@ export async function runOfficialBrand(expectedBrand){
   }throw Error('REDIRECT_LIMIT');
  }
  try{
-  context=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:cfg.navigationTimeoutMs});
+  if(cfg.browserMode==='headed-cdp'){
+   if(!process.env.CRAWL_CDP_URL)throw Error('MANAGED_BROWSER_REQUIRED');
+   browser=await chromium.connectOverCDP(process.env.CRAWL_CDP_URL);
+   context=await browser.newContext({javascriptEnabled:false});page=await context.newPage();
+   await context.route('**/*',async route=>{
+    const r=route.request();if(r.resourceType()!=='document')return route.abort();
+    try{officialUrl(r.url(),cfg);}catch{browserBlock='COUNTRY_URL_MISMATCH';return route.abort();}
+    if(/__cf_chl|cf-chl|captcha|challenge-platform/i.test(r.url())){browserBlock='ACCESS_BLOCKED';return route.abort();}
+    let hops=0,parent=r.redirectedFrom();while(parent){hops++;parent=parent.redirectedFrom();}
+    if(hops>=4){browserBlock='REDIRECT_LIMIT';return route.abort();}
+    if(++documentCalls>cfg.maxRequestsPerRun){browserBlock='REQUEST_LIMIT';return route.abort();}
+    return route.continue();
+   });
+  }else context=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:cfg.navigationTimeoutMs});
   const home=batch?null:await get(cfg.entryUrl),homeLinks=home?links(home,cfg.entryUrl,cfg):[],categories=homeLinks.filter(x=>bagWords.test(x.label));
   if(categories.length>cfg.maxDiscoveryPages)throw Error('CATEGORY_LIMIT');
   if(!batch)report(`CATEGORY_LINKS_${categories.length}`);
@@ -140,7 +157,7 @@ export async function runOfficialBrand(expectedBrand){
     const html=await get(url);
     for(const link of links(html,url,cfg)){
      const pathname=decodeURIComponent(new URL(link.url).pathname);
-     const product=cfg.brand==='the-row'?pathname.includes('/products/'):cfg.brand==='miu-miu'?pathname.includes('/p/'):cfg.brand==='louis-vuitton'?/-[A-Z]{1,2}\d{4,6}(?:\.html)?\/?$/i.test(pathname):/\/products?\//i.test(pathname)&&/[A-Z0-9]{8,}(?:\.html)?\/?$/i.test(pathname);
+     const product=cfg.productPathPattern?new RegExp(cfg.productPathPattern,'i').test(pathname):cfg.brand==='the-row'?pathname.includes('/products/'):cfg.brand==='miu-miu'?pathname.includes('/p/'):cfg.brand==='louis-vuitton'?/-[A-Z]{1,2}\d{4,6}(?:\.html)?\/?$/i.test(pathname):/\/products?\//i.test(pathname)&&/[A-Z0-9]{8,}(?:\.html)?\/?$/i.test(pathname);
      if(product){candidates.set(link.url,true);if(candidates.size>cfg.maxCandidates)throw Error('CANDIDATE_LIMIT');}
      else if(bagWords.test(link.label)&&!seen.has(link.url)&&!queue.includes(link.url)){
       if(queue.length+seen.size>=cfg.maxDiscoveryPages)throw Error('DISCOVERY_LIMIT');
@@ -171,6 +188,6 @@ export async function runOfficialBrand(expectedBrand){
   await fs.mkdir(path.join(run,'artifacts'),{recursive:true});
   await fs.writeFile(path.join(run,'artifacts','records.json'),JSON.stringify(records),{mode:0o600});
   await fs.writeFile(path.join(run,'summary.json'),JSON.stringify(rows.slice(0,50)));
-  await context?.dispose();
+  if(browser){await context?.close();await browser.close();}else await context?.dispose();
  }
 }

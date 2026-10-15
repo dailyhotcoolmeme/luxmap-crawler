@@ -103,7 +103,10 @@ fi
 
 RENDER_FOREIGN=0
 for option in "$@"; do
- if [ "$option" = '--render-foreign-listing' ]; then
+ if [ "$option" = '--probe-browser-source' ]; then
+  case "$BRAND/$COUNTRY" in dior/kr|saint-laurent/kr|bulgari/kr) RENDER_FOREIGN=1 ;; *) exit 78 ;; esac
+ fi
+ if [ "$option" = '--render-foreign-listing' ] || [ "$option" = '--render-foreign-details' ]; then
   case "$BRAND/$COUNTRY" in hermes/jp|hermes/fr|hermes/it|hermes/es|hermes/us|hermes/sg|hermes/hk) RENDER_FOREIGN=1 ;; *) exit 78 ;; esac
  fi
 done

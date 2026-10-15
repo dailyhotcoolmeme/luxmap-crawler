@@ -6,6 +6,11 @@ if(process.argv.includes('--audit-reference')){
  const {auditOfficialReferenceCatalog}=await import('../../../scripts/audit-official-reference.mjs');
  process.exitCode=(await auditOfficialReferenceCatalog({brand:'dior'})).exitCode;
 }
+else if(process.argv.includes('--recover-source-run')){
+ try{const {recoverDiorReference}=await import('../../common/dior-reference-recovery.js');await recoverDiorReference();}
+ catch(e){const fs=await import('node:fs/promises');await fs.writeFile(process.env.CRAWL_RUN_DIR+'/summary.json',JSON.stringify([{brand:'dior',country:'KR',parentModel:'',variantCode:'RUN',price:null,currency:'KRW',status:/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'RECOVERY_FAILED',officialUrl:'https://www.dior.com/ko_kr/fashion'}]));process.exitCode=1;}
+}
 else if(process.argv.includes('--probe-product-source'))await probeOfficialProduct();
 else if(process.argv.includes('--probe-sitemap-source'))await probeOfficialSite();
+else if(process.argv.includes('--probe-browser-source'))await probeOfficialSite();
 else await runOfficialBrand('dior');

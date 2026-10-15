@@ -12,6 +12,8 @@ if(process.argv.includes('--image-refresh-file')){
  await refreshImages(JSON.parse(await fs.readFile(args[1],'utf8')),args[3]);
 }
 else if(process.argv.includes('--render-foreign-listing'))await renderHermesForeignListing();
+else if(process.argv.includes('--render-foreign-details'))await renderHermesForeignListing({details:true});
+else if(process.argv.includes('--prices-detail-offset'))await collectHermesForeignPrices({details:true});
 else if(process.argv.includes('--prices-render-offset'))await collectHermesForeignPrices({render:true});
 else if(process.argv.includes('--discover-foreign-facets'))await discoverHermesForeignFacets();
 else if(process.argv.includes('--prices-facet-offset'))await collectHermesForeignPrices({facets:true});

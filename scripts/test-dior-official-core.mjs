@@ -14,6 +14,9 @@ for(const [brand,host,prefix] of [
  assert.equal(result.normalizedCode,'AB12345678');assert.equal(result.price,1230000);assert.equal(result.currency,'KRW');
  assert.equal(result.sourceImageUrl,image);assert.equal(result.widthMm,300);assert.equal(result.colorOriginal,'Black');assert.equal(result.materialOriginal,'Leather');
  if(brand==='dior'){
+  assert.equal(parseOfficialProduct(html({...product,offers:{...product.offers,url:url+'_TU'}}),url,cfg).price,1230000);
+  assert.throws(()=>parseOfficialProduct(html({...product,offers:{...product.offers,url:url+'_OTHER'}}),url,cfg));
+  assert.throws(()=>parseOfficialProduct(html({...product,offers:{...product.offers,url:url+'_TU',sku:'OTHER12345'}}),url,cfg));
   const independent=parseOfficialProduct(html({...product,isVariantOf:{productGroupID:'FAMILY',name:'Family'}}),url,cfg);
   assert.equal(independent.category,'bag');assert.equal(independent.modelKey,'sku-ab12345678');assert.equal(independent.parentModel,'Official Tote');assert.equal(independent.styleCode,'AB12345678');
  }

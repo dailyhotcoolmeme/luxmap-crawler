@@ -2,31 +2,50 @@ import {spawnSync} from 'node:child_process';
 import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'..'),[brand,mode,offset]=process.argv.slice(2);
 import fs from 'node:fs';
-if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='hermes'&&['--prices-country','--prices-sitemap-country','--prices-search-country','--prices-mapped-country','--prices-facet-country','--prices-render-country'].includes(mode)&&process.argv.length===5){
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='dior'&&mode==='--recover-source-run'&&process.argv.length===5){
+ const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['dior','kr',mode,offset],{cwd:root,env:process.env,stdio:'ignore',timeout:1800000});process.exit(child.status??1);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='hermes'&&['--prices-country','--prices-sitemap-country','--prices-search-country','--prices-mapped-country','--prices-facet-country','--prices-render-country','--prices-detail-country'].includes(mode)&&process.argv.length===5){
  const safetyStop=root+'/crawler/onboarding/hermes/foreign-safety-stop.json';
  if(fs.existsSync(safetyStop))process.exit(78);
- const sitemap=mode==='--prices-sitemap-country',search=mode==='--prices-search-country',mapped=mode==='--prices-mapped-country',facets=mode==='--prices-facet-country',render=mode==='--prices-render-country',limited=search||mapped||facets;
+ const details=mode==='--prices-detail-country',sitemap=mode==='--prices-sitemap-country',search=mode==='--prices-search-country',mapped=mode==='--prices-mapped-country',facets=mode==='--prices-facet-country',render=mode==='--prices-render-country'||details,limited=search||mapped||facets;
  const countries=offset==='all'?(limited?['jp','sg']:['jp','fr','it','es','us','sg','hk']):[offset];if(countries.some(c=>!(limited?['jp','sg']:['jp','fr','it','es','us','sg','hk']).includes(c)))throw Error('COUNTRY_SCOPE_INVALID');
  const guard=file=>{if(spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status!==0)throw Error('SUMMARY_GUARD');return JSON.parse(fs.readFileSync(file));};let failed=false;
  for(const country of countries){
-  const cfg=JSON.parse(fs.readFileSync(root+`/crawler/brands/hermes/countries/${country}`)),folder=root+`/crawler/onboarding/hermes/${render?'foreign-render':facets?'foreign-facets':mapped?'foreign-mapped':search?'foreign-search':sitemap?'foreign-sitemap':'foreign'}/${country}`;fs.mkdirSync(folder,{recursive:true});
+  const cfg=JSON.parse(fs.readFileSync(root+`/crawler/brands/hermes/countries/${country}`)),folder=root+`/crawler/onboarding/hermes/${details?'foreign-detail':render?'foreign-render':facets?'foreign-facets':mapped?'foreign-mapped':search?'foreign-search':sitemap?'foreign-sitemap':'foreign'}/${country}`;fs.mkdirSync(folder,{recursive:true});
   const checkpoint=folder+'/checkpoint.json',report=status=>{const file=folder+'/summary.json';fs.writeFileSync(file,JSON.stringify([{brand:'hermes',country:cfg.country,parentModel:'동일 한국 SKU 해외 가격',variantCode:'RUN',price:null,currency:cfg.currency,status,officialUrl:cfg.entryUrl}]));guard(file);};
   let start=0,incomplete=false;
+  // One migration for the proven normal FR renderer: its French load-more
+  // control was ignored by the old English/Japanese matcher. Never reopen a
+  // halted/blocked cache or repeat this migration after it is recorded.
+  if(mode==='--prices-render-country'&&country==='fr'){
+   const file=root+'/crawler/brands/hermes/.foreign-render-fr.json';
+   if(fs.existsSync(file)){const prior=JSON.parse(fs.readFileSync(file));
+    if(prior.discoveryComplete&&!prior.halted&&!prior.blocked&&prior.paginationVersion!==2&&Array.isArray(prior.attempted)&&prior.attempted.length){
+     guard(prior.sourceRun+'/summary.json');
+     fs.copyFileSync(file,file+'.before-french-pagination');
+     if(fs.existsSync(checkpoint))fs.renameSync(checkpoint,checkpoint+'.before-french-pagination');
+     prior.pending=[...new Set(prior.attempted)];prior.attempted=[];prior.discoveryComplete=false;prior.paginationVersion=2;
+     fs.writeFileSync(file,JSON.stringify(prior),{mode:0o600});
+    }
+   }
+  }
   if(fs.existsSync(checkpoint)){const old=JSON.parse(fs.readFileSync(checkpoint));if(old.passFinished||old.complete){if(old.failed||old.needsFollowup){failed=true;report('FOLLOWUP_REQUIRED');}continue;}start=old.nextOffset;}
   try{
    if(facets||render){
-    const file=root+`/crawler/brands/hermes/.foreign-${render?'render':'facets'}-${country}.json`;let state;try{state=JSON.parse(fs.readFileSync(file));}catch(e){if(e.code!=='ENOENT')throw e;}
-    if(!state?.discoveryComplete)for(let batch=0;batch<10;batch++){
-     report(render?'RENDERING_OFFICIAL_LISTING':'DISCOVERING_OFFICIAL_FACETS');const result=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['hermes',country,'--crawl-only',render?'--render-foreign-listing':'--discover-foreign-facets'],{cwd:root,env:render?{...process.env,LUXURY_BROWSER_MAINTENANCE_SINK:'1',LUXURY_BROWSER_REJECT_UNLISTED:'1'}:process.env,stdio:'ignore',timeout:600000});
+    const file=root+`/crawler/brands/hermes/.foreign-${details?'detail':render?'render':'facets'}-${country}.json`;let state;try{state=JSON.parse(fs.readFileSync(file));}catch(e){if(e.code!=='ENOENT')throw e;}
+    const maxBatches=details?JSON.parse(fs.readFileSync(root+'/crawler/brands/hermes/.reference-index.json')).products.length+1:10;
+    if(!state?.discoveryComplete)for(let batch=0;batch<maxBatches;batch++){
+     report(details?'RENDERING_EXACT_SKU_DETAIL':render?'RENDERING_OFFICIAL_LISTING':'DISCOVERING_OFFICIAL_FACETS');const result=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['hermes',country,'--crawl-only',details?'--render-foreign-details':render?'--render-foreign-listing':'--discover-foreign-facets'],{cwd:root,env:render?{...process.env,LUXURY_BROWSER_MAINTENANCE_SINK:'1',LUXURY_BROWSER_REJECT_UNLISTED:'1'}:process.env,stdio:'ignore',timeout:600000});
      if(result.status===78)throw Error('SAFETY_STOP');
      const base=root+`/crawler/runs/hermes/${country}`,run=base+'/'+fs.readdirSync(base).sort().at(-1),rows=guard(run+'/summary.json');
      if(result.status===78)throw Error('SAFETY_STOP');if(result.status!==0)throw Error(rows.some(r=>/BLOCKED/.test(r.status))?'COUNTRY_ACCESS_BLOCKED':'FACET_DISCOVERY_FAILED');
-     if(rows.some(r=>r.status==='FACET_DISCOVERY_COMPLETE'))break;if(!rows.some(r=>r.status==='FACET_DISCOVERY_PENDING')||batch===9)throw Error('FACET_PROGRESS_INVALID');
+     if(rows.some(r=>r.status==='FACET_DISCOVERY_COMPLETE'))break;if(!rows.some(r=>r.status==='FACET_DISCOVERY_PENDING')||batch===maxBatches-1)throw Error('FACET_PROGRESS_INVALID');
     }
    }
    for(let n=start;n<10000;){
    report('RUNNING_OFFSET_'+n);
-   const result=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['hermes',country,render?'--prices-render-offset':facets?'--prices-facet-offset':mapped?'--prices-mapped-offset':search?'--prices-search-offset':sitemap?'--prices-sitemap-offset':'--prices-offset',String(n)],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});
+   const result=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['hermes',country,details?'--prices-detail-offset':render?'--prices-render-offset':facets?'--prices-facet-offset':mapped?'--prices-mapped-offset':search?'--prices-search-offset':sitemap?'--prices-sitemap-offset':'--prices-offset',String(n)],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});
    if(result.status===78)throw Error('SAFETY_STOP');
    const base=root+`/crawler/runs/hermes/${country}`,run=base+'/'+fs.readdirSync(base).sort().at(-1),rows=guard(run+'/summary.json');
    if(result.status===78||rows.some(r=>/UNAUTHORIZED|LIMIT|GUARD|SANDBOX|TOKEN|NETWORK_POLICY/.test(r.status)))throw Error('SAFETY_STOP');

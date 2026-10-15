@@ -12,11 +12,12 @@ export function hermesRenderChallenge(html){
  // A vendor SDK name alone is not an access challenge.
  return /cf-chl|challenge-platform|px-captcha|captcha-delivery|verify you are human|<title[^>]*>\s*(?:access denied|just a moment|attention required)/i.test(html);
 }
+export const hermesLoadMorePattern=/^(?:もっと見る|さらに表示(?:する)?|load more(?: products)?|show more(?: products)?|see more(?: products)?)$|(?:afficher|voir|charger)\s+(?:plus|davantage)/i;
 
-export async function renderHermesForeignListing(){
+export async function renderHermesForeignListing({details=false}={}){
  const args=process.argv.slice(2),cfg=JSON.parse(await fs.readFile(args[1])),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..'),country=cfg.country.toLowerCase();
- if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||!process.env.CRAWL_CDP_URL||args.length!==3||args[2]!=='--render-foreign-listing'||!['JP','FR','IT','ES','US','SG','HK'].includes(cfg.country))throw Error('GUARDED_RENDER_REQUIRED');
- const kr=await fs.readFile(root+'/crawler/brands/hermes/.reference-index.json'),fingerprint=createHash('sha256').update(kr).digest('hex'),codes=new Set(JSON.parse(kr).products.map(p=>p.code)),file=root+`/crawler/brands/hermes/.foreign-render-${country}.json`,rows=[];let cache,browser,requests=0,limited=false;
+ if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||!process.env.CRAWL_CDP_URL||args.length!==3||args[2]!==(details?'--render-foreign-details':'--render-foreign-listing')||!['JP','FR','IT','ES','US','SG','HK'].includes(cfg.country))throw Error('GUARDED_RENDER_REQUIRED');
+ const kr=await fs.readFile(root+'/crawler/brands/hermes/.reference-index.json'),fingerprint=createHash('sha256').update(kr).digest('hex'),codes=new Set(JSON.parse(kr).products.map(p=>p.code)),file=root+`/crawler/brands/hermes/.foreign-${details?'detail':'render'}-${country}.json`,rows=[];let cache,browser,requests=0,limited=false;
  const row=status=>({brand:'hermes',country:cfg.country,parentModel:'정상 공식 목록 렌더링 가격 확인',variantCode:'RUN',price:null,currency:cfg.currency,status,officialUrl:cfg.entryUrl});
  const guard=file=>{if(spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status)throw Error('SOURCE_GUARD');};
  try{
@@ -25,7 +26,17 @@ export async function renderHermesForeignListing(){
   const page=context.pages()[0]??await context.newPage();
   try{cache=JSON.parse(await fs.readFile(file));}catch(e){if(e.code!=='ENOENT')throw e;}
   if(cache&&(cache.halted||cache.fingerprint!==fingerprint||Date.now()-Date.parse(cache.checkedAt)>86400000))throw Error('RENDER_ALREADY_HALTED');
-  if(cache)guard(cache.sourceRun+'/summary.json');else{
+  if(cache)guard(cache.sourceRun+'/summary.json');else if(details){
+   const basis=JSON.parse(await fs.readFile(root+`/crawler/onboarding/hermes/foreign-sitemap/${country}/source-cache.json`));
+   if(!basis.sourceRun||!Array.isArray(basis.targets))throw Error('DETAIL_SOURCE_UNAVAILABLE');
+   if(basis.fingerprint!==fingerprint||!basis.sourceRun?.startsWith(root+`/crawler/runs/hermes/${country}/`)||!Array.isArray(basis.targets))throw Error('DETAIL_SOURCE_GUARD');guard(basis.sourceRun+'/summary.json');
+   let products=[];for(const kind of ['listing','render']){try{const old=JSON.parse(await fs.readFile(root+`/crawler/brands/hermes/.foreign-${kind}-${country}.json`));if(old.fingerprint===fingerprint&&!old.halted&&!old.blocked){guard(old.sourceRun+'/summary.json');products.push(...old.products);}}catch(e){if(e.code!=='ENOENT')throw e;}}
+   products=[...new Map(products.map(p=>[p.sku,p])).values()];const known=new Set(products.map(p=>p.sku)),attempted=new Set(basis.attempted??[]);
+   const pending=basis.targets.filter(p=>codes.has(p.code)&&!known.has(p.code)&&!attempted.has(p.code)&&p.url&&hermesReferenceCode(p.url)===p.code).map(p=>p.url);
+   for(const value of pending){const u=new URL(value);if(u.origin!=='https://www.hermes.com'||!u.pathname.startsWith(cfg.localePrefix)||u.search||u.hash)throw Error('UNAUTHORIZED_DETAIL_URL');}
+   cache={fingerprint,country:cfg.country,currency:cfg.currency,checkedAt:new Date().toISOString(),sourceRun:run,pending:[...new Set(pending)],attempted:[],products,discoveryComplete:pending.length===0};
+   if(cache.discoveryComplete){await fs.writeFile(file,JSON.stringify(cache),{mode:0o600});rows.push(row('DETAIL_CANDIDATES_0'),row('FACET_DISCOVERY_COMPLETE'));return;}
+  }else{
    let prior;try{prior=JSON.parse(await fs.readFile(root+`/crawler/brands/hermes/.foreign-listing-${country}.json`));}catch(e){if(e.code!=='ENOENT')throw e;}let html;
    if(prior&&!prior.blocked){if(prior.fingerprint!==fingerprint||Date.now()-Date.parse(prior.checkedAt)>86400000||!prior.sourceRun?.startsWith(root+`/crawler/runs/hermes/${country}/`))throw Error('SOURCE_GUARD');guard(prior.sourceRun+'/summary.json');const home=prior.sourceRun+'/raw/1.source',mode=(await fs.stat(home)).mode&0o777;try{await fs.chmod(home,0o600);html=await fs.readFile(home,'utf8');}finally{await fs.chmod(home,mode);}}
    else{const response=await page.goto(cfg.entryUrl,{waitUntil:'domcontentloaded',timeout:cfg.navigationTimeoutMs});rows.push(row('HOME_HTTP_'+(response?.status()??0)));if([401,403,429].includes(response?.status()))throw Error('ACCESS_BLOCKED');if(!response?.ok())throw Error('HOME_HTTP_FAILED');html=await page.content();if(Buffer.byteLength(html)>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');await fs.writeFile(run+'/raw/home.source',html,{mode:0o600});if(hermesRenderChallenge(html))throw Error('ACCESS_CHALLENGE_DETECTED');}
@@ -34,12 +45,19 @@ export async function renderHermesForeignListing(){
   if(cache.discoveryComplete)throw Error('RENDER_ALREADY_COMPLETE');const address=cache.pending[0];if(!address||cache.attempted.includes(address))throw Error('RENDER_REFERENCE_INVALID');cache.attempted.push(address);await fs.writeFile(file,JSON.stringify(cache),{mode:0o600});
   const response=await page.goto(address,{waitUntil:'domcontentloaded',timeout:cfg.navigationTimeoutMs});rows.push(row('RENDER_HTTP_'+(response?.status()??0)));if([401,403,429].includes(response?.status()))throw Error('ACCESS_BLOCKED');if(!response?.ok())throw Error('RENDER_HTTP_FAILED');
   await page.locator('a[href*="/product/"]').first().waitFor({state:'attached',timeout:15000}).catch(()=>{});
+  if(details){
+   if(limited)throw Error('REQUEST_LIMIT');
+   const html=await page.content();if(Buffer.byteLength(html)>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');await fs.writeFile(run+'/raw/detail.source',html,{mode:0o600});if(hermesRenderChallenge(html))throw Error('ACCESS_CHALLENGE_DETECTED');
+   const code=hermesReferenceCode(address);if(!codes.has(code)||hermesReferenceCode(page.url())!==code||!new URL(page.url()).pathname.startsWith(cfg.localePrefix))throw Error('EXACT_SKU_GUARD');
+   try{const p=parseOfficialProduct(html,address,cfg,{expectedCode:code,priceOnly:true});cache.products.push({sku:code,url:address,price:p.price,name:p.parentModel});rows.push({...row('EXACT_DETAIL_PRICE'),variantCode:code,price:p.price,officialUrl:address});}catch(e){if(/LIMIT|GUARD|UNAUTHORIZED|CURRENCY|EXACT_SKU/.test(e.message))throw e;rows.push({...row('DETAIL_PRICE_UNRESOLVED'),variantCode:code,officialUrl:address});}
+   cache.pending.shift();cache.discoveryComplete=!cache.pending.length;cache.sourceRun=run;await fs.writeFile(file,JSON.stringify(cache),{mode:0o600});rows.push(row(cache.discoveryComplete?'FACET_DISCOVERY_COMPLETE':'FACET_DISCOVERY_PENDING'));return;
+  }
   const found=new Map(cache.products.map(p=>[p.sku,p]));let previous=-1,quiet=0,complete=false;
   for(let step=0;step<cfg.maxDiscoveryPages;step++){
    if(limited)throw Error('REQUEST_LIMIT');const html=await page.content();if(Buffer.byteLength(html)>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');await fs.writeFile(run+`/raw/render-${step}.source`,html,{mode:0o600});if(hermesRenderChallenge(html))throw Error('ACCESS_CHALLENGE_DETECTED');
    const links=hermesReferenceLinks(html,address,cfg).product,prices=hermesVisiblePrices(html,cfg);for(const[sku,values]of prices){if(!codes.has(sku)||!links.has(sku))continue;if(values.size!==1)throw Error('PRICE_CONFLICT');const price=[...values][0];if(found.has(sku)&&found.get(sku).price!==price)throw Error('PRICE_CONFLICT');found.set(sku,{sku,url:links.get(sku),price,name:null});}
-   const count=await page.locator('a[href*="/product/"]').count(),more=page.getByRole('button').filter({hasText:/^(?:もっと見る|さらに表示(?:する)?|load more(?: products)?|show more(?: products)?|see more(?: products)?)$/i}).first();
-   if(await more.count()&&await more.isVisible()){await more.click({timeout:5000});await page.waitForFunction(n=>document.querySelectorAll('a[href*="/product/"]').length>n,count,{timeout:10000}).catch(()=>{});quiet=0;}
+   const count=await page.locator('a[href*="/product/"]').count(),more=page.getByRole('button').filter({hasText:hermesLoadMorePattern}).first();
+   if(await more.count()&&await more.isVisible()){await more.click({timeout:5000});await page.waitForFunction(n=>document.querySelectorAll('a[href*="/product/"]').length>n,count,{timeout:10000}).catch(()=>{throw Error('PAGINATION_UNRESOLVED');});quiet=0;}
    else{quiet=count===previous?quiet+1:0;if(quiet>=2){complete=true;break;}await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));await page.waitForFunction(n=>document.querySelectorAll('a[href*="/product/"]').length>n,count,{timeout:2000}).catch(()=>{});}previous=count;
   }
   if(!complete)throw Error('RENDER_PAGE_LIMIT');cache.products=[...found.values()];cache.pending.shift();cache.discoveryComplete=!cache.pending.length;cache.sourceRun=run;await fs.writeFile(file,JSON.stringify(cache),{mode:0o600});rows.push(row('EXACT_PRICE_MATCHES_'+found.size),row('PENDING_LISTINGS_'+cache.pending.length),row(cache.discoveryComplete?'FACET_DISCOVERY_COMPLETE':'FACET_DISCOVERY_PENDING'));
@@ -168,10 +186,10 @@ export async function collectHermesSitemapPrices({mapped=false}={}){
  }finally{await fs.mkdir(run+'/artifacts',{recursive:true});await fs.writeFile(run+'/artifacts/records.json',JSON.stringify(records),{mode:0o600});await save();await context.dispose();}
 }
 
-export async function collectHermesForeignPrices({facets=false,render=false}={}){
+export async function collectHermesForeignPrices({facets=false,render=false,details=false}={}){
  const args=process.argv.slice(2),cfg=JSON.parse(await fs.readFile(args[1])),run=process.env.CRAWL_RUN_DIR,root=path.resolve(import.meta.dirname,'../..');
- if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.CRAWL_BRAND!=='hermes'||!['JP','FR','IT','ES','US','SG','HK'].includes(cfg.country)||args[0]!=='--country-config'||args[2]!==(render?'--prices-render-offset':facets?'--prices-facet-offset':'--prices-offset')||!/^\d+$/.test(args[3]??'')||![4,6].includes(args.length)||args.length===6&&(args[4]!=='--limit'||args[5]!=='1'))throw Error('GUARDED_PRICE_RUN_REQUIRED');
- const offset=Number(args[3]),sample=args.length===6,rows=[],records=[],artifact=path.join(run,'artifacts'),cacheFile=path.join(root,`crawler/brands/hermes/.foreign-${render?'render':facets?'facets':'listing'}-${cfg.country.toLowerCase()}.json`);
+ if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.CRAWL_BRAND!=='hermes'||!['JP','FR','IT','ES','US','SG','HK'].includes(cfg.country)||args[0]!=='--country-config'||args[2]!==(details?'--prices-detail-offset':render?'--prices-render-offset':facets?'--prices-facet-offset':'--prices-offset')||!/^\d+$/.test(args[3]??'')||![4,6].includes(args.length)||args.length===6&&(args[4]!=='--limit'||args[5]!=='1'))throw Error('GUARDED_PRICE_RUN_REQUIRED');
+ const offset=Number(args[3]),sample=args.length===6,rows=[],records=[],artifact=path.join(run,'artifacts'),cacheFile=path.join(root,`crawler/brands/hermes/.foreign-${details?'detail':render?'render':facets?'facets':'listing'}-${cfg.country.toLowerCase()}.json`);
  const krBytes=await fs.readFile(path.join(root,'crawler/brands/hermes/.reference-index.json')),index=JSON.parse(krBytes),fingerprint=createHash('sha256').update(krBytes).digest('hex');
  const targets=[...new Set(index.products.map(p=>p.code))].sort();if(!targets.length||targets.length>cfg.maxCandidates)throw Error('REFERENCE_SCOPE_INVALID');
  const row=(status,p={})=>({brand:'hermes',country:cfg.country,parentModel:'한국 SKU 해외 가격',variantCode:p.sku??'RUN',price:p.price??null,currency:cfg.currency,status,officialUrl:p.url??cfg.entryUrl});
@@ -187,10 +205,10 @@ export async function collectHermesForeignPrices({facets=false,render=false}={})
  try{
   await fs.mkdir(artifact,{recursive:true});try{cache=JSON.parse(await fs.readFile(cacheFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
   if(cache?.blocked)throw Error('PREVIOUS_COUNTRY_BLOCKED');
-  if((facets||render)&&(!cache?.discoveryComplete||cache.halted))throw Error('FACET_DISCOVERY_INCOMPLETE');
+  if((facets||render||details)&&(!cache?.discoveryComplete||cache.halted))throw Error('FACET_DISCOVERY_INCOMPLETE');
   if(cache&&!(cache.fingerprint===fingerprint&&Date.now()-Date.parse(cache.checkedAt)<86400000&&cache.country===cfg.country&&cache.currency===cfg.currency&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[cache.sourceRun+'/summary.json'],{stdio:'ignore'}).status===0))cache=null;
   if(!cache){
-   if(facets||render)throw Error('FACET_SOURCE_GUARD');
+   if(facets||render||details)throw Error('FACET_SOURCE_GUARD');
    const home=await get(cfg.entryUrl),queue=[...hermesReferenceLinks(home,cfg.entryUrl,cfg).listings],seen=new Set(),found=new Map();if(!queue.length)throw Error('COUNTRY_LISTING_MISSING');
    while(queue.length){const url=queue.shift();if(seen.has(url))continue;if(seen.size>=cfg.maxDiscoveryPages)throw Error('DISCOVERY_PAGE_LIMIT');seen.add(url);const html=await get(url);
     for(const p of inspectHermesListingEvidence(html,{includeVisiblePrices:true,market:cfg}).records){if(!targets.includes(p.sku)||p.price===null||p.currency!==cfg.currency)continue;const old=found.get(p.sku);if(old&&old.price!==p.price)throw Error('PRICE_CONFLICT');found.set(p.sku,{sku:p.sku,url:p.url,price:p.price,name:p.name});}
