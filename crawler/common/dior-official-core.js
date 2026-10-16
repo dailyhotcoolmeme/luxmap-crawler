@@ -3,11 +3,13 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {request,chromium} from 'playwright-core';
 import {parseLouisVuittonProduct} from './louis-vuitton-product.js';
+import {inspectDiorNativeEvidence} from '../../scripts/report-dior-native-evidence.mjs';
 
 const bagWords=/(?:handbags?|shoulder bags?|tote bags?|crossbody bags?|clutches?|가방|핸드백|숄더백|토트백|크로스백|バッグ|sacs?|borse|bolsos?)/i;
 const blocked=/(?:<title[^>]*>\s*(?:just a moment|access denied|attention required|security check)|cf-chl|challenge-platform|px-captcha|captcha-delivery|verify you are human)/i;
 export const normalizeOfficialCode=value=>String(value??'').replace(/[^a-z0-9]/gi,'').toUpperCase();
 const clean=value=>String(value??'').replace(/\s+/g,' ').trim();
+export const isDiorBagName=name=>/(?:\s백(?:\s|$)|토트|숄더|핸드백|크로스백|백팩|벨트백|스트랩백|보스턴|호보|클러치|파우치|브리프케이스|메신저|tote|handbag|shoulder bag|backpack|clutch|pouch|briefcase|messenger)/i.test(name)&&!/(?:스트랩|참|strap|charm)\s*$/i.test(name);
 const typeIs=(node,type)=>[node?.['@type']].flat().includes(type);
 
 export function officialUrl(value,cfg,base=cfg.entryUrl){
@@ -29,6 +31,17 @@ export function parseOfficialProduct(html,url,cfg,expectedCode=null,{handbagEvid
  url=officialUrl(url,cfg);
  if(cfg.brand==='louis-vuitton')return parseLouisVuittonProduct(html,url,cfg,expectedCode,{handbagEvidence});
  const products=nodes(html).filter(p=>typeIs(p,'Product')&&normalizeOfficialCode(p.sku||p.mpn));
+ if(cfg.brand==='dior'&&!products.some(p=>normalizeOfficialCode(p.sku||p.mpn)===normalizeOfficialCode(expectedCode??new URL(url).pathname.split('/').filter(Boolean).at(-1)))){
+  const native=inspectDiorNativeEvidence(html);
+  for(const p of native.records){
+   // Missing nested image must still reach the existing exact-canonical,
+   // exact-SKU official og:image fallback below. Image validation is mandatory.
+   if(p.url!==url||!p.name||p.price===null||p.currency!==cfg.currency||p.priceConflict||p.nameConflict)continue;
+   // Field mapping stays on one explicit SKU object. No page-wide price or
+   // neighboring product image is borrowed when JSON-LD is missing.
+   products.push({'@type':'Product',sku:p.sku,name:p.name,url:p.url,category:p.category,image:p.images,offers:{price:p.price,priceCurrency:p.currency,url:p.url}});
+  }
+ }
  const terminal=decodeURIComponent(new URL(url).pathname).split('/').at(-1).replace(/\.html?$/i,'');
  const pathReference=terminal.match(/(?:^|[-_])([A-Z0-9]{8,})$/i)?.[1]??null;
  const matches=products.filter(p=>{
@@ -40,6 +53,12 @@ export function parseOfficialProduct(html,url,cfg,expectedCode=null,{handbagEvid
  const p=matches[0],code=normalizeOfficialCode(p.sku||p.mpn);
  if(p.mpn&&normalizeOfficialCode(p.mpn)!==code)throw Error('SKU_CONFLICT');
  if(p.url&&officialUrl(p.url,cfg,url)!==url)throw Error('PRODUCT_URL_MISMATCH');
+ if(cfg.brand==='dior'&&!isDiorBagName(clean(p.name))){
+  // Global category navigation also exposes clothing. Classify only from the
+  // exact Product object, before unrelated clothing-size offers are examined.
+  if(/(?:스커트|재킷|자켓|코트|셔츠|티셔츠|드레스|팬츠|스웨터|가디건|풀오버|스카프|트윌리|스니커즈|로퍼|펌프스|샌들|부츠|벨트|반지|귀걸이|목걸이|브레이슬릿)(?:\s|$)/i.test(clean(p.name)))throw Error('NON_BAG_CONFIRMED');
+  throw Error('CLASSIFICATION_UNRESOLVED');
+ }
  const brand=typeof p.brand==='string'?p.brand:p.brand?.name;
  const names={dior:/\bdior\b/i,'miu-miu':/miu\s*miu/i,'the-row':/the\s*row/i};
  if(brand&&!names[cfg.brand]?.test(brand))throw Error('BRAND_MISMATCH');
@@ -70,6 +89,18 @@ export function parseOfficialProduct(html,url,cfg,expectedCode=null,{handbagEvid
   const asset=new URL(typeof image==='string'?image:image.contentUrl??image.url,url);
   if(asset.protocol==='https:'&&!asset.username&&!asset.password&&cfg.imageHosts.includes(asset.hostname)){sourceImageUrl=asset.href;break;}
  }catch{}
+ if(cfg.brand==='dior'&&cfg.country==='KR'&&!sourceImageUrl){
+  const tags=[...html.matchAll(/<(?:link|meta)\b[^>]*>/gi)].map(m=>{
+   const attrs={};for(const a of m[0].matchAll(/([\w:-]+)\s*=\s*["']([^"']*)["']/g))attrs[a[1].toLowerCase()]=a[2].replaceAll('&amp;','&');return attrs;
+  });
+  const canonicals=tags.filter(t=>t.rel==='canonical').map(t=>{try{return officialUrl(t.href,cfg,url);}catch{return null;}});
+  if(canonicals.length===1&&canonicals[0]===url){
+   for(const t of tags.filter(t=>t.property==='og:image'))try{
+    const asset=new URL(t.content,url),identity=asset.pathname.match(/^\/is\/image\/diorprod\/([A-Z0-9]+)_E\d{2}(?:-\d+)?$/)?.[1];
+    if(asset.protocol==='https:'&&!asset.username&&!asset.password&&asset.hostname==='assets.christiandior.com'&&identity===code){sourceImageUrl=asset.href;break;}
+   }catch{}
+  }
+ }
  if(cfg.country==='KR'&&!sourceImageUrl)throw Error('ORIGINAL_IMAGE_SOURCE_MISSING');
  return {brand:cfg.brand,...(cfg.brand==='dior'?{category:'bag'}:{}),country:cfg.country,currency:cfg.currency,originalCode:String(p.sku??p.mpn),normalizedCode:code,sourceProductId:String(p.productID??code),styleCode:cfg.brand==='dior'?code:groupId||code,productName:name,parentModel,modelKey:cfg.brand==='dior'?`sku-${code.toLowerCase()}`:crypto.createHash('sha256').update(`${cfg.brand}:${groupId||code}`).digest('hex').slice(0,20),colorOriginal:typeof p.color==='string'?clean(p.color):null,colorDisplay:typeof p.color==='string'?clean(p.color):null,materialOriginal:typeof p.material==='string'?clean(p.material):null,materialDisplay:typeof p.material==='string'?clean(p.material):null,widthMm:dimension(p.width),heightMm:dimension(p.height),depthMm:dimension(p.depth),description:typeof p.description==='string'?clean(p.description):null,sourceImageUrl:cfg.country==='KR'?sourceImageUrl:null,price:amounts[0]??null,priceStatus:amounts.length?'confirmed':'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};
 }

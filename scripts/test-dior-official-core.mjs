@@ -14,6 +14,8 @@ for(const [brand,host,prefix] of [
  assert.equal(result.normalizedCode,'AB12345678');assert.equal(result.price,1230000);assert.equal(result.currency,'KRW');
  assert.equal(result.sourceImageUrl,image);assert.equal(result.widthMm,300);assert.equal(result.colorOriginal,'Black');assert.equal(result.materialOriginal,'Leather');
  if(brand==='dior'){
+  assert.throws(()=>parseOfficialProduct(html({...product,name:'검증용 스커트',offers:[{url:url+'_36'},{url:url+'_38'}]}),url,cfg,null,{handbagEvidence:true}),/NON_BAG_CONFIRMED/);
+  assert.throws(()=>parseOfficialProduct(html({...product,name:'불명확한 제품'}),url,cfg,null,{handbagEvidence:true}),/CLASSIFICATION_UNRESOLVED/);
   assert.equal(parseOfficialProduct(html({...product,offers:{...product.offers,url:url+'_TU'}}),url,cfg).price,1230000);
   assert.throws(()=>parseOfficialProduct(html({...product,offers:{...product.offers,url:url+'_OTHER'}}),url,cfg));
   assert.throws(()=>parseOfficialProduct(html({...product,offers:{...product.offers,url:url+'_TU',sku:'OTHER12345'}}),url,cfg));

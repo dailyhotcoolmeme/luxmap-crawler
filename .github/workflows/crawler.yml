@@ -50,6 +50,8 @@ jobs:
           node scripts/test-prada-sitemap.mjs
           node scripts/test-crawler-schedule.mjs
           node scripts/test-catalog-availability.mjs
+          node scripts/test-dior-official-core.mjs
+          node scripts/test-dior-native-evidence.mjs
           node scripts/test-louis-vuitton-product.mjs
           node scripts/test-louis-vuitton-ready.mjs
           node scripts/test-louis-vuitton-serialized-data.mjs
