@@ -8,7 +8,7 @@ import {officialReferenceReceipt} from '../crawler/common/official-reference-rec
 import {validateOfficialReference} from '../crawler/common/official-reference-validation.js';
 import {runIdempotentStorage} from '../crawler/common/storage-recovery.js';
 const root=path.resolve(import.meta.dirname,'..'),brand=process.env.LUXURY_INGEST_BRAND,file=process.argv[2];
-if(!['hermes','dior','saint-laurent','bulgari'].includes(brand)||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled')throw Error('GUARDED_INGEST_REQUIRED');
+if(!['hermes','dior','saint-laurent','bulgari','louis-vuitton'].includes(brand)||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled')throw Error('GUARDED_INGEST_REQUIRED');
 const cfg=JSON.parse(await fs.readFile(path.join(root,'crawler/brands',brand,'countries/kr'))),recordBytes=await fs.readFile(file),records=JSON.parse(recordBytes);
 if(!Array.isArray(records)||records.length<1||records.length>25)throw Error('BATCH_LIMIT');
 // Validate the entire batch before any remote write.
@@ -25,10 +25,11 @@ try{
   const result=runIdempotentStorage(()=>spawnSync('/bin/sh',[root+'/scripts/ingest-chanel-products.sh',one],{env:{...process.env,LUXURY_REFERENCE_ADAPTER:'official-reference-v1'},encoding:'utf8',maxBuffer:65536}));
   if(result.status!==0)throw Error('STORAGE_WRITE_FAILED');
   const brands=await get('brands?slug=eq.'+brand+'&select=id');if(brands.length!==1)throw Error('PUBLIC_BRAND_FAILED');
-  const variants=await get(`product_variants?brand_id=eq.${brands[0].id}&normalized_code=eq.${code}&select=id,market_products(country_code,currency_code,current_price,official_product_code,official_url),product_media(r2_object_key,is_primary)`);
+  const variants=await get(`product_variants?brand_id=eq.${brands[0].id}&normalized_code=eq.${code}&select=id,market_products(country_code,currency_code,current_price,price_status,official_product_code,official_url),product_media(r2_object_key,is_primary)`);
   const markets=variants[0]?.market_products.filter(m=>m.country_code==='KR')??[],market=markets[0],media=variants[0]?.product_media.filter(m=>m.is_primary)??[];
   const imageKey=`products/${brand}/${record.modelKey}/${code}/cutout-v1/${record.imageSha256}.webp`;
   if(variants.length!==1||markets.length!==1||market.currency_code!=='KRW'||market.official_product_code!==code||market.official_url!==record.officialUrl||(record.price===null?market.current_price!==null:Number(market.current_price)!==record.price)||media.length!==1||media[0].r2_object_key!==imageKey)throw Error('PUBLIC_REFERENCE_FAILED');
+  if(brand==='louis-vuitton'&&record.price===null&&market.price_status!=='parse_failed')throw Error('UNVERIFIED_PRICE_STATUS_MISMATCH');
   const receipt=officialReferenceReceipt(record,cfg);
   if(receipt)receipts.entries[code]=receipt;
   const receiptFile=path.join(folder,'proof-receipts.json'),temp=receiptFile+'.tmp';

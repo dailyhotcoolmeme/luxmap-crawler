@@ -13,13 +13,14 @@ case "$INGEST_BRAND" in
   chanel) BRAND_KO='샤넬'; BRAND_ORIGINAL='CHANEL' ;;
   prada) BRAND_KO='프라다'; BRAND_ORIGINAL='PRADA' ;;
   bottega-veneta) BRAND_KO='보테가 베네타'; BRAND_ORIGINAL='BOTTEGA VENETA' ;;
-  hermes|dior|saint-laurent|bulgari)
+  hermes|dior|saint-laurent|bulgari|louis-vuitton)
     [ "${LUXURY_REFERENCE_ADAPTER:-}" = 'official-reference-v1' ] || { echo 'BLOCKED: validated reference adapter required.' >&2; exit 78; }
     case "$INGEST_BRAND" in
       hermes) BRAND_KO='에르메스'; BRAND_ORIGINAL='HERMES' ;;
       dior) BRAND_KO='디올'; BRAND_ORIGINAL='DIOR' ;;
       saint-laurent) BRAND_KO='생로랑'; BRAND_ORIGINAL='SAINT LAURENT' ;;
       bulgari) BRAND_KO='불가리'; BRAND_ORIGINAL='BVLGARI' ;;
+      louis-vuitton) BRAND_KO='루이비통'; BRAND_ORIGINAL='LOUIS VUITTON' ;;
     esac ;;
   van-cleef-arpels|rolex)
     [ "${LUXURY_REFERENCE_ADAPTER:-}" = 'jewelry-watch-v1' ] || { echo 'BLOCKED: reference adapter required.' >&2; exit 78; }

@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+// Explicit verified-source ingestion only. Full discovery/maintenance is not
+// registered until its independent catalogue and country audits pass.
+if(process.argv[4]!=='--batch-offset')throw Error('VERIFIED_SOURCE_MODE_REQUIRED');
+const {collectLouisVuittonReference}=await import('../../common/louis-vuitton-reference.js');
+await collectLouisVuittonReference();

@@ -1,0 +1,25 @@
+{
+  "brand": "louis-vuitton",
+  "country": "KR",
+  "currency": "KRW",
+  "locale": "kor-kr",
+  "entryUrl": "https://kr.louisvuitton.com/kor-kr/homepage",
+  "localePrefix": "/kor-kr/",
+  "siteHosts": [
+    "kr.louisvuitton.com"
+  ],
+  "allowedHosts": [
+    "kr.louisvuitton.com"
+  ],
+  "imageHosts": [
+    "kr.louisvuitton.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}

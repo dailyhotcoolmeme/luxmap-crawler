@@ -14,9 +14,11 @@ try{
  put('run-crawler.sh','#!/bin/sh\nexec node "$(dirname "$0")/mock-run.mjs" "$@"\n');
  put('mock-run.mjs',`import fs from 'node:fs';import path from 'node:path';const root=path.resolve(import.meta.dirname,'..'),[brand,country]=process.argv.slice(2),run=root+'/crawler/runs/'+brand+'/'+country+'/20261015T000000Z-'+process.pid;fs.mkdirSync(run+'/artifacts',{recursive:true});fs.mkdirSync(run+'/raw',{recursive:true});fs.mkdirSync(run+'/browser-profile',{recursive:true});fs.writeFileSync(run+'/artifacts/records.json','[]');fs.writeFileSync(run+'/summary.json','[]');`);
  put('network-isolate.mjs',`import fs from 'node:fs';import path from 'node:path';fs.writeFileSync(path.resolve(import.meta.dirname,'../storage.reached'),'yes');`);
+ put('ingest-catalog-availability.mjs','process.exit(0);');
+ put('check-louis-vuitton-completion.mjs',`import fs from 'node:fs';import path from 'node:path';const root=path.resolve(import.meta.dirname,'..');fs.writeFileSync(root+'/audit.reached','louis-vuitton');process.exitCode=JSON.parse(fs.readFileSync(root+'/audit-exit.json'));`);
  put('cleanup-image-originals.mjs',`import fs from 'node:fs';import path from 'node:path';fs.writeFileSync(path.resolve(import.meta.dirname,'../originals.cleaned'),'yes');`);
  put('audit-official-reference.mjs',`import fs from 'node:fs';import path from 'node:path';const root=path.resolve(import.meta.dirname,'..');fs.writeFileSync(root+'/audit.reached',process.argv[3]);process.exitCode=JSON.parse(fs.readFileSync(root+'/audit-exit.json'));`);
- for(const [brand,code] of [['hermes',1],['dior',2],['saint-laurent',1],['bulgari',0],['bulgari',1],['chanel',1]]){
+ for(const [brand,code] of [['hermes',1],['dior',2],['saint-laurent',1],['bulgari',0],['bulgari',1],['louis-vuitton',2],['louis-vuitton',0],['chanel',1]]){
   for(const file of ['storage.reached','originals.cleaned','audit.reached'])try{fs.unlinkSync(temp+'/'+file);}catch(e){if(e.code!=='ENOENT')throw e;}
   fs.writeFileSync(temp+'/audit-exit.json',JSON.stringify(code));
   // All network is kernel-denied; storage is a stub. These are shell-flow tests,

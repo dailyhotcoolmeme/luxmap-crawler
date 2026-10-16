@@ -7,4 +7,9 @@ for(const patch of [{brand:'dior'},{category:'bag'},{currency:'USD'},{normalized
 assert.equal(validateOfficialReference({...record,price:null},cfg),'323532');
 const hc={brand:'hermes',siteHosts:['www.hermes.com'],localePrefix:'/kr/ko/'};
 assert.equal(validateOfficialReference({...record,brand:'hermes',category:'bag',normalizedCode:'H073428CKO5',modelKey:'sku-h073428cko5',officialUrl:'https://www.hermes.com/kr/ko/product/lindy-26-H073428CKO5/'},hc),'H073428CKO5');
+const lv={brand:'louis-vuitton',siteHosts:['kr.louisvuitton.com'],localePrefix:'/kor-kr/'};
+const bag={...record,brand:lv.brand,category:'bag',normalizedCode:'M2A840',modelKey:'sku-m2a840',officialUrl:'https://kr.louisvuitton.com/kor-kr/products/fixture/M2A840'};
+assert.equal(validateOfficialReference(bag,lv),'M2A840');
+for(const patch of [{normalizedCode:'M12345'},{currency:'JPY'},{category:'jewelry'},{officialUrl:'https://us.louisvuitton.com/eng-us/products/fixture/M2A840'},{price:null},{imageProcessingVersion:'thumbnail'}])assert.throws(()=>validateOfficialReference({...bag,...patch},lv));
+assert.equal(validateOfficialReference({...bag,price:null,priceStatus:'parse_failed'},lv),'M2A840');
 console.log('PASS: official reference identity/category/currency/image/price validation and rejection');
