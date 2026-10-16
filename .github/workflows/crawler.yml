@@ -52,6 +52,7 @@ jobs:
           node scripts/test-catalog-availability.mjs
           node scripts/test-louis-vuitton-product.mjs
           node scripts/test-louis-vuitton-ready.mjs
+          node scripts/test-louis-vuitton-serialized-data.mjs
           test -x '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
           /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)' /usr/bin/true
           mkdir -p app crawler/service

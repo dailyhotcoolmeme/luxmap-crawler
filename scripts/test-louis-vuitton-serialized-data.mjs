@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {louisVuittonSerializedData as decode} from './louis-vuitton-serialized-data.mjs';
+assert.equal(decode('window.__NUXT__=(function(a){return {sku:a}})("M12345")')[0].sku,'M12345');
+assert.equal(decode('window.__NUXT__=fetch("https://example.com")').length,0);
+assert.equal(decode('window.__NUXT__=process.exit(1)').length,0);
+assert.equal(decode('window.__NUXT__=(function(a){a[0]={sku:"M12345"};return a})(Array(2))')[0][0].sku,'M12345');
+assert.equal(decode('window.__NUXT__=Array(10001)').length,0);
+assert.equal(decode('window.__NUXT__=(function(Array){return Array(2)})(null)').length,0);
+assert.deepEqual(decode('window.__NUXT__={data:new Set(["M12345","M12345"])}')[0].data.serializedSetValues,['M12345']);
+assert.equal(decode('window.__NUXT__=new Set(fetch("https://example.com"))').length,0);
+assert.equal(decode('window.__NUXT__={constructor:process,__proto__:process,safe:"ok"}')[0].constructor,undefined);
+console.log('PASS: constant Nuxt restoration without executable calls or global access');

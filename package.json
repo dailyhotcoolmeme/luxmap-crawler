@@ -10,6 +10,7 @@
     "token-safety:check": "scripts/token-safety-gate.sh"
   },
   "dependencies": {
+    "acorn": "8.18.0",
     "playwright-core": "1.63.0",
     "sharp": "0.35.4"
   }
