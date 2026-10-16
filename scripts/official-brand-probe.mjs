@@ -3,6 +3,10 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const [brand,mode,...args]=process.argv.slice(2);
+if(brand==='louis-vuitton'){
+ if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||mode!=='--probe-sitemap-source'||args.length)throw Error('coordinated official probe required');
+ const child=spawnSync(path.join(root,'scripts/run-brand-country-pipeline.sh'),[brand,'kr','--crawl-only',mode],{cwd:root,env:process.env,stdio:'ignore',timeout:600000,killSignal:'SIGTERM'});process.exit(child.status??1);
+}
 if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||!['hermes','dior','saint-laurent','bulgari'].includes(brand))throw Error('coordinated official probe required');
 const supported={
  '--inspect-navigation':0,'--probe-source':0,'--probe-listing-source':0,'--discover-candidates':0,

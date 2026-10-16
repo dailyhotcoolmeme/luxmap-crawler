@@ -54,6 +54,7 @@ jobs:
           node scripts/test-louis-vuitton-ready.mjs
           node scripts/test-louis-vuitton-serialized-data.mjs
           node scripts/test-louis-vuitton-sources.mjs
+          node scripts/test-louis-vuitton-dispatch.mjs
           node scripts/test-catalog-stored-batch.mjs
           node scripts/test-official-reference-validation.mjs
           node scripts/test-official-reference-pipeline.mjs
