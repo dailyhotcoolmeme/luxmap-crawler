@@ -4,7 +4,7 @@
   "allowWebSearchAsCrawler": false,
   "failClosed": true,
   "requireCentralPipeline": true,
-  "allowedRuntimeDependencies": ["playwright-core", "sharp"],
+  "allowedRuntimeDependencies": ["acorn", "playwright-core", "sharp"],
   "imageProcessing": {
     "version": "original-cutout-v1",
     "requireOfflineCpu": true,
