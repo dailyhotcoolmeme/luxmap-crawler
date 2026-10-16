@@ -6,6 +6,10 @@ export function catalogImageKey(source){
  return createHash('sha256').update('original-cutout-v1|'+url).digest('hex');
 }
 export const heldCatalogItem=(source,held)=>held?.[source.code]?.imageKey===catalogImageKey(source);
+export function verifiedStoredCatalogBatch(rows,receipts){
+ const expected=rows.filter(r=>r.status==='REFERENCE_IMAGE_PRICE_READY').map(r=>r.variantCode),proof=receipts.filter(r=>r.status==='PUBLIC_CATALOG_VERIFIED').map(r=>r.variantCode);
+ return expected.length>0&&new Set(expected).size===expected.length&&new Set(proof).size===proof.length&&proof.length===expected.length&&expected.every(code=>proof.includes(code));
+}
 export const catalogItemFailureKind=message=>/UNAUTHORIZED|LIMIT|GUARD|SCOPE|IDENTITY|MISMATCH|SANDBOX|WORKER|RUNTIME|OFFLINE|CUTOUT|MASK/.test(message)?'safety':/BLOCKED|DENIED|CAPTCHA/.test(message)?'access':'ordinary';
 export async function prepareCatalogItems(items,{held={},process,onFailure}){
  let completed=0,failed=0;

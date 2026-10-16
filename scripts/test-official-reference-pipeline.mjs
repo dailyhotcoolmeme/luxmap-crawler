@@ -27,6 +27,7 @@ try{
   assert(fs.existsSync(temp+'/storage.reached'),`mock pipeline ${brand} exit ${run.status}: ${run.stderr.slice(-1800)} ${run.stdout.slice(-500)}`);assert(fs.existsSync(temp+'/originals.cleaned'));
   if(brand==='chanel'){assert.equal(run.status,0);assert(!fs.existsSync(temp+'/audit.reached'));}
   else{
+   assert(fs.existsSync(temp+'/audit.reached'),`mock audit ${brand} exit ${run.status}: ${run.stderr.slice(-1800)} ${run.stdout.slice(-500)}`);
    assert.equal(fs.readFileSync(temp+'/audit.reached','utf8'),brand);assert.equal(run.status,code);
    if(code)assert(!run.stdout.includes('crawl and storage completed'));
    else assert(run.stdout.includes('crawl and storage completed'));
