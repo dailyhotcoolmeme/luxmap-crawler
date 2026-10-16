@@ -14,8 +14,10 @@ export function louisVuittonUrl(value, cfg, base=cfg.entryUrl) {
  u.hash='';return u.href;
 }
 export function louisVuittonCode(url) {
- return decodeURIComponent(new URL(url).pathname).match(/-([A-Z]{1,2}\d{4,6})(?:\.(?:html|htm))?\/?$/i)?.[1]?.toUpperCase()??null;
+ return decodeURIComponent(new URL(url).pathname).match(/(?:-|\/)([A-Z]{1,2}\d{4,6}|M\d[A-Z]\d{3})(?:\.(?:html|htm))?\/?$/i)?.[1]?.toUpperCase()??null;
 }
+export const isLouisVuittonReference=value=>typeof value==='string'&&/^(?:[A-Z]{1,2}\d{4,6}|M\d[A-Z]\d{3})$/.test(value);
+export const louisVuittonFamilyUrl=url=>url.replace(/\/(?:[A-Z]{1,2}\d{4,6}|M\d[A-Z]\d{3})\/?$/i,'').replace(/\/$/,'');
 export function louisVuittonJson(html) {
  const output=[];let nodes=0;
  const visit=value=>{if(++nodes>50000)throw Error('METADATA_LIMIT');if(!value||typeof value!=='object')return;output.push(value);Object.values(value).forEach(visit);};
@@ -31,12 +33,15 @@ export function louisVuittonLinks(html, base, cfg) {
 }
 export function louisVuittonAccess(html,status=200) {
  if([401,403,429].includes(status)||/<title[^>]*>\s*(?:just a moment|access denied|attention required|security check)|(?:cf-chl|challenge-platform|px-captcha|geo\.captcha-delivery\.com|verify you are human)/i.test(html))throw Error('ACCESS_BLOCKED');
+ const visible=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ');
+ if(/\baccess\s+denied\b|\brequest\s+blocked\b|\baccess\s+to\s+this\b.{0,150}\bdenied\b/i.test(visible))throw Error('ACCESS_BLOCKED');
 }
 export function parseLouisVuittonProduct(html,url,cfg,expectedCode=null,{handbagEvidence=false}={}) {
  louisVuittonAccess(html);url=louisVuittonUrl(url,cfg);
  const code=louisVuittonCode(url);if(!code)throw Error('MANUFACTURER_REFERENCE_MISSING');
  if(expectedCode&&code!==normalizeLouisVuitton(expectedCode))throw Error('MANUFACTURER_REFERENCE_MISMATCH');
  const products=louisVuittonJson(html).filter(n=>[n['@type']].flat().includes('Product'));
+ if(!products.length)throw Error('PRODUCT_DATA_UNAVAILABLE');
  const exact=products.filter(p=>normalizeLouisVuitton(p.sku??p.mpn)===code);
  if(exact.length!==1)throw Error('MANUFACTURER_REFERENCE_MISMATCH');
  const p=exact[0];if(p.mpn&&normalizeLouisVuitton(p.mpn)!==code)throw Error('MANUFACTURER_REFERENCE_MISMATCH');

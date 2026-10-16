@@ -11,7 +11,7 @@ on:
         required: true
         default: smoke
         type: choice
-        options: [smoke, reference-smoke, full, image-check]
+        options: [smoke, reference-smoke, full, image-check, parser-check]
       brand:
         description: Optional diagnostic scope (daily schedule always includes all brands)
         required: true
@@ -38,6 +38,7 @@ jobs:
       - name: Install required command line tools
         run: brew install ripgrep jq python@3.11 > /dev/null 2>&1
       - name: Provision pinned offline image processor
+        if: inputs.mode != 'parser-check'
         run: |
           LUXURY_SETUP_PYTHON="$(brew --prefix python@3.11)/bin/python3.11" scripts/setup-image-runtime.sh > /dev/null 2>&1
           node scripts/test-image-pipeline.mjs
@@ -49,11 +50,12 @@ jobs:
           node scripts/test-prada-sitemap.mjs
           node scripts/test-crawler-schedule.mjs
           node scripts/test-catalog-availability.mjs
+          node scripts/test-louis-vuitton-product.mjs
           test -x '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
           /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)' /usr/bin/true
           mkdir -p app crawler/service
       - name: Collect and ingest through unified registry
-        if: inputs.mode != 'image-check'
+        if: inputs.mode != 'image-check' && inputs.mode != 'parser-check'
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://nxgnbrdxxmlhtcnymqsl.supabase.co
           EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
