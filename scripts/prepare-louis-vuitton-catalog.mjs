@@ -3,7 +3,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {louisVuittonLinks,louisVuittonCode,decodeLouisVuitton,louisVuittonFamilyUrl} from '../crawler/common/louis-vuitton-product.js';
 import {celineNodes} from '../crawler/common/celine-html.js';
-import {cleanLouisVuittonName,louisVuittonBagListFamilies} from '../crawler/common/louis-vuitton-metadata.js';
+import {cleanLouisVuittonName,louisVuittonBagListFamilies,louisVuittonExplicitBagImages} from '../crawler/common/louis-vuitton-metadata.js';
 const root=path.resolve(import.meta.dirname,'..'),base=root+'/crawler/runs/louis-vuitton/kr',cfg=JSON.parse(fs.readFileSync(root+'/crawler/brands/louis-vuitton/countries/kr'));
 const evidence=[];
 for(const id of fs.readdirSync(base).sort()){
@@ -37,7 +37,7 @@ const expand=process.argv.includes('--expand-image-category');
 const text=(body,tag)=>{const s=body.match(new RegExp('<'+tag+'\\b[^>]*>([\\s\\S]*?)<\\/'+tag+'>','i'))?.[1];return s?decodeLouisVuitton(s.replace(/^\s*<!\[CDATA\[([\s\S]*)\]\]>\s*$/,'$1').trim()):null;};
 for(const file of fs.readdirSync(sitemap+'/raw').filter(f=>/^\d+\.source$/.test(f))){const xml=read(sitemap+'/raw/'+file);for(const match of xml.matchAll(/<url\b[^>]*>([\s\S]*?)<\/url>/gi)){const block=match[1],url=text(block,'loc');if(!url)continue;let code;try{code=louisVuittonCode(url);}catch{continue;}if(!code)continue;total++;const family=louisVuittonFamilyUrl(url);
  const images=[];for(const im of block.matchAll(/<image:image\b[^>]*>([\s\S]*?)<\/image:image>/gi)){const image=text(im[1],'image:loc'),name=text(im[1],'image:title');if(image&&name)images.push({url:image,name});}
- const explicit=images.length&&images.every(im=>/핸드백\s*전체\s*보기/.test(im.name));
+ const explicit=louisVuittonExplicitBagImages(images);
  if(!families.has(family)&&!(expand&&explicit)||!images.length||seen.has(code))continue;seen.add(code);const evidence=familySources.get(family);records.push({code,url,name:cleanLouisVuittonName(images[0].name),images,category:'bag',categorySource:evidence?.url??'https://kr.louisvuitton.com/content/louisvuitton/sitemap/kor_KR/sitemap-image.xml',categorySourceRun:evidence?.run,categorySourceFile:evidence?.file,categoryFamily:family,categoryEvidence:families.has(family)?'official_bag_list_card':'explicit_official_image_category',metadataComplete:false});
 }}
 const report=path.join(root,'crawler/completeness/louis-vuitton/'+(expand?'expanded-catalog-source':'catalog-source'));fs.mkdirSync(report,{recursive:true});fs.writeFileSync(report+'/candidates.json',JSON.stringify(records),{mode:0o600});

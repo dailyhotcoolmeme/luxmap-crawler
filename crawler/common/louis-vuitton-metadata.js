@@ -1,5 +1,6 @@
 import {decodeLouisVuitton,isLouisVuittonReference,louisVuittonCode,louisVuittonFamilyUrl} from './louis-vuitton-product.js';
 import {celineNodes} from './celine-html.js';
+export const louisVuittonExplicitBagImages=images=>Array.isArray(images)&&images.length>0&&images.every(im=>typeof im?.name==='string'&&/(?:핸드백|가방)\s*전체\s*보기/.test(im.name)&&!/(?:가방|핸드백)\s*액세서리/.test(im.name));
 export function louisVuittonBagListFamilies(html,sourceUrl){
  const u=new URL(sourceUrl),families=new Set();if(u.origin!=='https://kr.louisvuitton.com'||!/^\/kor-kr\/(?:women\/handbags|men\/bags)\//.test(u.pathname)||/\/[^/]*accessories\//.test(u.pathname))return families;
  for(const n of celineNodes(html)){if(n.tag!=='a'||!n.attrs.href)continue;let p=n,card=false,grid=false,recommendation=false;

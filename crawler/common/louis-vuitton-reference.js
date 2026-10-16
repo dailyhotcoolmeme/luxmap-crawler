@@ -4,7 +4,7 @@ import {spawnSync} from 'node:child_process';
 import {request} from 'playwright-core';
 import {downloadAndOptimizeImage,closeImageProcessor} from './image-processor.js';
 import {louisVuittonCode,louisVuittonUrl,louisVuittonFamilyUrl} from './louis-vuitton-product.js';
-import {louisVuittonBagListFamilies} from './louis-vuitton-metadata.js';
+import {louisVuittonBagListFamilies,louisVuittonExplicitBagImages} from './louis-vuitton-metadata.js';
 import {prepareCatalogItems,catalogItemFailureKind} from './catalog-workflow.js';
 const root=path.resolve(import.meta.dirname,'../..');
 export async function collectLouisVuittonReference(){
@@ -19,7 +19,7 @@ export async function collectLouisVuittonReference(){
  const client=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:cfg.navigationTimeoutMs}),records=[],rows=[],categoryCache=new Map();let calls=0,active='SOURCE';
  const row=(status,r)=>({brand:cfg.brand,country:'KR',parentModel:'공식 가방 목록 원본 적재',variantCode:r?.code??active,price:null,currency:'KRW',status,officialUrl:r?.url??cfg.entryUrl});
  try{const batch=await prepareCatalogItems(selected,{held,process:async source=>{active=source.code;const url=louisVuittonUrl(source.url,cfg);
-   let categoryValid=source.categorySource==='https://kr.louisvuitton.com/kor-kr/women/handbags/_/N-tfr7qdp'&&source.categoryEvidence==='official_bag_list_card'||source.categorySource==='https://kr.louisvuitton.com/content/louisvuitton/sitemap/kor_KR/sitemap-image.xml'&&source.categoryEvidence==='explicit_official_image_category'&&source.images.every(im=>/핸드백\s*전체\s*보기/.test(im.name));
+   let categoryValid=source.categorySource==='https://kr.louisvuitton.com/kor-kr/women/handbags/_/N-tfr7qdp'&&source.categoryEvidence==='official_bag_list_card'||source.categorySource==='https://kr.louisvuitton.com/content/louisvuitton/sitemap/kor_KR/sitemap-image.xml'&&source.categoryEvidence==='explicit_official_image_category'&&louisVuittonExplicitBagImages(source.images);
    if(!categoryValid&&source.categoryEvidence==='official_bag_list_card'&&typeof source.categorySourceRun==='string'&&path.dirname(source.categorySourceRun)===root+'/crawler/runs/louis-vuitton/kr'&&/^\d+\.source$/.test(source.categorySourceFile??'')){
     const cacheKey=source.categorySourceRun+'|'+source.categorySourceFile+'|'+source.categorySource;
     if(!categoryCache.has(cacheKey)){
