@@ -7,7 +7,17 @@ const root=path.resolve(import.meta.dirname,'..'),temp=fs.mkdtempSync(path.join(
 const scripts=path.join(temp,'scripts');fs.mkdirSync(scripts);
 const put=(name,body)=>{fs.writeFileSync(path.join(scripts,name),body,{mode:0o700});};
 try{
- fs.copyFileSync(root+'/scripts/run-brand-country-pipeline.sh',scripts+'/run-brand-country-pipeline.sh');
+ // Some hosted macOS runners forbid applying a nested Seatbelt profile.
+ // The entire fixture process already denies network at the kernel boundary;
+ // only its copied shell uses this argument-checked inherited-sandbox shim.
+ const pipeline=fs.readFileSync(root+'/scripts/run-brand-country-pipeline.sh','utf8');
+ assert(pipeline.includes("/usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network*)'"));
+ put('run-brand-country-pipeline.sh',pipeline.replaceAll('/usr/bin/sandbox-exec',scripts+'/inherited-sandbox.sh'));
+ put('inherited-sandbox.sh',`#!/bin/sh
+[ "$1" = -p ] && [ "$2" = '(version 1)(allow default)(deny network*)' ] || exit 78
+shift 2
+exec "$@"
+`);
  put('crawler-env.sh','#!/bin/sh\n');
  put('token-safety-gate.sh','#!/bin/sh\nexit 0\n');
  put('crawl-output-guard.sh','#!/bin/sh\nexit 0\n');
