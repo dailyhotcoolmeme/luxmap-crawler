@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import {request,chromium} from 'playwright-core';
 import {parseLouisVuittonProduct} from './louis-vuitton-product.js';
 import {inspectDiorNativeEvidence} from '../../scripts/report-dior-native-evidence.mjs';
+import {diorDetailAttributes} from './dior-detail-attributes.js';
 
 const bagWords=/(?:handbags?|shoulder bags?|tote bags?|crossbody bags?|clutches?|가방|핸드백|숄더백|토트백|크로스백|バッグ|sacs?|borse|bolsos?)/i;
 const blocked=/(?:<title[^>]*>\s*(?:just a moment|access denied|attention required|security check)|cf-chl|challenge-platform|px-captcha|captcha-delivery|verify you are human)/i;
@@ -102,6 +103,11 @@ export function parseOfficialProduct(html,url,cfg,expectedCode=null,{handbagEvid
   }
  }
  if(cfg.country==='KR'&&!sourceImageUrl)throw Error('ORIGINAL_IMAGE_SOURCE_MISSING');
+ if(cfg.brand==='dior'&&cfg.country==='KR'){
+  const labeled=diorDetailAttributes(html,url,code);
+  if(!p.material&&labeled.material)p.material=labeled.material;
+  for(const [field,key] of [['width','widthMm'],['height','heightMm'],['depth','depthMm']])if(!p[field]&&labeled[key])p[field]={value:labeled[key],unitCode:'MMT'};
+ }
  return {brand:cfg.brand,...(cfg.brand==='dior'?{category:'bag'}:{}),country:cfg.country,currency:cfg.currency,originalCode:String(p.sku??p.mpn),normalizedCode:code,sourceProductId:String(p.productID??code),styleCode:cfg.brand==='dior'?code:groupId||code,productName:name,parentModel,modelKey:cfg.brand==='dior'?`sku-${code.toLowerCase()}`:crypto.createHash('sha256').update(`${cfg.brand}:${groupId||code}`).digest('hex').slice(0,20),colorOriginal:typeof p.color==='string'?clean(p.color):null,colorDisplay:typeof p.color==='string'?clean(p.color):null,materialOriginal:typeof p.material==='string'?clean(p.material):null,materialDisplay:typeof p.material==='string'?clean(p.material):null,widthMm:dimension(p.width),heightMm:dimension(p.height),depthMm:dimension(p.depth),description:typeof p.description==='string'?clean(p.description):null,sourceImageUrl:cfg.country==='KR'?sourceImageUrl:null,price:amounts[0]??null,priceStatus:amounts.length?'confirmed':'price_unavailable',officialUrl:url,checkedAt:new Date().toISOString()};
 }
 function links(html,base,cfg){
