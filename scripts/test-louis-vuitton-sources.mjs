@@ -1,0 +1,28 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+const source=path.resolve(import.meta.dirname,'..'),root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'lv-sources-'));
+const put=(file,value)=>{fs.mkdirSync(path.dirname(root+'/'+file),{recursive:true});fs.writeFileSync(root+'/'+file,typeof value==='string'?value:JSON.stringify(value),{mode:0o700});};
+try{
+ fs.mkdirSync(root+'/crawler',{recursive:true});fs.symlinkSync(source+'/crawler/common',root+'/crawler/common','dir');
+ for(const file of ['scripts/prepare-louis-vuitton-sources.mjs','scripts/louis-vuitton-source-cache.mjs','scripts/recover-louis-vuitton-metadata.mjs','scripts/louis-vuitton-serialized-data.mjs','scripts/extract-louis-vuitton-fields.mjs','scripts/prepare-louis-vuitton-catalog.mjs','scripts/prepare-louis-vuitton-ready.mjs','scripts/crawl-output-guard.sh','scripts/crawler-env.sh','crawler/guardrails.json','crawler/brands/louis-vuitton/countries/kr'])put(file,fs.readFileSync(source+'/'+file,'utf8'));
+ const entry='https://kr.louisvuitton.com/kor-kr/men/bags/all-bags/_/N-fixture',url=code=>'https://kr.louisvuitton.com/kor-kr/products/fixture/'+code;
+ const row=(status,officialUrl=entry)=>({brand:'louis-vuitton',country:'KR',parentModel:'fixture',variantCode:'SOURCE',price:null,currency:'KRW',status,officialUrl});
+ const normal='crawler/runs/louis-vuitton/kr/20261016T000000Z-1',sitemap='crawler/runs/louis-vuitton/kr/20261016T000001Z-2',denied='crawler/runs/louis-vuitton/kr/20261016T000002Z-3';
+ put(normal+'/summary.json',[row('NORMAL_RENDERED_DOCUMENT_SAVED')]);
+ put(normal+'/raw/1.source','<html><main class="lv-product-list"><div class="lv-product-card"><a href="'+url('M12345')+'">Fixture</a><span>₩ 3,500,000</span></div></main><script type="application/json">'+JSON.stringify({sku:'M12345',price:3500000,currency:'KRW',color:'블랙',material:'소가죽',dimensions:{unitText:'cm',values:{width:20,height:15,depth:8}}})+'</script></html>');
+ put(sitemap+'/summary.json',[row('HTTP_200','https://kr.louisvuitton.com/content/louisvuitton/sitemap/kor_KR/sitemap-image.xml')]);
+ put(sitemap+'/raw/1.source','<urlset xmlns:image="fixture">'+['M12345','M12346'].map(code=>'<url><loc>'+url(code)+'</loc><image:image><image:loc>https://kr.louisvuitton.com/images/'+code+'.jpg</image:loc><image:title>Fixture 핸드백 전체 보기</image:title></image:image></url>').join('')+'</urlset>');
+ put(denied+'/summary.json',[row('NORMAL_RENDERED_DOCUMENT_SAVED'),row('ACCESS_BLOCKED')]);
+ put(denied+'/raw/1.source','<html>Access Denied</html>');
+ const run=()=>{const result=spawnSync('/usr/bin/sandbox-exec',['-p','(version 1)(allow default)(deny network*)',process.execPath,root+'/scripts/prepare-louis-vuitton-sources.mjs'],{encoding:'utf8',timeout:20000});assert.equal(result.status,0,result.stderr);};
+ run();
+ const base=root+'/crawler/completeness/louis-vuitton/',ready=JSON.parse(fs.readFileSync(base+'ready-catalog-source/candidates.json'));
+ assert.equal(ready.length,1);assert.equal(ready[0].code,'M12345');assert.equal(ready[0].price,3500000);assert.equal(ready[0].currency,'KRW');assert.equal(ready[0].color,'블랙');assert.equal(ready[0].material,'소가죽');assert.equal(ready[0].widthMm,200);assert.equal(ready[0].heightMm,150);assert.equal(ready[0].depthMm,80);
+ assert.equal(JSON.parse(fs.readFileSync(base+'expanded-catalog-source/candidates.json')).length,2);
+ assert(!fs.existsSync(root+'/'+denied+'/artifacts/native-metadata'));
+ const cache=root+'/'+normal+'/artifacts/native-metadata/objects.json',mtime=fs.statSync(cache).mtimeMs;run();assert.equal(fs.statSync(cache).mtimeMs,mtime,'unchanged sources must not be restored again');
+ console.log('PASS: fresh official-source preparation preserves exact price/attributes, unknown price, refusals and restore cache; network denied');
+}finally{fs.rmSync(root,{recursive:true,force:true});}
