@@ -22,7 +22,9 @@ try{
    if(node('prepare-louis-vuitton-sources.mjs'))throw Error('OFFLINE_PREPARATION_FAILED');
    const dir=catalog+'/catalog-source';fs.mkdirSync(dir,{recursive:true});fs.copyFileSync(catalog+'/expanded-catalog-source/candidates.json',dir+'/candidates.json');fs.copyFileSync(catalog+'/expanded-catalog-source/summary.json',dir+'/summary.json');
    const p=catalog+'/public-reference';fs.mkdirSync(p,{recursive:true});fs.writeFileSync(p+'/summary.json',JSON.stringify([row('DISCOVERY_AUDIT_REQUIRED')]),{mode:0o600});
-   const runtime=root+'/crawler/runtime/louis-vuitton-browser';fs.mkdirSync(runtime,{recursive:true});fs.writeFileSync(runtime+'/workflow.json',JSON.stringify({version:1,ingestHeld:{}}),{mode:0o600});
+   const runtime=root+'/crawler/runtime/louis-vuitton-browser';fs.mkdirSync(runtime,{recursive:true});
+   if(fs.existsSync(runtime+'/workflow.json')){const state=JSON.parse(fs.readFileSync(runtime+'/workflow.json'));if(state.version!==1)throw Error('WORKFLOW_STATE_GUARD');}
+   else fs.writeFileSync(runtime+'/workflow.json',JSON.stringify({version:1,ingestHeld:{}}),{mode:0o600});
    // Original-image ingestion stays in the existing KR pipeline. The model
    // collector excludes verified registered references, not new discoveries.
    const newReady=new Set();

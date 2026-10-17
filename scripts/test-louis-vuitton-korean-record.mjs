@@ -28,6 +28,7 @@ for(const flag of ['--foreign-sku-prices','--foreign-api-prices','--foreign-pric
  const r=spawnSync('/bin/sh',[pipeline,'louis-vuitton','kr',flag],{encoding:'utf8'});assert.equal(r.status,78);assert(r.stderr.includes('full domestic record'));
 }
 const weekly=fs.readFileSync(new URL('./louis-vuitton-weekly.mjs',import.meta.url),'utf8');assert(!weekly.includes('repair-louis-vuitton-metadata.mjs'));
+assert(weekly.includes("if(fs.existsSync(runtime+'/workflow.json'))"));
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'lv-completion-input-'));
 try{
  fs.mkdirSync(temp+'/scripts');
