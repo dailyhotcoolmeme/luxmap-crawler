@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {createLouisVuittonRepairClient} from '../crawler/common/louis-vuitton-repair-rest.js';
+import {createLouisVuittonRepairClient,isolatedLouisVuittonRest} from '../crawler/common/louis-vuitton-repair-rest.js';
 const source=path.resolve(import.meta.dirname,'..'),root=fs.mkdtempSync(path.join(os.tmpdir(),'lv-repair-'));
 const put=(f,v)=>{fs.mkdirSync(path.dirname(root+'/'+f),{recursive:true});fs.writeFileSync(root+'/'+f,typeof v==='string'?v:JSON.stringify(v),{mode:0o700});};
 try{
@@ -24,5 +24,8 @@ try{
  const proof=JSON.parse(fs.readFileSync(root+'/crawler/completeness/louis-vuitton/metadata-repair/summary.json'));assert(proof.some(r=>r.status==='CLEAN_PRODUCT_NAME_PUBLIC_VERIFIED'));
  const previous={guard:process.env.LUXURY_SERVICE_GUARD,owner:process.env.LUXURY_COORDINATOR_OWNER};process.env.LUXURY_SERVICE_GUARD='enabled';process.env.LUXURY_COORDINATOR_OWNER='fixture';
  try{let calls=0;const client=createLouisVuittonRepairClient({extraHTTPHeaders:{apikey:'fixture-service'}},(route,method,body,key)=>{calls++;assert.equal(route,'brands');assert.equal(method,'GET');assert.equal(key,'fixture-public');return [];});assert.deepEqual(await (await client.get('https://nxgnbrdxxmlhtcnymqsl.supabase.co/rest/v1/brands',{headers:{apikey:'fixture-public'}})).json(),[]);await assert.rejects(()=>client.get('https://example.com/rest/v1/brands'),/REPAIR_DESTINATION/);assert.equal(calls,1);}finally{for(const [key,value] of [['LUXURY_SERVICE_GUARD',previous.guard],['LUXURY_COORDINATOR_OWNER',previous.owner]])if(value===undefined)delete process.env[key];else process.env[key]=value;}
- console.log('PASS: actual LV metadata repair verifies all attributes; established guarded REST retains lease and anonymous key scope; network denied');
+ let attempts=0;assert.deepEqual(isolatedLouisVuittonRest('brands','PATCH',{},'fixture',()=>{if(++attempts===1)throw{status:7,stderr:'Connection refused'};return '[]\n200';}),[]);assert.equal(attempts,2);
+ for(const status of [401,403,429]){attempts=0;assert.throws(()=>isolatedLouisVuittonRest('brands','PATCH',{},'fixture',()=>{attempts++;return '{}\n'+status;}),/REPAIR_HTTP/);assert.equal(attempts,1);}
+ attempts=0;assert.throws(()=>isolatedLouisVuittonRest('brands','PATCH',{},'fixture',()=>{attempts++;throw{status:7,stderr:'Operation not permitted'};}),/PERMISSION/);assert.equal(attempts,1);
+ console.log('PASS: LV repair verifies all attributes; TCP-before-send recovery only, no denied/timeout/write replay and unchanged deadline; network denied');
 }finally{fs.rmSync(root,{recursive:true,force:true});}

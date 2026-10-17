@@ -8,6 +8,7 @@ const node=(file,a=[])=>run(process.execPath,[root+'/scripts/'+file,...a]);
 const guard=f=>{if(run(root+'/scripts/crawl-output-guard.sh',[f]))throw Error('WEEKLY_SUMMARY_GUARD');return JSON.parse(fs.readFileSync(f));};
 const row=status=>({brand:'louis-vuitton',country:'KR',parentModel:'주간 한국 발견 및 등록 상품 갱신',variantCode:'TOTAL',price:null,currency:'KRW',status,officialUrl:'https://kr.louisvuitton.com/kor-kr/homepage'});
 const seed=()=>{if(node('seed-louis-vuitton-registered.mjs'))throw Error('REGISTERED_SEED_FAILED');};
+const repairMetadata=(args=[])=>{const status=node('repair-louis-vuitton-metadata.mjs',args);if(status===78)throw Error('METADATA_SAFETY_STOP');return status;};
 if(country!=='kr'){const status=node('louis-vuitton-market.mjs',[country,'--api-sku',...args]);if(status===78)process.exit(78);const verified=node('verify-louis-vuitton-markets.mjs');process.exit(verified===0?status:verified);}
 let code=2;const rows=[];
 try{
@@ -40,12 +41,12 @@ try{
    // writes using the anonymous seed from this same run.
    const repairTargets=[...newReady],targetFile=root+'/crawler/louis-vuitton-progress/kr/attribute-targets.json';
    fs.mkdirSync(path.dirname(targetFile),{recursive:true});
-   for(let offset=0;offset<repairTargets.length;offset+=25){fs.writeFileSync(targetFile,JSON.stringify(repairTargets.slice(offset,offset+25)),{mode:0o600});if(node('repair-louis-vuitton-metadata.mjs',['--codes-file',targetFile]))throw Error('METADATA_REPAIR_FAILED');}
+   for(let offset=0;offset<repairTargets.length;offset+=25){fs.writeFileSync(targetFile,JSON.stringify(repairTargets.slice(offset,offset+25)),{mode:0o600});if(repairMetadata(['--codes-file',targetFile]))throw Error('METADATA_REPAIR_FAILED');}
    if(!repairTargets.length)rows.push(row('REGISTERED_FIELDS_IN_JOINT_REFRESH'));
    rows.push(row('NEW_DISCOVERY_PIPELINE_EXECUTED'));
   }
  }else{
-  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRICE_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRICE_REFRESH_FAILED');seed();if(node('prepare-louis-vuitton-sources.mjs'))throw Error('OFFLINE_PRICE_FIELDS_FAILED');const repaired=node('repair-louis-vuitton-metadata.mjs');if(repaired!==0)throw Error('PRICE_FIELD_REPAIR_FAILED');rows.push(row('REGISTERED_KR_PRICE_REFRESHED'));
+  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRICE_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRICE_REFRESH_FAILED');seed();if(node('prepare-louis-vuitton-sources.mjs'))throw Error('OFFLINE_PRICE_FIELDS_FAILED');const repaired=repairMetadata();if(repaired!==0)throw Error('PRICE_FIELD_REPAIR_FAILED');rows.push(row('REGISTERED_KR_PRICE_REFRESHED'));
  }
  rows.push(row('DISCOVERY_AUDIT_REQUIRED'));
 }catch(e){rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'WEEKLY_KR_FAILED'));code=/SAFETY|GUARD|LIMIT/.test(e.message)?78:1;}
