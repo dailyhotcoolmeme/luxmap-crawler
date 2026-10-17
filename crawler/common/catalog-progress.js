@@ -13,8 +13,8 @@ function marketFor(product,cfg){
   if(cfg.brand==='louis-vuitton'&&u.pathname.replace(/\/$/,'').split('/').at(-1)!==product.normalized_code)return null;
  }catch{return null;}return m;
 }
-export function catalogProgress(products,configs,{brand,startedAt,now=new Date().toISOString()}){
- const start=Date.parse(startedAt),end=Date.parse(now);
+export function catalogProgress(products,configs,{brand,startedAt,now=new Date().toISOString(),endedAt}){
+ const start=Date.parse(startedAt),end=endedAt?Math.min(Date.parse(now),Date.parse(endedAt)):Date.parse(now);
  if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)throw Error('PROGRESS_TIME_SCOPE');
  if(!Array.isArray(products)||products.length>10000||new Set(products.map(p=>p.normalized_code)).size!==products.length)throw Error('PROGRESS_PRODUCT_SCOPE');
  const reference=products.filter(p=>marketFor(p,configs.kr));
@@ -37,8 +37,8 @@ export function progressRows(p,configs){
 }
 export function collectorState(run,jobs){
  const job=jobs.find(j=>j.name==='crawl');
- if(job?.status==='completed')return {finished:true,status:job.conclusion??'unknown',stage:'수집 실행 종료'};
- if(run.status==='completed')return {finished:true,status:run.conclusion??'unknown',stage:'실행 종료'};
+ if(job?.status==='completed')return {finished:true,status:job.conclusion??'unknown',stage:'수집 실행 종료',...(job.completed_at?{endedAt:job.completed_at}:{})};
+ if(run.status==='completed')return {finished:true,status:run.conclusion??'unknown',stage:'실행 종료',...(run.updated_at?{endedAt:run.updated_at}:{})};
  const active=job?.steps?.find(s=>s.status==='in_progress');
  return {finished:false,status:run.status,stage:active?.name??'수집 실행 대기'};
 }

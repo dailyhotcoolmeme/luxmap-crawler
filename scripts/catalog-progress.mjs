@@ -17,7 +17,7 @@ export async function boundedJson(url,options={},request=fetch){
  finally{reader.releaseLock();}
  try{return JSON.parse(Buffer.concat(chunks).toString());}catch{throw Error('PROGRESS_JSON_INVALID');}
 }
-export async function loadProgress(brand,startedAt,key,query=boundedJson){
+export async function loadProgress(brand,startedAt,key,query=boundedJson,endedAt){
  if(!/^[a-z0-9-]+$/.test(brand)||!key)throw Error('PROGRESS_BRAND_SCOPE');
  const configs=Object.fromEntries(progressCountries.map(c=>[c,JSON.parse(fs.readFileSync(root+'/crawler/brands/'+brand+'/countries/'+c))]));
  const products=[];
@@ -25,7 +25,7 @@ export async function loadProgress(brand,startedAt,key,query=boundedJson){
   const page=await query(dbOrigin+'/rest/v1/product_variants?'+q,{headers:{apikey:key,'Cache-Control':'no-cache'}});
   if(!Array.isArray(page)||page.length>100)throw Error('PROGRESS_PAGE_SCOPE');products.push(...page);if(page.length<100)break;if(offset===9900)throw Error('PROGRESS_PAGE_LIMIT');
  }
- const progress=catalogProgress(products,configs,{brand,startedAt});
+ const progress=catalogProgress(products,configs,{brand,startedAt,endedAt});
  const folder=root+'/crawler/progress/'+brand;fs.mkdirSync(folder,{recursive:true});const file=folder+'/summary.json';
  fs.writeFileSync(file,JSON.stringify(progressRows(progress,configs)),{mode:0o600});
  if(spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status!==0)throw Error('PROGRESS_SUMMARY_GUARD');
@@ -47,14 +47,14 @@ async function main(){
  const existing=await gh(prefix+'/commits/'+run.head_sha+'/check-runs?per_page=100&check_name='+encodeURIComponent(name));
  let check=existing.check_runs?.find(c=>c.external_id===external),lastMarkdown='진행 집계 준비 중';
  const output=summary=>({title:name,summary});
- if(!check)check=await gh(prefix+'/check-runs','POST',{name,head_sha:run.head_sha,external_id:external,status:'in_progress',started_at:new Date().toISOString(),details_url:runUrl,output:output(lastMarkdown)});
+ if(!check||check.status==='completed')check=await gh(prefix+'/check-runs','POST',{name,head_sha:run.head_sha,external_id:external,status:'in_progress',started_at:new Date().toISOString(),details_url:runUrl,output:output(lastMarkdown)});
  fs.mkdirSync(root+'/.progress-report',{recursive:true});fs.writeFileSync(root+'/.progress-report/check.json',JSON.stringify({id:check.id,url:check.html_url,runId}),{mode:0o600});
  console.log('PROGRESS_CHECK '+check.html_url);
  let interrupted=false;const stop=()=>{interrupted=true;};for(const signal of ['SIGINT','SIGTERM'])process.once(signal,stop);
  try{for(let poll=0;poll<355;poll++){
   const current=await gh(prefix+'/actions/runs/'+runId),jobs=await gh(prefix+'/actions/runs/'+runId+'/attempts/'+run.run_attempt+'/jobs?per_page=100');
   if(current.run_attempt!==run.run_attempt)throw Error('PROGRESS_RUN_ATTEMPT_CHANGED');
-  const state=collectorState(current,jobs.jobs??[]),items=[];for(const b of brands)items.push(await loadProgress(b,run.run_started_at,key));
+  const state=collectorState(current,jobs.jobs??[]),items=[];for(const b of brands)items.push(await loadProgress(b,run.run_started_at,key,boundedJson,state.endedAt));
   lastMarkdown=progressMarkdown(items,state,runUrl);fs.writeFileSync(root+'/.progress-report/progress.md',lastMarkdown,{mode:0o600});
   const terminal=state.finished||interrupted||poll===354;
   await gh(prefix+'/check-runs/'+check.id,'PATCH',{status:terminal?'completed':'in_progress',...(terminal?{conclusion:state.finished?(state.status==='success'?'neutral':['cancelled','timed_out'].includes(state.status)?state.status:'failure'):'action_required',completed_at:new Date().toISOString()}:{}),output:output(lastMarkdown+(terminal&&!state.finished?'\n\n집계가 중단됐습니다. 위 시각 이후 수치를 최신으로 간주하지 마세요.':''))});

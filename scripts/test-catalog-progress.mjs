@@ -17,6 +17,7 @@ assert.equal(count([{...product,product_media:[{is_primary:true,r2_object_key:'i
 assert.equal(count([{...product,market_products:[market('kr'),market('jp','2026-10-18T00:00:00Z')]}]).countries[1].refreshed,0);
 assert.throws(()=>count([product,product]),/PRODUCT_SCOPE/);
 assert.throws(()=>catalogProgress([],configs,{brand:'louis-vuitton',startedAt:'bad',now}),/TIME_SCOPE/);
+const ended=catalogProgress([{...product,market_products:[market('kr','2026-10-17T03:40:00Z')]}],configs,{brand:'louis-vuitton',startedAt,now,endedAt:'2026-10-17T03:30:00Z'});assert.equal(ended.countries[0].refreshed,0);
 assert.equal(count([]).total,0);assert.equal(count([]).countries[0].confirmed,0);
 const jobs=[{name:'crawl',status:'completed',conclusion:'failure'},{name:'live-progress / monitor',status:'in_progress'}];
 assert.deepEqual(collectorState({status:'in_progress'},jobs),{finished:true,status:'failure',stage:'수집 실행 종료'});
