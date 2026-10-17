@@ -23,7 +23,7 @@ const applyBatchAttributes=result=>{
  const file=out+'/attribute-targets.json';fs.writeFileSync(file,JSON.stringify(codes),{mode:0o600});
  const execute=(script,args=[])=>spawnSync(process.execPath,[root+'/scripts/'+script,...args],{cwd:root,env:process.env,stdio:'ignore',timeout:600000}).status;
  if(execute('seed-louis-vuitton-registered.mjs')||execute('prepare-louis-vuitton-sources.mjs'))throw Error('BATCH_FIELD_PREPARATION_FAILED');
- if(execute('network-isolate.mjs',['["nxgnbrdxxmlhtcnymqsl.supabase.co"]','0',process.execPath,root+'/scripts/repair-louis-vuitton-metadata.mjs','--codes-file',file]))throw Error('BATCH_ATTRIBUTE_REPAIR_FAILED');
+ if(execute('repair-louis-vuitton-metadata.mjs',['--codes-file',file]))throw Error('BATCH_ATTRIBUTE_REPAIR_FAILED');
  const proof=guard(root+'/crawler/completeness/louis-vuitton/metadata-repair/summary.json');if(proof.some(r=>/FAILED|GUARD/.test(r.status)))throw Error('BATCH_ATTRIBUTE_PUBLIC_FAILED');
  rows.push(row('PRICE_ATTRIBUTE_PASS_PUBLIC_'+codes.length));save();
 };

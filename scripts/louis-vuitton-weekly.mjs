@@ -25,20 +25,27 @@ try{
    const runtime=root+'/crawler/runtime/louis-vuitton-browser';fs.mkdirSync(runtime,{recursive:true});fs.writeFileSync(runtime+'/workflow.json',JSON.stringify({version:1,ingestHeld:{}}),{mode:0o600});
    // Original-image ingestion stays in the existing KR pipeline. The model
    // collector excludes verified registered references, not new discoveries.
+   const newReady=new Set();
    for(let batch=0;batch<400;batch++){
     const old=new Set(fs.readdirSync(base));const s=run(root+'/scripts/run-brand-country-pipeline.sh',['louis-vuitton','kr','--crawl-only','--collect-catalog-model']);const made=fs.readdirSync(base).filter(n=>!old.has(n));if(made.length!==1)throw Error('MODEL_RUN_REQUIRED');const p=guard(base+'/'+made[0]+'/summary.json');if(s===78)throw Error('MODEL_SAFETY_STOP');
     if(node('prepare-louis-vuitton-sources.mjs'))throw Error('OFFLINE_PREPARATION_FAILED');
-    const ready=JSON.parse(fs.readFileSync(catalog+'/ready-catalog-source/candidates.json'));guard(catalog+'/ready-catalog-source/summary.json');
+    const ready=JSON.parse(fs.readFileSync(catalog+'/ready-catalog-source/candidates.json'));guard(catalog+'/ready-catalog-source/summary.json');for(const r of ready)newReady.add(r.code);
     for(let offset=0;offset<ready.length;offset+=offset===0?1:25){const ingested=run(root+'/scripts/run-brand-country-pipeline.sh',['louis-vuitton','kr','--batch-offset',String(offset)]);if(ingested===78)throw Error('IMAGE_INGEST_SAFETY_STOP');if(![0,2].includes(ingested))throw Error('IMAGE_INGEST_FAILED');}
     if(p.some(r=>r.status==='ACCESS_BLOCKED')||!p.some(r=>r.status==='EXACT_MODEL_KRW_VERIFIED'))break;
     if(batch===399)throw Error('DISCOVERY_BATCH_LIMIT');
    }
    fs.copyFileSync(catalog+'/expanded-catalog-source/candidates.json',dir+'/candidates.json');fs.copyFileSync(catalog+'/expanded-catalog-source/summary.json',dir+'/summary.json');
-   const repair=node('network-isolate.mjs',['["nxgnbrdxxmlhtcnymqsl.supabase.co"]','0',process.execPath,root+'/scripts/repair-louis-vuitton-metadata.mjs']);if(repair!==0)throw Error('METADATA_REPAIR_FAILED');
+   // New products are repaired here. Registered products receive their fields
+   // alongside each fresh price batch; do not block that pass on 493 name-only
+   // writes using the anonymous seed from this same run.
+   const repairTargets=[...newReady],targetFile=root+'/crawler/louis-vuitton-progress/kr/attribute-targets.json';
+   fs.mkdirSync(path.dirname(targetFile),{recursive:true});
+   for(let offset=0;offset<repairTargets.length;offset+=25){fs.writeFileSync(targetFile,JSON.stringify(repairTargets.slice(offset,offset+25)),{mode:0o600});if(node('repair-louis-vuitton-metadata.mjs',['--codes-file',targetFile]))throw Error('METADATA_REPAIR_FAILED');}
+   if(!repairTargets.length)rows.push(row('REGISTERED_FIELDS_IN_JOINT_REFRESH'));
    rows.push(row('NEW_DISCOVERY_PIPELINE_EXECUTED'));
   }
  }else{
-  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRICE_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRICE_REFRESH_FAILED');seed();if(node('prepare-louis-vuitton-sources.mjs'))throw Error('OFFLINE_PRICE_FIELDS_FAILED');const repaired=node('network-isolate.mjs',['["nxgnbrdxxmlhtcnymqsl.supabase.co"]','0',process.execPath,root+'/scripts/repair-louis-vuitton-metadata.mjs']);if(repaired!==0)throw Error('PRICE_FIELD_REPAIR_FAILED');rows.push(row('REGISTERED_KR_PRICE_REFRESHED'));
+  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRICE_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRICE_REFRESH_FAILED');seed();if(node('prepare-louis-vuitton-sources.mjs'))throw Error('OFFLINE_PRICE_FIELDS_FAILED');const repaired=node('repair-louis-vuitton-metadata.mjs');if(repaired!==0)throw Error('PRICE_FIELD_REPAIR_FAILED');rows.push(row('REGISTERED_KR_PRICE_REFRESHED'));
  }
  rows.push(row('DISCOVERY_AUDIT_REQUIRED'));
 }catch(e){rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'WEEKLY_KR_FAILED'));code=/SAFETY|GUARD|LIMIT/.test(e.message)?78:1;}
