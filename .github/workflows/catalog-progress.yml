@@ -1,0 +1,67 @@
+name: Catalog live progress
+run-name: Catalog progress for ${{ inputs.run_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Existing crawler run ID (never starts a collector)
+        required: true
+        type: string
+      brands:
+        description: Registered brand slug or all
+        default: louis-vuitton
+        type: string
+  workflow_call:
+    inputs:
+      run_id:
+        required: true
+        type: string
+      brands:
+        default: all
+        type: string
+    secrets:
+      SUPABASE_ANON_KEY:
+        required: true
+permissions:
+  contents: read
+  actions: read
+  checks: write
+concurrency:
+  group: catalog-progress-${{ inputs.run_id }}
+  cancel-in-progress: false
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      # Read-only monitor code comes from our own main, not the target run/fork.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '25.8.0'
+      - name: Verify accounting and credential isolation
+        run: |
+          node scripts/test-catalog-progress.mjs
+          command -v jq
+          command -v rg
+          scripts/token-safety-gate.sh
+      - name: Live read-only counts (updates every minute)
+        env:
+          EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          TARGET_RUN: ${{ inputs.run_id }}
+          TARGET_BRANDS: ${{ inputs.brands }}
+        run: node scripts/catalog-progress.mjs --watch --run-id "$TARGET_RUN" --brands "$TARGET_BRANDS"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: live-progress-summary
+          path: |
+            crawler/progress/*/summary.json
+            .progress-report/progress.md
+            .progress-report/check.json
+          retention-days: 7
+          if-no-files-found: ignore

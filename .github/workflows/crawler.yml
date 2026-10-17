@@ -47,6 +47,7 @@ jobs:
           scripts/token-safety-gate.sh > /dev/null
           node scripts/test-catalog-completeness.mjs
           node scripts/test-catalog-product-contract.mjs
+          node scripts/test-catalog-progress.mjs
           node scripts/test-catalog-target-batches.mjs
           node scripts/test-prada-sitemap.mjs
           node scripts/test-crawler-schedule.mjs
@@ -102,3 +103,15 @@ jobs:
           path: .ci-report/summary.json
           retention-days: 1
           if-no-files-found: ignore
+  live-progress:
+    if: inputs.mode != 'parser-check' && inputs.mode != 'image-check'
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    uses: ./.github/workflows/catalog-progress.yml
+    with:
+      run_id: ${{ github.run_id }}
+      brands: ${{ inputs.brand || 'all' }}
+    secrets:
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
