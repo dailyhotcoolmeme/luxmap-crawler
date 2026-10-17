@@ -36,7 +36,7 @@ if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&['--se
  const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,'kr','--crawl-only',mode],{cwd:root,env,stdio:'ignore',timeout:1200000});process.exit(child.status??1);
 }
 if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--repair-metadata'&&process.argv.length===4){
- const child=spawnSync(process.execPath,[root+'/scripts/network-isolate.mjs','["nxgnbrdxxmlhtcnymqsl.supabase.co"]','0',process.execPath,root+'/scripts/repair-louis-vuitton-metadata.mjs'],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});process.exit(child.status??1);
+ const child=spawnSync(process.execPath,[root+'/scripts/repair-louis-vuitton-metadata.mjs'],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});process.exit(child.status??1);
 }
 if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--batch-offset'&&/^\d+$/.test(offset??'')&&process.argv.length===5){
  const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,'kr',mode,offset],{cwd:root,env:process.env,stdio:'ignore',timeout:1800000});process.exit(child.status??1);
