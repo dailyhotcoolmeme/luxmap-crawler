@@ -42,6 +42,10 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '25.8.0'
+      - name: Install bounded-summary validator tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ripgrep jq > /dev/null
       - name: Verify accounting and credential isolation
         run: |
           node scripts/test-catalog-progress.mjs
