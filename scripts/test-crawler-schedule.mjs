@@ -20,6 +20,15 @@ assert.throws(()=>scheduleCalendar({...schedule,weekday:2}));
 assert.throws(()=>scheduleCalendar({...schedule,frequency:'daily'}));
 assert.throws(()=>scheduleCalendar({...schedule,timeZone:'UTC'}));
 const fullPlan=schedulePlan(schedule);
+assert.deepEqual(schedule.automationHoldBrands,['louis-vuitton']);
+const automaticPlan=schedulePlan(schedule,{respectAutomationHolds:true});
+assert(!automaticPlan.some(job=>job.brand==='louis-vuitton'));
+assert.deepEqual(automaticPlan,fullPlan.filter(job=>job.brand!=='louis-vuitton'));
+assert.equal(fullPlan.filter(job=>job.brand==='louis-vuitton').length,10,'explicit local validation keeps the full LV plan');
+assert.throws(()=>schedulePlan({...schedule,automationHoldBrands:['unknown']}));
+assert.throws(()=>schedulePlan({...schedule,automationHoldBrands:['louis-vuitton','louis-vuitton']}));
+const dailySource=fs.readFileSync(new URL('./crawler-daily.mjs',import.meta.url),'utf8');
+assert(dailySource.includes("respectAutomationHolds:process.env.GITHUB_ACTIONS==='true'||!process.argv.includes('--brands')"),'GitHub and untargeted local schedules honor holds; only explicit local brand work is allowed');
 const plan=fullPlan.filter(job=>job.brand==='chanel');
 for(const brand of new Set(schedule.jobs.map(job=>job.brand))){
  const jobs=fullPlan.filter(job=>job.brand===brand);

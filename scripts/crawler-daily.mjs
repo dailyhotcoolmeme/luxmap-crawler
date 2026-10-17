@@ -10,7 +10,7 @@ if(spawnSync(process.execPath,[path.join(root,'scripts/crawler-schedule-check.mj
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const referenceSmoke=process.argv.includes('--reference-smoke');
 if(referenceSmoke&&(process.argv.includes('--smoke')||process.argv.includes('--countries')))throw Error('conflicting sample scope');
-let plan=schedulePlan(schedule,{smoke:process.argv.includes('--smoke')||referenceSmoke});
+let plan=schedulePlan(schedule,{smoke:process.argv.includes('--smoke')||referenceSmoke,respectAutomationHolds:process.env.GITHUB_ACTIONS==='true'||!process.argv.includes('--brands')});
 if(referenceSmoke)plan=plan.filter(job=>job.country==='kr');
 const brandSelection=process.argv.indexOf('--brands');
 if(brandSelection>=0){const brands=String(process.argv[brandSelection+1]??'').split(',');if(!brands.length||brands.some(brand=>!schedule.jobs.some(job=>job.brand===brand)))throw Error('invalid targeted brands');plan=plan.filter(job=>brands.includes(job.brand));}
