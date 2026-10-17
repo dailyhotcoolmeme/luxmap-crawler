@@ -34,9 +34,11 @@ try{
  assert.equal(partialReady.length,2);assert.equal(partialReady.find(r=>r.code==='M12346').price,4200000,'a later refused request must not discard an independently verified earlier document');
  assert.equal(JSON.parse(fs.readFileSync(root+'/'+partial+'/artifacts/native-metadata/objects.json')).length,1,'unconfirmed raw files after the failure are never parsed');
  const native='crawler/runs/louis-vuitton/kr/20261016T000004Z-5',api='https://api.louisvuitton.com/api/kor-kr/catalog/';
- put(native+'/summary.json',[{...row('API_HTTP_200',api+'sku/M12346/persodetails'),parentModel:'한국 동일 SKU 해외 SKU 연결'}, {...row('API_HTTP_200',api+'product/nvprod123v'),parentModel:'한국 동일 SKU 해외 SKU 연결'}, {...row('API_HTTP_403',api+'product/nvprod999v'),parentModel:'한국 동일 SKU 해외 SKU 연결'},row('ACCESS_BLOCKED')]);
+ put(native+'/summary.json',[{...row('API_HTTP_200',api+'sku/M12346/persodetails'),parentModel:'한국 동일 SKU 해외 SKU 연결'}, {...row('API_HTTP_200',api+'product/nvprod123v'),parentModel:'한국 동일 SKU 해외 SKU 연결'}, {...row('EXACT_LOCAL_MODEL_PRICE',url('M12346')),variantCode:'M12346',price:4300000}, {...row('API_HTTP_403',api+'product/nvprod999v'),parentModel:'한국 동일 SKU 해외 SKU 연결'},row('ACCESS_BLOCKED')]);
  put(native+'/raw/api-1.source',{productId:'nvprod123v'});
- put(native+'/raw/api-2.source',{name:'Fixture',model:[{identifier:'M12346',url:url('M12346'),color:'레드',material:'새 공식 소재',dimensions:{unitText:'cm',values:{width:22,height:16,depth:9}},offers:{priceSpecification:{price:4300000,priceCurrency:'KRW'}}}]});
+ put(native+'/raw/api-2.source',{name:'Fixture',unrelated:Array(500001).fill(0),model:[{identifier:'M12346',url:url('M12346'),color:'레드',material:'새 공식 소재',dimensions:{unitText:'cm',values:{width:22,height:16,depth:9}},offers:{priceSpecification:{price:4300000,priceCurrency:'KRW'}}}]});
  run();const nativeReady=JSON.parse(fs.readFileSync(base+'ready-catalog-source/candidates.json')).find(r=>r.code==='M12346');assert.equal(nativeReady.price,4300000);assert.equal(nativeReady.color,'레드');assert.equal(nativeReady.material,'새 공식 소재');assert.equal(nativeReady.widthMm,220);
- console.log('PASS: native SKU price and attributes recovered together, including valid prefix before refusal, unknown prices and restore cache; network denied');
+ const oversized=JSON.parse(fs.readFileSync(root+'/'+native+'/raw/api-2.source'));delete oversized.unrelated;oversized.model[0].oversized=Array(500001).fill(0);put(native+'/raw/api-2.source',oversized);
+ const limited=spawnSync('/usr/bin/sandbox-exec',['-p','(version 1)(allow default)(deny network*)',process.execPath,root+'/scripts/prepare-louis-vuitton-sources.mjs'],{encoding:'utf8',timeout:20000});assert.notEqual(limited.status,0);assert.match(limited.stderr,/METADATA_LIMIT/);
+ console.log('PASS: exact priced-SKU attributes recovered without unrelated models; original metadata limit still stops oversized owned data; network denied');
 }finally{fs.rmSync(root,{recursive:true,force:true});}

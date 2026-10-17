@@ -6,7 +6,7 @@ import {spawnSync} from 'node:child_process';
 import {sourceFingerprint,materializedFingerprint} from './louis-vuitton-source-cache.mjs';
 const root=path.resolve(import.meta.dirname,'..');
 if(process.argv.length!==2)throw Error('PREPARATION_SCOPE');
-const run=(script,args=[])=>{if(spawnSync(process.execPath,[root+'/scripts/'+script,...args],{stdio:'ignore'}).status)throw Error('SOURCE_PREPARATION_FAILED');};
+const run=(script,args=[])=>{const result=spawnSync(process.execPath,[root+'/scripts/'+script,...args],{stdio:['ignore','pipe','pipe'],maxBuffer:1048576});if(result.status)throw Error(/Error: ([A-Z][A-Z0-9_]{1,35})\b/.exec(String(result.stderr??''))?.[1]??'SOURCE_PREPARATION_FAILED');};
 const guard=file=>{if(spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status)throw Error('SUMMARY_GUARD');return JSON.parse(fs.readFileSync(file));};
 for(const country of ['kr','us']){
  const base=root+'/crawler/runs/louis-vuitton/'+country;if(!fs.existsSync(base))continue;
