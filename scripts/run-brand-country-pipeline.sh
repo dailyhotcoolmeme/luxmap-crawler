@@ -7,6 +7,14 @@ BRAND=${1:?brand required}
 COUNTRY=${2:?country required}
 shift 2
 
+if [ "$BRAND/$COUNTRY" = louis-vuitton/kr ]; then
+ for option in "$@"; do
+  case "$option" in --foreign-sku-prices|--foreign-api-prices|--foreign-prices|--foreign-prices-browser)
+   echo 'BLOCKED: Korean products require the full domestic record.' >&2; exit 78;;
+  esac
+ done
+fi
+
 "$PROJECT_DIR/scripts/token-safety-gate.sh" >/dev/null
 
 # Explicit diagnostics still use both central safety gates and the guarded runner.
@@ -72,9 +80,6 @@ if [ "$BRAND/$COUNTRY" = prada/kr ]; then
  done
 fi
 
-if [ "$BRAND/$COUNTRY" = louis-vuitton/kr ] && [ "${1:-}" = --foreign-sku-prices ]; then
- INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs"
-fi
 set +x
 for option in "$@"; do
  if [ "$option" = --image-refresh-file ]; then
@@ -190,7 +195,7 @@ find "$RUN_DIR" -maxdepth 1 -type f -name '*.log' -exec chmod 000 {} + 2>/dev/nu
 node "$PROJECT_DIR/scripts/cleanup-image-originals.mjs" "$RECORD_FILE"
 storage_stage ORIGINALS_CLEANED
 chmod 000 "$RECORD_FILE" 2>/dev/null || true
-if [ "$BRAND/$COUNTRY" = louis-vuitton/kr ] && [ "${1:-}" != --foreign-sku-prices ]; then
+if [ "$BRAND/$COUNTRY" = louis-vuitton/kr ]; then
  # Stored batches are not whole-catalogue success; check independent scope.
  env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
    /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network*)' \

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {runOfficialBrand} from '../../common/dior-official-core.js';
-if(['--foreign-api-prices','--foreign-sku-prices'].includes(process.argv[4])){
+if(['--korean-products','--foreign-api-prices','--foreign-sku-prices'].includes(process.argv[4])){
  const {collectLouisVuittonForeignModels}=await import('../../common/louis-vuitton-foreign-model.js');await collectLouisVuittonForeignModels();
 }else if(['--foreign-prices','--foreign-prices-browser'].includes(process.argv[4])){
  const {collectLouisVuittonForeign}=await import('../../common/louis-vuitton-foreign.js');await collectLouisVuittonForeign();

@@ -23,3 +23,5 @@ try{
 // Keep new adapter regressions connected without changing workflow permissions.
 for(const file of ['test-louis-vuitton-foreign.mjs','test-louis-vuitton-foreign-model.mjs','test-louis-vuitton-relay-scope.mjs','test-louis-vuitton-market-store.mjs','test-louis-vuitton-weekly.mjs','test-louis-vuitton-joint-batch.mjs'])await import('./'+file);
 await import('./test-louis-vuitton-metadata-repair.mjs');
+await import('./test-louis-vuitton-korean-record.mjs');
+await import('./test-louis-vuitton-korean-collector.mjs');
