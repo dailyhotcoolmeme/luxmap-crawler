@@ -17,6 +17,16 @@ const guard=f=>{if(spawnSync(root+'/scripts/crawl-output-guard.sh',[f],{stdio:'i
 const rows=[],row=(status,url=cfg.entryUrl,code='TOTAL',price=null)=>({brand:'louis-vuitton',country:cfg.country,parentModel:'한국 기준 해외 가격 전체 대조',variantCode:code,price,currency:cfg.currency,status,officialUrl:url});
 const save=()=>{fs.writeFileSync(out+'/summary.json',JSON.stringify(rows),{mode:0o600});guard(out+'/summary.json');};
 const pipeline=args=>{const before=new Set(fs.readdirSync(base)),p=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['louis-vuitton',country,...args],{cwd:root,env:{...process.env,...browserEnv},stdio:'ignore',timeout:1800000}),created=fs.readdirSync(base).filter(id=>!before.has(id));if(created.length!==1)throw Error('COUNTRY_RUN_MISSING');const dir=base+'/'+created[0],proof=guard(dir+'/summary.json');if(p.status===78)throw Error(proof.some(r=>r.status==='SECURITY_VERIFICATION_REQUIRED')?'SECURITY_VERIFICATION_REQUIRED':'COUNTRY_SAFETY_STOP');return {dir,proof,status:p.status??1};};
+const applyBatchAttributes=result=>{
+ if(country!=='kr'||!skuMode)return;
+ const codes=[...new Set(result.proof.filter(r=>r.status==='EXACT_LOCAL_MODEL_PRICE').map(r=>r.variantCode))];if(!codes.length)return;
+ const file=out+'/attribute-targets.json';fs.writeFileSync(file,JSON.stringify(codes),{mode:0o600});
+ const execute=(script,args=[])=>spawnSync(process.execPath,[root+'/scripts/'+script,...args],{cwd:root,env:process.env,stdio:'ignore',timeout:600000}).status;
+ if(execute('seed-louis-vuitton-registered.mjs')||execute('prepare-louis-vuitton-sources.mjs'))throw Error('BATCH_FIELD_PREPARATION_FAILED');
+ if(execute('network-isolate.mjs',['["nxgnbrdxxmlhtcnymqsl.supabase.co"]','0',process.execPath,root+'/scripts/repair-louis-vuitton-metadata.mjs','--codes-file',file]))throw Error('BATCH_ATTRIBUTE_REPAIR_FAILED');
+ const proof=guard(root+'/crawler/completeness/louis-vuitton/metadata-repair/summary.json');if(proof.some(r=>/FAILED|GUARD/.test(r.status)))throw Error('BATCH_ATTRIBUTE_PUBLIC_FAILED');
+ rows.push(row('PRICE_ATTRIBUTE_PASS_PUBLIC_'+codes.length));save();
+};
 let references=[];
 try{
  for(let offset=0;offset<10000;offset+=500){const page=guardedRest('rpc/crawler_korean_references?limit=500&offset='+offset,'POST',{p_brand:'louis-vuitton'});references.push(...page);if(page.length<500)break;if(offset===9500)throw Error('REFERENCE_LIMIT');}
@@ -33,9 +43,14 @@ try{
  if(restored.size){fs.writeFileSync(out+'/targets.json',JSON.stringify([...restored.values()].slice(0,25)),{mode:0o600});const result=pipeline(['--foreign-prices','--targets-file',out+'/targets.json']);if(result.status===78)throw Error('COUNTRY_SAFETY_STOP');rows.push(row('SAVED_SOURCE_RESTORATION_'+restored.size));}
  if(!blocked&&apiMode){
   let targets=references.filter(r=>/-(?:nvprod\d+v|P\d+)\/[A-Z0-9]+$/i.test(r.official_url)).map(r=>({code:r.normalized_code,koreanUrl:r.official_url}));if(skuMode&&!process.argv.includes('--refresh')){const existing=guardedRest('market_products?country_code=eq.'+cfg.country+'&select=variant_id,official_product_code,current_price,currency_code,official_url,price_status','GET',undefined,process.env.EXPO_PUBLIC_SUPABASE_KEY);const done=new Set(existing.filter(m=>m.currency_code===cfg.currency&&m.price_status==='confirmed'&&Number(m.current_price)>0&&references.some(r=>r.id===m.variant_id&&r.normalized_code===m.official_product_code)&&(()=>{try{louisVuittonForeignUrl(m.official_url,cfg,m.official_product_code);return true;}catch{return false;}})()).map(m=>m.official_product_code));targets=targets.filter(t=>!done.has(t.code));const alt=root+'/crawler/completeness/louis-vuitton/published-alternates';if(fs.existsSync(alt+'/summary.json')){guard(alt+'/summary.json');const published=new Set(JSON.parse(fs.readFileSync(alt+'/links.json')).filter(r=>r.country===cfg.country).map(r=>r.code));targets.sort((a,b)=>Number(published.has(b.code))-Number(published.has(a.code)));}}
+  if(country==='kr'){
+   const variants=guardedRest('product_variants?brands.slug=eq.louis-vuitton&active=eq.true&select=normalized_code,color_ko,material_ko,width_mm,height_mm,depth_mm,brands!inner(slug)&limit=10000','GET',undefined,process.env.EXPO_PUBLIC_SUPABASE_KEY);
+   const missing=new Set(variants.filter(p=>!p.color_ko||!p.material_ko||![p.width_mm,p.height_mm,p.depth_mm].every(v=>Number(v)>0)).map(p=>p.normalized_code));
+   targets.sort((a,b)=>Number(missing.has(b.code))-Number(missing.has(a.code)));rows.push(row('ATTRIBUTE_INCOMPLETE_'+missing.size));
+  }
   const control=targets.find(t=>t.code==='M29090');if(control)targets=[control,...targets.filter(t=>t!==control)];
   const limitIndex=process.argv.indexOf('--limit');if(limitIndex>=0){const n=Number(process.argv[limitIndex+1]);if(!Number.isInteger(n)||n<1||n>25)throw Error('SAMPLE_LIMIT');targets=controlPublic?[]:targets.slice(0,n);}
-  for(let i=0;i<targets.length;i+=25){const file=out+'/targets.json';fs.writeFileSync(file,JSON.stringify(targets.slice(i,i+25)),{mode:0o600});const result=pipeline([skuMode?'--foreign-sku-prices':'--foreign-api-prices','--targets-file',file]);rows.push(row('MODEL_BATCH_TARGETS_'+Math.min(i+25,targets.length)));save();if(result.proof.some(r=>r.status==='ACCESS_BLOCKED')){rows.push(row('COUNTRY_API_ACCESS_BLOCKED'));break;}if(![0,2].includes(result.status))throw Error('COUNTRY_PIPELINE_FAILED');}
+  for(let i=0;i<targets.length;i+=25){const file=out+'/targets.json';fs.writeFileSync(file,JSON.stringify(targets.slice(i,i+25)),{mode:0o600});const result=pipeline([skuMode?'--foreign-sku-prices':'--foreign-api-prices','--targets-file',file]);applyBatchAttributes(result);rows.push(row('MODEL_BATCH_TARGETS_'+Math.min(i+25,targets.length)));save();if(result.proof.some(r=>r.status==='ACCESS_BLOCKED')){rows.push(row('COUNTRY_API_ACCESS_BLOCKED'));break;}if(![0,2].includes(result.status))throw Error('COUNTRY_PIPELINE_FAILED');}
  }else if(!blocked){
  const byCode=new Map(),alternates=new Map(),alt=root+'/crawler/completeness/louis-vuitton/published-alternates';
  if(fs.existsSync(alt+'/summary.json')){guard(alt+'/summary.json');for(const p of JSON.parse(fs.readFileSync(alt+'/links.json')))if(p.country===cfg.country){try{louisVuittonForeignUrl(p.url,cfg,p.code);byCode.set(p.code,p.url);alternates.set(p.code,p);}catch{}}}

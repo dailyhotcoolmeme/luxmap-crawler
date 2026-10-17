@@ -16,6 +16,12 @@ const available=new Map(JSON.parse(fs.readFileSync(expanded+'/candidates.json'))
 for(const id of fs.readdirSync(runBase)){const file=runBase+'/'+id+'/artifacts/public-verified/summary.json';if(!fs.existsSync(file)||spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status)continue;for(const r of JSON.parse(fs.readFileSync(file)))if(r.status==='PUBLIC_CATALOG_VERIFIED'&&!sourceMap.has(r.variantCode)){const source=available.get(r.variantCode);if(!source||source.url!==r.officialUrl)throw Error('IMPORTED_SOURCE_IDENTITY');sourceMap.set(r.variantCode,source);}}
 for(const r of readRegisteredLouisVuitton(root))if(!sourceMap.has(r.code)&&typeof r.name==='string'&&r.name.trim())sourceMap.set(r.code,{code:r.code,url:r.url,name:r.name});
 records.splice(0,records.length,...sourceMap.values());
+if(process.argv.includes('--codes-file')){
+ const file=process.argv[process.argv.indexOf('--codes-file')+1];
+ if(process.argv.length!==4||file!==root+'/crawler/louis-vuitton-progress/kr/attribute-targets.json')throw Error('ATTRIBUTE_BATCH_SCOPE');
+ const codes=JSON.parse(fs.readFileSync(file));if(!Array.isArray(codes)||!codes.length||codes.length>25||new Set(codes).size!==codes.length||codes.some(c=>typeof c!=='string'||!sourceMap.has(c)))throw Error('ATTRIBUTE_BATCH_IDENTITY');
+ records.splice(0,records.length,...records.filter(r=>codes.includes(r.code)));
+}
 if(!records.length||records.length>10000||new Set(records.map(r=>r.code)).size!==records.length)throw Error('REPAIR_SCOPE');
 const fieldsDir=root+'/crawler/completeness/louis-vuitton/field-source';let fields=[];
 if(fs.existsSync(fieldsDir+'/summary.json')){if(spawnSync(root+'/scripts/crawl-output-guard.sh',[fieldsDir+'/summary.json'],{stdio:'ignore'}).status)throw Error('FIELD_SOURCE_GUARD');fields=JSON.parse(fs.readFileSync(fieldsDir+'/fields.json'));}
