@@ -1,0 +1,27 @@
+{
+  "brand": "louis-vuitton",
+  "country": "IT",
+  "currency": "EUR",
+  "locale": "ita-it",
+  "entryUrl": "https://it.louisvuitton.com/ita-it/prodotti/borsa-all-in-mm-monogram-empreinte-nvprod7890048v/M29090",
+  "productSegment": "prodotti",
+  "localePrefix": "/ita-it/",
+  "siteHosts": [
+    "it.louisvuitton.com"
+  ],
+  "allowedHosts": [
+    "it.louisvuitton.com",
+    "api.louisvuitton.com"
+  ],
+  "imageHosts": [
+    "it.louisvuitton.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}

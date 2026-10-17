@@ -6,7 +6,7 @@ import {availabilityEvidence} from '../crawler/common/catalog-availability.js';
 const root=path.resolve(import.meta.dirname,'..'),run=path.resolve(process.argv[2]??'');
 if(process.env.LUXURY_PIPELINE_GUARD!=='enabled'||!run.startsWith(path.join(root,'crawler/runs')+path.sep))throw Error('CENTRAL_RUN_REQUIRED');
 const [brand,country,sourceRun]=path.relative(path.join(root,'crawler/runs'),run).split(path.sep);
-if(country!=='kr'||!['chanel','prada','bottega-veneta','van-cleef-arpels','rolex'].includes(brand))process.exit(0);
+if(country!=='kr'||!['chanel','prada','bottega-veneta','van-cleef-arpels','rolex','louis-vuitton'].includes(brand))process.exit(0);
 const file=path.join(run,'artifacts/availability.json');if(!fs.existsSync(file))process.exit(0);
 if(fs.statSync(file).size>262144)throw Error('AVAILABILITY_LIMIT');
 const cfg=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',brand,'countries/kr'))),rows=JSON.parse(fs.readFileSync(file));

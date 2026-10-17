@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {request} from 'playwright-core';
 import {decodeHtml} from './prada-product.js';
+import {recordAvailability} from './catalog-availability.js';
 export async function probeOfficialProduct(){
  const args=process.argv.slice(2);
  if(args.length!==5||args[0]!=='--country-config'||args[2]!=='--probe-product-source'||args[3]!=='--product-url'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.CRAWL_MODE!=='deterministic-only')throw Error('GUARDED_PRODUCT_PROBE_REQUIRED');
@@ -16,6 +17,7 @@ export async function probeOfficialProduct(){
    if(active.protocol!=='https:'||active.username||active.password||!cfg.siteHosts.includes(active.hostname)||!active.pathname.startsWith(cfg.localePrefix))throw Error('UNAUTHORIZED_URL');
    const r=await context.get(active.href,{maxRedirects:0});
    if([401,403,429].includes(r.status()))throw Error('ACCESS_BLOCKED');
+   if(cfg.brand==='louis-vuitton'&&[404,410].includes(r.status()))recordAvailability(run,cfg,active.href,r.status());
    if([301,302,303,307,308].includes(r.status())){active=new URL(r.headers().location,active);continue;}
    if(!r.ok())throw Error(`HTTP_${r.status()}`);
    const body=await r.body();if(body.length>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');
@@ -43,6 +45,7 @@ export async function probeOfficialProduct(){
    for(const offer of [product.offers].flat().filter(Boolean).slice(0,3)){
     const price=Number(String(offer.price??'').replaceAll(',',''));
     rows.push(row(offer.priceCurrency===cfg.currency?'EXACT_COUNTRY_OFFER':'OFFER_CURRENCY_UNVERIFIED',code,Number.isFinite(price)&&price>0?price:null,active.href,String(offer.priceCurrency??cfg.currency)));
+    if(cfg.brand==='louis-vuitton'&&canonical.endsWith(code)&&code!=='SOURCE'&&offer.priceCurrency===cfg.currency&&price>0)recordAvailability(run,cfg,active.href,200,true);
    }
    for(const image of [product.image].flat().filter(Boolean).slice(0,2)){
     try{const url=new URL(typeof image==='string'?image:image.url??image.contentUrl,active);if(url.protocol==='https:'&&url.href.length<=500)rows.push(row('PUBLISHED_IMAGE_URL',code,null,url.href));}catch{}

@@ -1,0 +1,26 @@
+{
+  "brand": "louis-vuitton",
+  "country": "US",
+  "currency": "USD",
+  "locale": "eng-us",
+  "entryUrl": "https://us.louisvuitton.com/eng-us/homepage",
+  "localePrefix": "/eng-us/",
+  "siteHosts": [
+    "us.louisvuitton.com"
+  ],
+  "allowedHosts": [
+    "us.louisvuitton.com",
+    "api.louisvuitton.com"
+  ],
+  "imageHosts": [
+    "us.louisvuitton.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}

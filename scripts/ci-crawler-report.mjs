@@ -8,6 +8,12 @@ if(process.env.RUN_MODE==='reference-smoke'&&fs.existsSync(sample)&&Date.now()-f
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const rows=[];
 for(const job of schedule.jobs){
+ if(job.brand==='louis-vuitton'){
+  const files=[`crawler/louis-vuitton-progress/${job.country}/summary.json`,...(job.country==='kr'?['crawler/louis-vuitton-progress/kr/weekly/summary.json','crawler/completeness/louis-vuitton/weekly-audit/summary.json']:[])];
+  const base=path.join(root,'crawler/runs/louis-vuitton',job.country),last=fs.existsSync(base)?fs.readdirSync(base).sort().at(-1):null;if(last)files.push(path.relative(root,path.join(base,last,'summary.json')));
+  for(const name of files){const f=path.join(root,name);if(fs.existsSync(f)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[f],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(f)).filter(r=>r.variantCode==='TOTAL'||/BLOCK|STOP|SAFETY|GUARD|LIMIT|HTTP_(401|403|429)/.test(r.status)));}
+  continue;
+ }
  if(job.brand==='van-cleef-arpels'){
   const files=['crawler/onboarding/van-cleef-arpels/daily/summary.json','crawler/onboarding/van-cleef-arpels/daily-audit/summary.json'];
   const base=path.join(root,'crawler/runs',job.brand,job.country),last=fs.existsSync(base)?fs.readdirSync(base).sort().at(-1):null;

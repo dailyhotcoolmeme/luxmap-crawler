@@ -39,6 +39,11 @@ export function originalImageUrl(imageUrl,expectedCode,sourceProperties){
   // The official schema publishes a cropped Scene7 rendition. Keep the exact
   // SKU asset identity and remove only server-side crop/size transforms.
   url.search='';
+ }else if(url.hostname==='kr.louisvuitton.com'){
+  const image=decodeURIComponent(url.pathname).match(/^\/images\/is\/image\/lv\/1\/PP_VP_L\/[^/]+--([A-Z]{1,2}\d{4,6}|M\d[A-Z]\d{3})_[^/]+\.(?:jpg|jpeg|png)$/i);
+  if(!image||image[1].toUpperCase()!==expectedCode||url.search||url.hash)throw Error('IMAGE_SOURCE_PATH');
+  // Preserve the exact sitemap-published asset/view. Do not substitute a view,
+  // synthesize an asset name or request resized/cropped URL parameters.
  }else if(url.hostname==='assets.hermes.com'){
   return hermesOriginalImageUrl(imageUrl,expectedCode,[imageUrl],sourceProperties);
  }else if(url.hostname==='www.bulgari.com'){

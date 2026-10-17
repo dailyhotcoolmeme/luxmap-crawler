@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {louisVuittonNestedKrw as parse} from '../crawler/common/louis-vuitton-price-value.js';
+assert.equal(parse({price:{amount:'1,200,000',currencyCode:'KRW'}},'M12345'),1200000);
+assert.equal(parse({priceCurrency:'KRW',price:{value:1200000}},'M12345'),1200000);
+assert.equal(parse({priceCurrency:'KRW',price:{value:1200000,currency:'USD'}},'M12345'),null);
+assert.equal(parse({price:{value:1200000}},'M12345'),null);
+assert.equal(parse({sku:'M99999',price:{value:1200000,currency:'KRW'}},'M12345'),null);
+assert.equal(parse({price:{value:1200000,amount:1300000,currency:'KRW'}},'M12345'),null);
+assert.equal(parse({price:{value:-1,currency:'KRW'}},'M12345'),null);
+console.log('Nested exact-SKU KRW price validation passed');

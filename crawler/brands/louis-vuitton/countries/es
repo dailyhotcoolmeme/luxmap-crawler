@@ -1,0 +1,27 @@
+{
+  "brand": "louis-vuitton",
+  "country": "ES",
+  "currency": "EUR",
+  "locale": "esp-es",
+  "entryUrl": "https://es.louisvuitton.com/esp-es/productos/bolso-all-in-mm-monogram-empreinte-nvprod7890048v/M29090",
+  "productSegment": "productos",
+  "localePrefix": "/esp-es/",
+  "siteHosts": [
+    "es.louisvuitton.com"
+  ],
+  "allowedHosts": [
+    "es.louisvuitton.com",
+    "api.louisvuitton.com"
+  ],
+  "imageHosts": [
+    "es.louisvuitton.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {louisVuittonImageChoice as choose} from '../crawler/common/louis-vuitton-image-choice.js';
+import {catalogImageKey} from '../crawler/common/catalog-workflow.js';
+const a={url:'https://example.com/a'},b={url:'https://example.com/b'},source={code:'M12345',images:[a,b]};
+const first=catalogImageKey(source),second=catalogImageKey({images:[b]});
+assert.equal(choose(source,{imageKey:first}).images[0],b);
+assert.equal(catalogImageKey(choose(source,{imageKey:second,failedImageKeys:[first,second]})),second);
+assert.equal(choose({...source,images:[a]},{imageKey:first}).images[0],a);
+assert.equal(choose(source,undefined),source);
+console.log('Official alternative image selection passed');

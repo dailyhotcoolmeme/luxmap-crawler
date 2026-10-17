@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {nextLouisVuittonExpansion} from '../crawler/common/louis-vuitton-expansion-plan.js';
+const a='https://kr.louisvuitton.com/kor-kr/women/handbags/a',b='https://kr.louisvuitton.com/kor-kr/men/bags/b';
+const run=(id,time,url,status='NORMAL_RENDERED_DOCUMENT_SAVED')=>({id,time,rows:[{officialUrl:url,status}]});
+const runs=[run('a',1,a),run('b',2,b)];
+assert.equal(nextLouisVuittonExpansion(runs,url=>url===b).id,'a');
+assert.equal(nextLouisVuittonExpansion([...runs,run('denied',3,a,'ACCESS_BLOCKED')],url=>url===b),null);
+assert.equal(nextLouisVuittonExpansion(runs,()=>true),null);
+assert.equal(nextLouisVuittonExpansion([...runs,run('denied',3,b,'ACCESS_BLOCKED')],()=>false).id,'a');
+assert.equal(nextLouisVuittonExpansion([run('search',4,b+'?search=M12345')],()=>false),null);
+assert.equal(nextLouisVuittonExpansion([...runs,run('search',4,b+'?search=M12345')],()=>false).id,'b');
+console.log('LV expansion selection passed');

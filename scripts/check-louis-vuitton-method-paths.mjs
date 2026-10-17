@@ -1,0 +1,57 @@
+// Local decision check over guarded real execution evidence, not a crawler.
+// Vendor-specific endpoints are never invented or called by this check.
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import {nextLouisVuittonExpansion} from '../crawler/common/louis-vuitton-expansion-plan.js';
+import {nextLouisVuittonDetail,nextLouisVuittonHttpCategory,nextLouisVuittonRenderCategory} from '../crawler/common/louis-vuitton-http-plan.js';
+import {heldCatalogItem} from '../crawler/common/catalog-workflow.js';
+import {louisVuittonImageChoice} from '../crawler/common/louis-vuitton-image-choice.js';
+const root=path.resolve(import.meta.dirname,'..'),base=root+'/crawler/runs/louis-vuitton/kr',catalog=root+'/crawler/completeness/louis-vuitton',runtime=root+'/crawler/runtime/louis-vuitton-browser';
+const guard=file=>{if(spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status)throw Error('SUMMARY_GUARD');return JSON.parse(fs.readFileSync(file));};
+if(spawnSync(root+'/scripts/crawl-preflight.sh',[],{stdio:'ignore'}).status)throw Error('PREFLIGHT');
+const runs=[];
+for(const id of fs.readdirSync(base).sort()){
+ const file=base+'/'+id+'/summary.json';if(!fs.existsSync(file))continue;
+ runs.push({id,time:fs.statSync(file).mtimeMs,rows:guard(file)});
+}
+const publicRows=guard(catalog+'/public-reference/summary.json'),proofs=guard(catalog+'/published-alternates/summary.json');
+guard(catalog+'/expanded-catalog-source/summary.json');guard(catalog+'/field-source/summary.json');guard(catalog+'/ready-catalog-source/summary.json');
+const candidates=JSON.parse(fs.readFileSync(catalog+'/expanded-catalog-source/candidates.json'));
+const fields=JSON.parse(fs.readFileSync(catalog+'/field-source/fields.json'));
+const ready=JSON.parse(fs.readFileSync(catalog+'/ready-catalog-source/candidates.json'));
+const workflow=JSON.parse(fs.readFileSync(runtime+'/workflow.json'));
+const hash=s=>createHash('sha256').update(s).digest('hex');
+const marker=(prefix,url)=>fs.existsSync(runtime+'/'+prefix+hash(url)+'.json');
+const priced=new Set(fields.filter(r=>r.currency==='KRW'&&r.price>0).map(r=>r.code));
+const eligible=ready.map(r=>louisVuittonImageChoice(r,workflow.ingestHeld?.[r.code])).filter(r=>!heldCatalogItem(r,workflow.ingestHeld??{})).length;
+const expansion=nextLouisVuittonExpansion(runs,url=>marker('expanded-list-',url));
+const categories=proofs.filter(r=>['EXPLICIT_KR_BAG_CATEGORY','UNVISITED_PUBLISHED_BAG_LIST'].includes(r.status)).map(r=>({...r,status:'EXPLICIT_KR_BAG_CATEGORY'}));
+const http=nextLouisVuittonHttpCategory(categories,runs,0,url=>Boolean(workflow.attempts?.['http-category:'+url])||marker('http-category-',url));
+const render=nextLouisVuittonRenderCategory(proofs,runs,url=>marker('published-list-',url));
+const detail=nextLouisVuittonDetail(candidates,priced,runs,(kind,url)=>Boolean(workflow.attempts?.[(kind==='http'?'http-detail:':'render-detail:')+url])||marker(kind==='http'?'http-category-':'published-detail-',url));
+const data=proofs.filter(r=>/^EXPLICIT_(?:FETCH|JSON|SEARCH|DATA|CATALOG)/.test(r.status));
+const refused=new Set(runs.flatMap(r=>r.rows.filter(s=>/ACCESS_BLOCKED|ACCESS_DENIED|SECURITY_VERIFICATION/.test(s.status)).map(s=>s.officialUrl)));
+const dataReady=data.filter(r=>!refused.has(r.officialUrl));
+const value=prefix=>{const found=publicRows.filter(r=>r.status.startsWith(prefix));if(found.length!==1||!/^\d+$/.test(found[0].status.slice(prefix.length)))throw Error('PUBLIC_SCOPE');return Number(found[0].status.slice(prefix.length));};
+const pending=Number(Boolean(expansion))+Number(Boolean(http))+Number(Boolean(render))+Number(Boolean(detail))+dataReady.length+eligible;
+const rows=[],add=(variantCode,status)=>rows.push({brand:'louis-vuitton',country:'KR',parentModel:'성공 브랜드 수집 경로 대조',variantCode,price:null,currency:'KRW',status,officialUrl:'https://kr.louisvuitton.com/kor-kr/homepage'});
+const all=runs.flatMap(r=>r.rows),count=status=>all.filter(r=>r.status===status).length;
+add('ROLEX','HTTP_NORMAL_DOCUMENTS_'+count('NORMAL_HTTP_DOCUMENT_SAVED'));
+add('VAN_CLEEF_ARPELS','DETAIL_ACCESS_REFUSALS_'+all.filter(r=>/ACCESS_BLOCKED|ACCESS_DENIED/.test(r.status)&&r.officialUrl?.includes('/kor-kr/products/')).length);
+add('CHANEL','RENDERED_DOCUMENTS_'+count('NORMAL_RENDERED_DOCUMENT_SAVED'));
+add('CHANEL','EXECUTABLE_LIST_EXPANSIONS_'+Number(Boolean(expansion)));
+add('PRADA','PUBLISHED_MODEL_ROUTES_'+dataReady.filter(r=>/\.model\.json(?:\?|$)/.test(r.officialUrl)).length);
+add('PRADA','ACTUAL_MODEL_API_HTTP200_'+all.filter(r=>r.status==='CATALOG_HTTP_200'&&r.officialUrl?.includes('/catalog/product/')).length);
+add('PRADA','EXACT_MODEL_KRW_SKUS_'+new Set(all.filter(r=>r.status==='EXACT_MODEL_KRW_VERIFIED').map(r=>r.variantCode)).size);
+add('BOTTEGA_VENETA','PUBLISHED_API_DATA_ROUTES_'+dataReady.filter(r=>!/\.model\.json(?:\?|$)/.test(r.officialUrl)).length);
+add('BOTTEGA_VENETA','ACTUAL_SKU_API_HTTP200_'+all.filter(r=>r.status==='CATALOG_HTTP_200'&&r.officialUrl?.includes('/catalog/sku/')).length);
+add('BOTTEGA_VENETA','PUBLISHED_ID_DIRECT_LOOKUPS_'+count('PUBLISHED_FAMILY_DIRECT_LOOKUP'));
+add('TOTAL','PUBLIC_VERIFIED_'+value('PUBLIC_VERIFIED_'));add('TOTAL','UNRESOLVED_'+value('UNRESOLVED_'));
+add('TOTAL','EXECUTABLE_METHOD_ACTIONS_'+pending);add('TOTAL','ELIGIBLE_INGEST_ITEMS_'+eligible);
+const complete=value('UNRESOLVED_')===0&&publicRows.some(r=>r.status==='FULL_CATALOG_AUDIT_VERIFIED');
+add('TOTAL',complete?'FULL_COLLECTION_SUCCEEDED':pending?'EXECUTABLE_METHOD_PATH_REMAINS':'FULL_COLLECTION_INCOMPLETE');
+const out=catalog+'/method-path-verification';fs.mkdirSync(out,{recursive:true});
+fs.writeFileSync(out+'/summary.json',JSON.stringify(rows),{mode:0o600});guard(out+'/summary.json');
+console.log(JSON.stringify(rows));process.exitCode=complete?0:pending?3:2;

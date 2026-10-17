@@ -1,0 +1,27 @@
+{
+  "brand": "louis-vuitton",
+  "country": "FR",
+  "currency": "EUR",
+  "locale": "fra-fr",
+  "entryUrl": "https://fr.louisvuitton.com/fra-fr/produits/sac-all-in-mm-monogram-empreinte-nvprod7890048v/M29090",
+  "productSegment": "produits",
+  "localePrefix": "/fra-fr/",
+  "siteHosts": [
+    "fr.louisvuitton.com"
+  ],
+  "allowedHosts": [
+    "fr.louisvuitton.com",
+    "api.louisvuitton.com"
+  ],
+  "imageHosts": [
+    "fr.louisvuitton.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}

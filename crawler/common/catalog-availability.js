@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-const brands=new Set(['chanel','prada','bottega-veneta','van-cleef-arpels','rolex']);
+const brands=new Set(['chanel','prada','bottega-veneta','van-cleef-arpels','rolex','louis-vuitton']);
 export function availabilityEvidence(config,url,status,validated=false,now=new Date()){
  const home=config.entryUrl??config.listingUrls?.[0];
  const brand=config.brand??({'www.chanel.com':'chanel','www.prada.com':'prada'}[home?new URL(home).hostname:'']);

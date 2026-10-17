@@ -1,0 +1,26 @@
+{
+  "brand": "louis-vuitton",
+  "country": "HK",
+  "currency": "HKD",
+  "locale": "eng-hk",
+  "entryUrl": "https://hk.louisvuitton.com/eng-hk/products/all-in-mm-monogram-empreinte-nvprod7890048v/M29090",
+  "localePrefix": "/eng-hk/",
+  "siteHosts": [
+    "hk.louisvuitton.com"
+  ],
+  "allowedHosts": [
+    "hk.louisvuitton.com",
+    "api.louisvuitton.com"
+  ],
+  "imageHosts": [
+    "hk.louisvuitton.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}

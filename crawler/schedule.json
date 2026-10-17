@@ -19,7 +19,16 @@
   "discoverReferenceProducts": true,
   "maintenancePolicy": {
     "includeNewRegisteredBrands": true,
-    "requiredCountries": ["kr", "jp", "fr", "it", "es", "us", "sg", "hk"],
+    "requiredCountries": [
+      "kr",
+      "jp",
+      "fr",
+      "it",
+      "es",
+      "us",
+      "sg",
+      "hk"
+    ],
     "imageProcessingVersion": "original-cutout-v1",
     "priceHistory": "append-on-change",
     "missingProduct": "official-404-410-twice-after-24h",
@@ -31,7 +40,8 @@
     "chanel": "scripts/audit-chanel-catalog.mjs",
     "prada": "scripts/audit-prada-catalog.mjs",
     "bottega-veneta": "scripts/audit-bottega-catalog.mjs",
-    "rolex": "scripts/audit-rolex-catalog.mjs"
+    "rolex": "scripts/audit-rolex-catalog.mjs",
+    "louis-vuitton": "scripts/audit-louis-vuitton-catalog.mjs"
   },
   "jobs": [
     {
@@ -233,6 +243,46 @@
       "brand": "rolex",
       "country": "hk",
       "adapter": "scripts/rolex-market.mjs"
+    },
+    {
+      "brand": "louis-vuitton",
+      "country": "kr",
+      "adapter": "scripts/louis-vuitton-weekly.mjs"
+    },
+    {
+      "brand": "louis-vuitton",
+      "country": "jp",
+      "adapter": "scripts/louis-vuitton-weekly.mjs"
+    },
+    {
+      "brand": "louis-vuitton",
+      "country": "fr",
+      "adapter": "scripts/louis-vuitton-weekly.mjs"
+    },
+    {
+      "brand": "louis-vuitton",
+      "country": "it",
+      "adapter": "scripts/louis-vuitton-weekly.mjs"
+    },
+    {
+      "brand": "louis-vuitton",
+      "country": "es",
+      "adapter": "scripts/louis-vuitton-weekly.mjs"
+    },
+    {
+      "brand": "louis-vuitton",
+      "country": "us",
+      "adapter": "scripts/louis-vuitton-weekly.mjs"
+    },
+    {
+      "brand": "louis-vuitton",
+      "country": "sg",
+      "adapter": "scripts/louis-vuitton-weekly.mjs"
+    },
+    {
+      "brand": "louis-vuitton",
+      "country": "hk",
+      "adapter": "scripts/louis-vuitton-weekly.mjs"
     }
   ]
 }

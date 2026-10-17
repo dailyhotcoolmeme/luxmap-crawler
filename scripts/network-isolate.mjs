@@ -1,12 +1,23 @@
 import http from 'node:http';
 import net from 'node:net';
-import { spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { spawn, execFileSync } from 'node:child_process';
+import { writeFileSync,readFileSync } from 'node:fs';
+import {validLouisVuittonRelayHosts} from '../crawler/common/louis-vuitton-relay-scope.js';
 
 // Kernel sandbox permits only this proxy and explicitly declared local CDP port.
 const [hostsJson, localPort, command, ...args] = process.argv.slice(2);
 const hosts = new Set(JSON.parse(hostsJson));
 if (!hosts.size || !command || process.platform !== 'darwin') throw new Error('Network isolation unavailable');
+// Restore only the local relay of an already sandboxed, owned browser.
+// Its existing profile, CDP endpoint, proxy port and destination list must match.
+const attachedPid=Number(process.env.LUXURY_RESTORE_BROWSER_PID||0);
+const restoredPort=Number(process.env.LUXURY_RESTORE_PROXY_PORT||0);
+if(attachedPid){
+ const actual=execFileSync('/bin/ps',['-p',String(attachedPid),'-o','command='],{encoding:'utf8'}).trim();
+ let louisProof=[];if(hosts.size===4&&hosts.has('kr.louisvuitton.com'))try{louisProof=JSON.parse(readFileSync(new URL('../crawler/completeness/louis-vuitton/published-alternates/summary.json',import.meta.url)));}catch{}
+ const louis=/--user-data-dir=\/Users\/ourmine\/dev\/luxury\/crawler\/runs\/louis-vuitton\/kr\/\d{8}T\d{6}Z-\d+\/browser-profile /.test(actual)&&validLouisVuittonRelayHosts([...hosts],louisProof);
+ if(!Number.isSafeInteger(attachedPid)||attachedPid<1||!Number.isInteger(restoredPort)||restoredPort<1024||restoredPort>65535||command!=='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'||!actual.startsWith(command+' ')||!actual.includes(`--remote-debugging-port=${localPort} `)||!actual.includes(`--proxy-server=http://127.0.0.1:${restoredPort} `)||!louis)throw Error('EXISTING_BROWSER_RESTORE_MISMATCH');
+}else if(restoredPort)throw Error('EXISTING_BROWSER_REQUIRED');
 let child;
 let blocked = false;
 let logLimited = false;
@@ -28,6 +39,7 @@ function stop(host = null) {
     } catch {}
   }
   if (child) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
+  if(attachedPid){proxy.close();process.exit(78);}
 }
 const proxy = http.createServer((req, res) => {
   let host;
@@ -74,13 +86,14 @@ proxy.on('connect', (req, socket, head) => {
   socket.on('error', () => upstream.destroy());
   socket.on('close', () => upstream.destroy());
 });
-await new Promise(resolve => proxy.listen(0, '127.0.0.1', resolve));
+await new Promise((resolve,reject) => {proxy.once('error',reject);proxy.listen(attachedPid?restoredPort:0, '127.0.0.1', resolve);});
 const port = proxy.address().port;
 const proxyUrl = `http://127.0.0.1:${port}`;
 const profile = `(version 1)(allow default)(deny network-outbound)
  (allow network-outbound (remote unix-socket))
  (allow network-outbound (remote ip "localhost:${port}"))
  ${localPort === '0' ? '' : `(allow network-outbound (remote ip "localhost:${Number(localPort)}"))`}`;
+if(!attachedPid){
 child = spawn('/usr/bin/sandbox-exec', ['-p', profile, command, ...args.map(arg => arg.replace('__NETWORK_PROXY__', proxyUrl))], {
   detached: true, stdio: ['inherit', 'pipe', 'pipe'],
   env: { ...process.env, HTTPS_PROXY: proxyUrl, HTTP_PROXY: proxyUrl,
@@ -106,4 +119,7 @@ child.on('exit', code => {
   else if (blocked) console.error('BLOCKED: unauthorized network destination; process group terminated.');
   process.exit(blocked ? 78 : code ?? 1);
 });
+}else{
+ setInterval(()=>{try{process.kill(attachedPid,0);}catch{proxy.close();process.exit(0);}},5000);
+}
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { stop(); proxy.close(); process.exit(1); });

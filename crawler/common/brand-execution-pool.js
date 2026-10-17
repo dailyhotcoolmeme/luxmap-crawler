@@ -27,7 +27,7 @@ export async function executeBrandPool(plan, run, {concurrency=2, signal}={}) {
         }
         // Match executePlan: audit 2 keeps uncertainty failed but permits
         // updates of already registered Korean references and their countries.
-        if(job.country==='kr'&&result.status!==0&&!(job.phase==='audit'&&result.status===2))break;
+        if(job.country==='kr'&&result.status!==0&&!(result.status===2&&(job.phase==='audit'||job.brand==='louis-vuitton')))break;
       }
     }
   }

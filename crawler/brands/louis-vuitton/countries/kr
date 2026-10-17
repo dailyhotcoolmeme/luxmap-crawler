@@ -9,7 +9,8 @@
     "kr.louisvuitton.com"
   ],
   "allowedHosts": [
-    "kr.louisvuitton.com"
+    "kr.louisvuitton.com",
+    "api.louisvuitton.com"
   ],
   "imageHosts": [
     "kr.louisvuitton.com"
@@ -21,5 +22,6 @@
   "maxResponseBytes": 8388608,
   "maxCandidates": 10000,
   "navigationTimeoutMs": 30000,
-  "sourceValidation": "unverified"
+  "sourceValidation": "unverified",
+  "productPathPattern": "^/kor-kr/products/[^/]+/[A-Z0-9]{5,16}/?$"
 }

@@ -7,7 +7,7 @@ import {louisVuittonNestedKrw} from '../crawler/common/louis-vuitton-price-value
 const root=path.resolve(import.meta.dirname,'..'),out=root+'/crawler/completeness/louis-vuitton/field-source';
 const runBase=root+'/crawler/runs/louis-vuitton/kr';
 const runIds=new Set();
-for(const id of fs.readdirSync(runBase)){const summary=runBase+'/'+id+'/summary.json';if(!fs.existsSync(summary)||!fs.existsSync(runBase+'/'+id+'/artifacts/native-metadata/summary.json')||spawnSync(root+'/scripts/crawl-output-guard.sh',[summary],{stdio:'ignore'}).status)continue;const rows=JSON.parse(fs.readFileSync(summary));if(rows.some(r=>['NORMAL_RENDERED_DOCUMENT_SAVED','NORMAL_HTTP_DOCUMENT_SAVED'].includes(r.status)||/^CATEGORY_LINKS_\d+$|^LISTING_LINKS_\d+$/.test(r.status))&&!rows.some(r=>/UNAUTHORIZED|POLICY|LIMIT|GUARD/.test(r.status)))runIds.add(id);}
+for(const id of fs.readdirSync(runBase)){const summary=runBase+'/'+id+'/summary.json';if(!fs.existsSync(summary)||!fs.existsSync(runBase+'/'+id+'/artifacts/native-metadata/summary.json')||spawnSync(root+'/scripts/crawl-output-guard.sh',[summary],{stdio:'ignore'}).status)continue;const rows=JSON.parse(fs.readFileSync(summary));if((rows.some(r=>r.parentModel==='LV 공식 SKU 상품 모델 연결'&&r.status==='CATALOG_HTTP_200')||rows.some(r=>['NORMAL_RENDERED_DOCUMENT_SAVED','NORMAL_HTTP_DOCUMENT_SAVED','CATALOG_MODEL_PROJECTION_SAVED'].includes(r.status)||/^CATEGORY_LINKS_\d+$|^LISTING_LINKS_\d+$/.test(r.status)))&&!rows.some(r=>/UNAUTHORIZED|POLICY|LIMIT|GUARD/.test(r.status)))runIds.add(id);}
 const dirs=[...runIds].map(id=>runBase+'/'+id+'/artifacts/native-metadata');
 const usBase=root+'/crawler/runs/louis-vuitton/us';for(const id of fs.existsSync(usBase)?fs.readdirSync(usBase):[]){const dir=usBase+'/'+id;if(!fs.existsSync(dir+'/artifacts/native-metadata/summary.json')||spawnSync(root+'/scripts/crawl-output-guard.sh',[dir+'/summary.json'],{stdio:'ignore'}).status)continue;const rows=JSON.parse(fs.readFileSync(dir+'/summary.json'));if(rows.some(r=>['EXACT_SKU_URL','OFFICIAL_ATTRIBUTE_SOURCE_SAVED','NORMAL_COUNTRY_DOCUMENT_SAVED'].includes(r.status)))dirs.push(dir+'/artifacts/native-metadata');}
 const objects=[];for(const dir of dirs){if(spawnSync(root+'/scripts/crawl-output-guard.sh',[dir+'/summary.json'],{stdio:'ignore'}).status)throw Error('SOURCE_GUARD');objects.push(...JSON.parse(fs.readFileSync(dir+'/objects.json')));}
@@ -15,7 +15,11 @@ const records=[],counts={bound:0,name:0,url:0,offers:0,price:0,color:0,size:0,ma
 const scalar=v=>typeof v==='string'&&v.trim()&&!/[<>]/.test(v)?v.trim():null;
 const named=v=>scalar(v)||(v&&typeof v==='object'?scalar(v.name)??scalar(v.value):null);
 function references(o,depth=0){if(!o||typeof o!=='object'||depth>2)return [];return Object.entries(o).flatMap(([k,v])=>/sku|mpn|product.*id|identifier|^id$|code/i.test(k)?isLouisVuittonReference(v)?[v]:v&&typeof v==='object'?references(v,depth+1):[]:[]);}
-for(const o of objects){const refs=[...new Set(references(o))];if(refs.length!==1)continue;counts.bound++;const code=refs[0],record={code};
+for(const o of objects){
+ // A product family may repeat its anchor's identifier while describing all
+ // colours/materials. Only the explicit child model owns SKU attributes.
+ if(Array.isArray(o.model))continue;
+ const refs=[...new Set(references(o))];if(refs.length!==1)continue;counts.bound++;const code=refs[0],record={code};
  record.sourceCheckedAt=o.__sourceTime;record.sourceCountry=o.__sourceCountry??'KR';
  for(const key of ['name','color','size','material']){const value=named(o[key]??(key==='material'?o.mainMaterial:undefined));if(value){record[key]=value;if(key==='material')record.materialEvidence='direct';counts[key]++;}}
  for(const holder of [o.attributes,o.sku].flat().filter(v=>v&&typeof v==='object'))for(const key of ['color','material','size']){const v=named(holder[key]);if(v&&!record[key]){record[key]=v;counts[key]++;}}

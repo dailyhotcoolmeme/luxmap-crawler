@@ -1,0 +1,26 @@
+{
+  "brand": "louis-vuitton",
+  "country": "JP",
+  "currency": "JPY",
+  "locale": "jpn-jp",
+  "entryUrl": "https://jp.louisvuitton.com/jpn-jp/homepage",
+  "localePrefix": "/jpn-jp/",
+  "siteHosts": [
+    "jp.louisvuitton.com"
+  ],
+  "allowedHosts": [
+    "jp.louisvuitton.com",
+    "api.louisvuitton.com"
+  ],
+  "imageHosts": [
+    "jp.louisvuitton.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}

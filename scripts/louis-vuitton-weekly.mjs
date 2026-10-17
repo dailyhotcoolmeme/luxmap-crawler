@@ -1,0 +1,47 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+const root=path.resolve(import.meta.dirname,'..'),country=process.argv[2],args=process.argv.slice(3),catalog=root+'/crawler/completeness/louis-vuitton';
+if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||!process.env.LUXURY_COORDINATOR_OWNER||!['kr','jp','fr','it','es','us','sg','hk'].includes(country)||args.some(a=>!['--discover-reference','--refresh','--limit','1'].includes(a)))throw Error('WEEKLY_LV_SCOPE');
+const run=(file,a=[])=>spawnSync(file,a,{cwd:root,env:process.env,stdio:'ignore',timeout:1800000}).status??1;
+const node=(file,a=[])=>run(process.execPath,[root+'/scripts/'+file,...a]);
+const guard=f=>{if(run(root+'/scripts/crawl-output-guard.sh',[f]))throw Error('WEEKLY_SUMMARY_GUARD');return JSON.parse(fs.readFileSync(f));};
+const row=status=>({brand:'louis-vuitton',country:'KR',parentModel:'주간 한국 발견 및 등록 상품 갱신',variantCode:'TOTAL',price:null,currency:'KRW',status,officialUrl:'https://kr.louisvuitton.com/kor-kr/homepage'});
+const seed=()=>{if(node('seed-louis-vuitton-registered.mjs'))throw Error('REGISTERED_SEED_FAILED');};
+if(country!=='kr'){process.exit(node('louis-vuitton-market.mjs',[country,'--api-sku',...args]));}
+let code=2;const rows=[];
+try{
+ seed();
+ if(args.includes('--discover-reference')){
+  const base=root+'/crawler/runs/louis-vuitton/kr';fs.mkdirSync(base,{recursive:true});const before=new Set(fs.readdirSync(base));
+  const status=run(root+'/scripts/run-brand-country-pipeline.sh',['louis-vuitton','kr','--crawl-only','--probe-sitemap-source']);
+  const ids=fs.readdirSync(base).filter(n=>!before.has(n));if(ids.length!==1)throw Error('DISCOVERY_RUN_REQUIRED');const proof=guard(base+'/'+ids[0]+'/summary.json');
+  if(status===78)throw Error('DISCOVERY_SAFETY_STOP');
+  if(status!==0||!proof.some(r=>r.status==='DISCOVERY_ONLY_NOT_INGESTED')){rows.push(row('DISCOVERY_INCOMPLETE'));}
+  else {
+   if(node('prepare-louis-vuitton-sources.mjs'))throw Error('OFFLINE_PREPARATION_FAILED');
+   const dir=catalog+'/catalog-source';fs.mkdirSync(dir,{recursive:true});fs.copyFileSync(catalog+'/expanded-catalog-source/candidates.json',dir+'/candidates.json');fs.copyFileSync(catalog+'/expanded-catalog-source/summary.json',dir+'/summary.json');
+   const p=catalog+'/public-reference';fs.mkdirSync(p,{recursive:true});fs.writeFileSync(p+'/summary.json',JSON.stringify([row('DISCOVERY_AUDIT_REQUIRED')]),{mode:0o600});
+   const runtime=root+'/crawler/runtime/louis-vuitton-browser';fs.mkdirSync(runtime,{recursive:true});fs.writeFileSync(runtime+'/workflow.json',JSON.stringify({version:1,ingestHeld:{}}),{mode:0o600});
+   // Original-image ingestion stays in the existing KR pipeline. The model
+   // collector excludes verified registered references, not new discoveries.
+   for(let batch=0;batch<400;batch++){
+    const old=new Set(fs.readdirSync(base));const s=run(root+'/scripts/run-brand-country-pipeline.sh',['louis-vuitton','kr','--crawl-only','--collect-catalog-model']);const made=fs.readdirSync(base).filter(n=>!old.has(n));if(made.length!==1)throw Error('MODEL_RUN_REQUIRED');const p=guard(base+'/'+made[0]+'/summary.json');if(s===78)throw Error('MODEL_SAFETY_STOP');
+    if(node('prepare-louis-vuitton-sources.mjs'))throw Error('OFFLINE_PREPARATION_FAILED');
+    const ready=JSON.parse(fs.readFileSync(catalog+'/ready-catalog-source/candidates.json'));guard(catalog+'/ready-catalog-source/summary.json');
+    for(let offset=0;offset<ready.length;offset+=offset===0?1:25){const ingested=run(root+'/scripts/run-brand-country-pipeline.sh',['louis-vuitton','kr','--batch-offset',String(offset)]);if(ingested===78)throw Error('IMAGE_INGEST_SAFETY_STOP');if(![0,2].includes(ingested))throw Error('IMAGE_INGEST_FAILED');}
+    if(p.some(r=>r.status==='ACCESS_BLOCKED')||!p.some(r=>r.status==='EXACT_MODEL_KRW_VERIFIED'))break;
+    if(batch===399)throw Error('DISCOVERY_BATCH_LIMIT');
+   }
+   fs.copyFileSync(catalog+'/expanded-catalog-source/candidates.json',dir+'/candidates.json');fs.copyFileSync(catalog+'/expanded-catalog-source/summary.json',dir+'/summary.json');
+   const repair=node('network-isolate.mjs',['["nxgnbrdxxmlhtcnymqsl.supabase.co"]','0',process.execPath,root+'/scripts/repair-louis-vuitton-metadata.mjs']);if(repair!==0)throw Error('METADATA_REPAIR_FAILED');
+   rows.push(row('NEW_DISCOVERY_PIPELINE_EXECUTED'));
+  }
+ }else{
+  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRICE_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRICE_REFRESH_FAILED');rows.push(row('REGISTERED_KR_PRICE_REFRESHED'));
+ }
+ rows.push(row('DISCOVERY_AUDIT_REQUIRED'));
+}catch(e){rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'WEEKLY_KR_FAILED'));code=/SAFETY|GUARD|LIMIT/.test(e.message)?78:1;}
+finally{const out=root+'/crawler/louis-vuitton-progress/kr/weekly';fs.mkdirSync(out,{recursive:true});fs.writeFileSync(out+'/summary.json',JSON.stringify(rows),{mode:0o600});guard(out+'/summary.json');}
+// Registered prices may continue, but independent discovery remains partial.
+process.exitCode=code;

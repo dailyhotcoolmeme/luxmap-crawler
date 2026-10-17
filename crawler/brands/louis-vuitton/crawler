@@ -1,9 +1,29 @@
 #!/usr/bin/env node
-// Explicit verified-source ingestion only. Full discovery/maintenance is not
-// registered until its independent catalogue and country audits pass.
-if(process.argv[4]==='--probe-sitemap-source'){
- const {discoverLouisVuittonSitemap}=await import('../../common/louis-vuitton-sitemap.js');await discoverLouisVuittonSitemap();process.exit(process.exitCode??0);
-}
-if(process.argv[4]!=='--batch-offset')throw Error('VERIFIED_SOURCE_MODE_REQUIRED');
-const {collectLouisVuittonReference}=await import('../../common/louis-vuitton-reference.js');
-await collectLouisVuittonReference();
+import {runOfficialBrand} from '../../common/dior-official-core.js';
+if(['--foreign-api-prices','--foreign-sku-prices'].includes(process.argv[4])){
+ const {collectLouisVuittonForeignModels}=await import('../../common/louis-vuitton-foreign-model.js');await collectLouisVuittonForeignModels();
+}else if(['--foreign-prices','--foreign-prices-browser'].includes(process.argv[4])){
+ const {collectLouisVuittonForeign}=await import('../../common/louis-vuitton-foreign.js');await collectLouisVuittonForeign();
+}else if(process.argv[4]==='--collect-catalog-model'){
+ const {collectLouisVuittonCatalogModel}=await import('../../common/louis-vuitton-catalog-model.js');await collectLouisVuittonCatalogModel();
+}else if(process.argv[4]==='--search-ui-price-sample'){
+ const {searchLouisVuittonPriceSample}=await import('../../common/louis-vuitton-published-browser.js');await searchLouisVuittonPriceSample();
+}else if(process.argv[4]==='--capture-current-public-data'){
+ const {captureLouisVuittonCurrentData}=await import('../../common/louis-vuitton-published-browser.js');await captureLouisVuittonCurrentData();
+}else if(process.argv[4]==='--expand-rendered-list'){
+ const {expandLouisVuittonList}=await import('../../common/louis-vuitton-list-expansion.js');await expandLouisVuittonList();
+}else if(['--render-published-source','--render-published-list'].includes(process.argv[4])){
+ const {renderLouisVuittonPublishedSource}=await import('../../common/louis-vuitton-published-browser.js');await renderLouisVuittonPublishedSource();
+}else if(process.argv[4]==='--render-country-attributes'){
+ const {renderLouisVuittonUS}=await import('../../common/louis-vuitton-us-browser.js');await renderLouisVuittonUS();
+}else if(process.argv[4]==='--collect-published-attributes'){
+ const {collectLouisVuittonPublishedAttributes}=await import('../../common/louis-vuitton-published-attributes.js');await collectLouisVuittonPublishedAttributes();
+}else if(process.argv[4]==='--probe-product-source'){
+ const {probeOfficialProduct}=await import('../../common/official-product-probe.js');await probeOfficialProduct();
+}else if(process.argv[4]==='--render-reference-details'){
+ const {renderLouisVuittonDetails}=await import('../../common/louis-vuitton-browser.js');await renderLouisVuittonDetails();
+}else if(process.argv[4]==='--batch-offset'){
+ const {collectLouisVuittonReference}=await import('../../common/louis-vuitton-reference.js');await collectLouisVuittonReference();
+}else if(process.argv[4]==='--probe-sitemap-source'){
+ const {discoverLouisVuittonSitemap}=await import('../../common/louis-vuitton-sitemap.js');await discoverLouisVuittonSitemap();
+}else await runOfficialBrand('louis-vuitton');

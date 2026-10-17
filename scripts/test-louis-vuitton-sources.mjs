@@ -12,9 +12,10 @@ try{
  const row=(status,officialUrl=entry)=>({brand:'louis-vuitton',country:'KR',parentModel:'fixture',variantCode:'SOURCE',price:null,currency:'KRW',status,officialUrl});
  const normal='crawler/runs/louis-vuitton/kr/20261016T000000Z-1',sitemap='crawler/runs/louis-vuitton/kr/20261016T000001Z-2',denied='crawler/runs/louis-vuitton/kr/20261016T000002Z-3';
  put(normal+'/summary.json',[row('NORMAL_RENDERED_DOCUMENT_SAVED')]);
- put(normal+'/raw/1.source','<html><main class="lv-product-list"><div class="lv-product-card"><a href="'+url('M12345')+'">Fixture</a><span>₩ 3,500,000</span></div></main><script type="application/json">'+JSON.stringify({sku:'M12345',price:3500000,currency:'KRW',color:'블랙',material:'소가죽',dimensions:{unitText:'cm',values:{width:20,height:15,depth:8}}})+'</script></html>');
+ const sku={sku:'M12345',price:3500000,currency:'KRW',color:'블랙',material:'소가죽',dimensions:{unitText:'cm',values:{width:20,height:15,depth:8}}};
+ put(normal+'/raw/1.source','<html><main class="lv-product-list"><div class="lv-product-card"><a href="'+url('M12345')+'">Fixture</a><span>₩ 3,500,000</span></div></main><script type="application/json">'+JSON.stringify({identifier:'M12345',material:'모델 공통 소재',color:'다른 공통 색상',dimensions:{unitText:'cm',values:{width:99,height:99,depth:99}},model:[sku]})+'</script></html>');
  put(sitemap+'/summary.json',[row('HTTP_200','https://kr.louisvuitton.com/content/louisvuitton/sitemap/kor_KR/sitemap-image.xml')]);
- put(sitemap+'/raw/1.source','<urlset xmlns:image="fixture">'+['M12345','M12346'].map(code=>'<url><loc>'+url(code)+'</loc><image:image><image:loc>https://kr.louisvuitton.com/images/'+code+'.jpg</image:loc><image:title>Fixture 핸드백 전체 보기</image:title></image:image></url>').join('')+'</urlset>');
+ put(sitemap+'/raw/1.source','<urlset xmlns:image="fixture">'+['M12345','M12346'].map(code=>'<url><loc>'+url(code)+'</loc><image:image><image:loc>https://kr.louisvuitton.com/images/'+code+'.jpg</image:loc><image:title>Fixture '+(code==='M12345'?'핸드백':'가방')+' 전체 보기</image:title></image:image></url>').join('')+'</urlset>');
  put(denied+'/summary.json',[row('NORMAL_RENDERED_DOCUMENT_SAVED'),row('ACCESS_BLOCKED')]);
  put(denied+'/raw/1.source','<html>Access Denied</html>');
  const run=()=>{const result=spawnSync('/usr/bin/sandbox-exec',['-p','(version 1)(allow default)(deny network*)',process.execPath,root+'/scripts/prepare-louis-vuitton-sources.mjs'],{encoding:'utf8',timeout:20000});assert.equal(result.status,0,result.stderr);};
@@ -22,7 +23,15 @@ try{
  const base=root+'/crawler/completeness/louis-vuitton/',ready=JSON.parse(fs.readFileSync(base+'ready-catalog-source/candidates.json'));
  assert.equal(ready.length,1);assert.equal(ready[0].code,'M12345');assert.equal(ready[0].price,3500000);assert.equal(ready[0].currency,'KRW');assert.equal(ready[0].color,'블랙');assert.equal(ready[0].material,'소가죽');assert.equal(ready[0].widthMm,200);assert.equal(ready[0].heightMm,150);assert.equal(ready[0].depthMm,80);
  assert.equal(JSON.parse(fs.readFileSync(base+'expanded-catalog-source/candidates.json')).length,2);
- assert(!fs.existsSync(root+'/'+denied+'/artifacts/native-metadata'));
+ assert.deepEqual(JSON.parse(fs.readFileSync(root+'/'+denied+'/artifacts/native-metadata/objects.json')),[],'even mislabeled normal documents must not admit a challenge');
  const cache=root+'/'+normal+'/artifacts/native-metadata/objects.json',mtime=fs.statSync(cache).mtimeMs;run();assert.equal(fs.statSync(cache).mtimeMs,mtime,'unchanged sources must not be restored again');
+ const partial='crawler/runs/louis-vuitton/kr/20261016T000003Z-4';
+ put(partial+'/summary.json',[row('NORMAL_RENDERED_DOCUMENT_SAVED'),row('ACCESS_BLOCKED'),row('BROWSER_SESSION_PRESERVED')]);
+ put(partial+'/raw/1.source','<html><script type="application/json">'+JSON.stringify({sku:'M12346',price:4200000,currency:'KRW',color:'브라운'})+'</script></html>');
+ put(partial+'/raw/2.source','<html><script type="application/json">'+JSON.stringify({sku:'M12346',price:1,currency:'KRW'})+'</script></html>');
+ run();
+ const partialReady=JSON.parse(fs.readFileSync(base+'ready-catalog-source/candidates.json'));
+ assert.equal(partialReady.length,2);assert.equal(partialReady.find(r=>r.code==='M12346').price,4200000,'a later refused request must not discard an independently verified earlier document');
+ assert.equal(JSON.parse(fs.readFileSync(root+'/'+partial+'/artifacts/native-metadata/objects.json')).length,1,'unconfirmed raw files after the failure are never parsed');
  console.log('PASS: fresh official-source preparation preserves exact price/attributes, unknown price, refusals and restore cache; network denied');
 }finally{fs.rmSync(root,{recursive:true,force:true});}

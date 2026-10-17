@@ -60,6 +60,7 @@ case "$BRAND/$COUNTRY" in
   van-cleef-arpels/jp|van-cleef-arpels/fr|van-cleef-arpels/it|van-cleef-arpels/es|van-cleef-arpels/us|van-cleef-arpels/sg|van-cleef-arpels/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
   rolex/jp|rolex/fr|rolex/it|rolex/es|rolex/us|rolex/sg|rolex/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
   hermes/jp|hermes/fr|hermes/it|hermes/es|hermes/us|hermes/sg|hermes/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
+  louis-vuitton/jp|louis-vuitton/fr|louis-vuitton/it|louis-vuitton/es|louis-vuitton/us|louis-vuitton/sg|louis-vuitton/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
   bottega-veneta/jp|bottega-veneta/fr|bottega-veneta/it|bottega-veneta/es|bottega-veneta/us|bottega-veneta/sg|bottega-veneta/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-bottega-country.mjs" ;;
   prada/jp|prada/fr|prada/it|prada/es|prada/us|prada/sg|prada/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;
   chanel/jp|chanel/fr|chanel/it|chanel/es|chanel/us|chanel/sg|chanel/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;
@@ -71,6 +72,9 @@ if [ "$BRAND/$COUNTRY" = prada/kr ]; then
  done
 fi
 
+if [ "$BRAND/$COUNTRY" = louis-vuitton/kr ] && [ "${1:-}" = --foreign-sku-prices ]; then
+ INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs"
+fi
 set +x
 for option in "$@"; do
  if [ "$option" = --image-refresh-file ]; then
@@ -102,7 +106,7 @@ else
  if LUXURY_PIPELINE_GUARD=enabled "$PROJECT_DIR/scripts/run-crawler.sh" "$BRAND" "$COUNTRY" "$@"; then :; else
   REFERENCE_EXIT=$?
   case "$BRAND/$COUNTRY/$REFERENCE_EXIT" in
-   van-cleef-arpels/*/2|rolex/*/2|bulgari/kr/2|hermes/*/2|louis-vuitton/kr/2) ;;
+   van-cleef-arpels/*/2|rolex/*/2|bulgari/kr/2|hermes/*/2|louis-vuitton/*/2) ;;
    *)
     # Only already recorded, exact official KR evidence is eligible. A safety
     # stop never changes visibility, and ordinary failures remain failed.
@@ -186,9 +190,8 @@ find "$RUN_DIR" -maxdepth 1 -type f -name '*.log' -exec chmod 000 {} + 2>/dev/nu
 node "$PROJECT_DIR/scripts/cleanup-image-originals.mjs" "$RECORD_FILE"
 storage_stage ORIGINALS_CLEANED
 chmod 000 "$RECORD_FILE" 2>/dev/null || true
-if [ "$BRAND/$COUNTRY" = louis-vuitton/kr ]; then
- # Missing/stale whole-catalogue evidence must not turn a stored batch into
- # full success. This local gate has no network or credential access.
+if [ "$BRAND/$COUNTRY" = louis-vuitton/kr ] && [ "${1:-}" != --foreign-sku-prices ]; then
+ # Stored batches are not whole-catalogue success; check independent scope.
  env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
    /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network*)' \
    node "$PROJECT_DIR/scripts/check-louis-vuitton-completion.mjs" || exit "$?"

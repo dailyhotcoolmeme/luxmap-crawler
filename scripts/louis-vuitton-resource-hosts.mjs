@@ -1,0 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+const root=path.resolve(import.meta.dirname,'..'),source=root+'/crawler/runs/louis-vuitton/kr/20261016T033819Z-12325';
+if(spawnSync(root+'/scripts/crawl-output-guard.sh',[source+'/summary.json'],{stdio:'ignore'}).status)throw Error('SOURCE_GUARD');
+const hosts=new Map();for(const name of fs.readdirSync(source+'/raw').filter(n=>/^\d+\.source$/.test(n))){const file=source+'/raw/'+name,mode=fs.statSync(file).mode&0o777;let text;try{fs.chmodSync(file,0o600);text=fs.readFileSync(file,'utf8');}finally{fs.chmodSync(file,mode);}for(const match of text.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)){try{const u=new URL(match[1].replaceAll('&amp;','&'),'https://kr.louisvuitton.com');if(u.protocol==='https:'&&!u.username&&!u.password)hosts.set(u.hostname,(hosts.get(u.hostname)??0)+1);}catch{}}}
+const out=root+'/crawler/completeness/louis-vuitton/resource-hosts';fs.mkdirSync(out,{recursive:true});fs.writeFileSync(out+'/summary.json',JSON.stringify([...hosts].slice(0,25).map(([host,n])=>({brand:'louis-vuitton',country:'KR',parentModel:'정상 페이지가 선언한 스크립트 출처',variantCode:'SOURCE',price:null,currency:'KRW',status:'DECLARED_SCRIPT_HOST_'+n,officialUrl:'https://'+host+'/'}))),{mode:0o600});if(spawnSync(root+'/scripts/crawl-output-guard.sh',[out+'/summary.json'],{stdio:'ignore'}).status)throw Error('OUTPUT_GUARD');

@@ -13,7 +13,11 @@ for(const country of ['kr','us']){
  for(const id of fs.readdirSync(base).sort()){
   const dir=base+'/'+id,file=dir+'/summary.json';if(!fs.existsSync(file))continue;
   const rows=guard(file),initial=country==='kr'&&rows.some(r=>/^CATEGORY_LINKS_\d+$|^LISTING_LINKS_\d+$/.test(r.status));
-  if(!(initial||rows.some(r=>['NORMAL_HTTP_DOCUMENT_SAVED','NORMAL_RENDERED_DOCUMENT_SAVED','NORMAL_COUNTRY_DOCUMENT_SAVED','OFFICIAL_ATTRIBUTE_SOURCE_SAVED','EXACT_SKU_URL'].includes(r.status)))||rows.some(r=>/UNAUTHORIZED|POLICY|LIMIT|GUARD|SANDBOX|ACCESS_BLOCKED|ACCESS_DENIED|SECURITY_VERIFICATION/.test(r.status)))continue;
+  const refused=rows.some(r=>/ACCESS_BLOCKED|ACCESS_DENIED|SECURITY_VERIFICATION/.test(r.status));
+  // Like the established partial-batch pipeline, retain verified documents
+  // saved before a later request failed. Recovery independently checks their
+  // content and limits a partial browser run to its confirmed file prefix.
+  if(!(initial||rows.some(r=>r.parentModel==='LV 공식 SKU 상품 모델 연결'&&r.status==='CATALOG_HTTP_200')||rows.some(r=>['NORMAL_HTTP_DOCUMENT_SAVED','CATALOG_MODEL_PROJECTION_SAVED','NORMAL_RENDERED_DOCUMENT_SAVED','NORMAL_COUNTRY_DOCUMENT_SAVED','OFFICIAL_ATTRIBUTE_SOURCE_SAVED','EXACT_SKU_URL'].includes(r.status)))||rows.some(r=>/UNAUTHORIZED|POLICY|LIMIT|GUARD|SANDBOX/.test(r.status))||refused&&!rows.some(r=>r.status==='NORMAL_RENDERED_DOCUMENT_SAVED')&&!rows.some(r=>r.status==='CATALOG_MODEL_PROJECTION_SAVED'))continue;
   const input=sourceFingerprint(dir),cache=dir+'/artifacts/native-metadata/inputs.json';let old;
   try{old=JSON.parse(fs.readFileSync(cache));}catch(e){if(e.code!=='ENOENT')throw e;}
   let fresh=false;if(old?.input===input){guard(dir+'/artifacts/native-metadata/summary.json');fresh=old.output===materializedFingerprint(dir);}

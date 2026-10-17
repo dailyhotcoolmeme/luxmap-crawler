@@ -2,6 +2,46 @@ import {spawnSync} from 'node:child_process';
 import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'..'),[brand,mode,offset]=process.argv.slice(2);
 import fs from 'node:fs';
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&['--prices-api-country','--prices-api-control','--prices-sku-country'].includes(mode)&&['all','jp','fr','it','es','us','sg','hk'].includes(offset)&&process.argv.length===5){
+ let failed=false;for(const country of offset==='all'?['jp','fr','it','es','us','sg','hk']:[offset]){const p=spawnSync(process.execPath,[root+'/scripts/louis-vuitton-market.mjs',country,mode==='--prices-sku-country'?'--api-sku':'--api',...(mode==='--prices-api-control'?['--limit','1']:[])],{cwd:root,env:process.env,stdio:'ignore',timeout:1800000});if(p.status===78)process.exit(78);failed||=p.status!==0;}process.exit(failed?2:0);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--prices-browser-country'&&['all','jp','fr','it','es','us','sg','hk'].includes(offset)&&process.argv.length===5){
+ let failed=false;for(const country of offset==='all'?['us','sg','jp','fr','it','es','hk']:[offset]){const p=spawnSync(process.execPath,[root+'/scripts/louis-vuitton-market.mjs',country,'--browser','--limit','1'],{cwd:root,env:process.env,stdio:'ignore',timeout:1800000});if(p.status===78)process.exit(78);failed||=p.status!==0;}process.exit(failed?2:0);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--prices-country'&&['all','jp','fr','it','es','us','sg','hk'].includes(offset)&&process.argv.length===5){
+ let failed=false;for(const country of offset==='all'?['jp','fr','it','es','us','sg','hk']:[offset]){const p=spawnSync(process.execPath,[root+'/scripts/louis-vuitton-market.mjs',country],{cwd:root,env:process.env,stdio:'ignore',timeout:1800000});if(p.status===78)process.exit(78);failed||=p.status!==0;}process.exit(failed?2:0);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--collect-catalog-model'&&process.argv.length===4){
+ const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,'kr','--crawl-only',mode],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});process.exit(child.status??1);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--render-country-attributes'&&offset==='us'&&process.argv.length===5){
+ const restored=spawnSync(process.execPath,[root+'/scripts/restore-louis-vuitton-relay.mjs'],{cwd:root,env:process.env,stdio:'ignore',timeout:30000});if(restored.status)process.exit(restored.status??1);
+ const meta=JSON.parse(fs.readFileSync(root+'/crawler/runtime/louis-vuitton-browser/session.json'));
+ const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,'us','--crawl-only',mode],{cwd:root,env:{...process.env,LUXURY_REUSE_CDP_URL:meta.cdp,LUXURY_BROWSER_SESSION_ID:'louis-vuitton-maintained'},stdio:'ignore',timeout:1200000});process.exit(child.status??1);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--discover-attributes-country'&&offset==='us'&&process.argv.length===5){
+ const dir=root+'/crawler/completeness/louis-vuitton/us-listing-source';if(spawnSync(root+'/scripts/crawl-output-guard.sh',[dir+'/summary.json'],{stdio:'ignore'}).status)throw Error('SOURCE_GUARD');const rows=JSON.parse(fs.readFileSync(dir+'/summary.json')),target=rows.find(r=>r.status==='PUBLISHED_US_BAG_LIST');if(!target)throw Error('PUBLISHED_LISTING_REQUIRED');
+ const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,'us','--crawl-only','--inspect-listing','--listing-url',target.officialUrl],{cwd:root,env:process.env,stdio:'ignore',timeout:120000});process.exit(child.status??1);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--published-attributes-country'&&['us','jp'].includes(offset)&&process.argv.length===5){
+ const folder=root+'/crawler/completeness/louis-vuitton/published-alternates';if(spawnSync(root+'/scripts/crawl-output-guard.sh',[folder+'/summary.json'],{stdio:'ignore'}).status)throw Error('SOURCE_GUARD');
+ const target=JSON.parse(fs.readFileSync(folder+'/links.json')).find(r=>r.country===offset.toUpperCase());if(!target||new URL(target.url).origin!=='https://'+offset+'.louisvuitton.com')throw Error('PUBLISHED_COUNTRY_SOURCE');
+ const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,offset,'--crawl-only','--collect-published-attributes'],{cwd:root,env:process.env,stdio:'ignore',timeout:1200000});process.exit(child.status??1);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&['--search-ui-price-sample','--capture-current-public-data','--render-reference-details','--render-published-source','--render-published-list','--expand-rendered-list'].includes(mode)&&process.argv.length===4){
+ if(['--search-ui-price-sample','--capture-current-public-data','--render-published-source','--render-published-list','--expand-rendered-list'].includes(mode)){const restored=spawnSync(process.execPath,[root+'/scripts/restore-louis-vuitton-relay.mjs'],{env:process.env,stdio:'ignore'});if(restored.status)process.exit(restored.status??1);}
+ const file=root+'/crawler/runtime/louis-vuitton-browser/session.json';let env={...process.env,LUXURY_BROWSER_MAINTENANCE_SINK:'1',LUXURY_BROWSER_REJECT_UNLISTED:'1'};
+ if(['--search-ui-price-sample','--capture-current-public-data','--render-published-list','--expand-rendered-list'].includes(mode)&&!fs.existsSync(file))throw Error('EXISTING_SESSION_REQUIRED');
+ if(fs.existsSync(file)){const session=JSON.parse(fs.readFileSync(file));if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(session.cdp))throw Error('SESSION_SCOPE');env.LUXURY_REUSE_CDP_URL=session.cdp;env.LUXURY_BROWSER_SESSION_ID='louis-vuitton-maintained';}
+ const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,'kr','--crawl-only',mode],{cwd:root,env,stdio:'ignore',timeout:1200000});process.exit(child.status??1);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--repair-metadata'&&process.argv.length===4){
+ const child=spawnSync(process.execPath,[root+'/scripts/network-isolate.mjs','["nxgnbrdxxmlhtcnymqsl.supabase.co"]','0',process.execPath,root+'/scripts/repair-louis-vuitton-metadata.mjs'],{cwd:root,env:process.env,stdio:'ignore',timeout:600000});process.exit(child.status??1);
+}
+if(process.env.LUXURY_SERVICE_GUARD==='enabled'&&brand==='louis-vuitton'&&mode==='--batch-offset'&&/^\d+$/.test(offset??'')&&process.argv.length===5){
+ const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,'kr',mode,offset],{cwd:root,env:process.env,stdio:'ignore',timeout:1800000});process.exit(child.status??1);
+}
+
 if(brand==='louis-vuitton'){
  if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||mode!=='--batch-offset'||!/^\d+$/.test(offset??'')||process.argv.length!==5)throw Error('GUARDED_REFERENCE_REQUIRED');
  const child=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',[brand,'kr',mode,offset],{cwd:root,env:process.env,stdio:'ignore',timeout:1800000,killSignal:'SIGTERM'});process.exit(child.status??1);

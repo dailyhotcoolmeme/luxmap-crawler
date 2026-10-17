@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {storePradaMarkets} from '../crawler/common/prada-market-store.js';
+const cfg={brand:'louis-vuitton',country:'FR',currency:'EUR',localePrefix:'/fra-fr/',productSegment:'produits',entryUrl:'https://fr.louisvuitton.com/fra-fr/homepage'},row={normalizedCode:'M29090',country:'FR',currency:'EUR',officialUrl:'https://fr.louisvuitton.com/fra-fr/produits/sac/M29090',price:2500,priceStatus:'confirmed',checkedAt:'2026-10-17T00:00:00Z'},variant={id:'v',normalized_code:'M29090',name_original:'fixture',brands:{name_original:'LOUIS VUITTON'}};
+let prior=[],saved=[],added=[];
+const query=async(e,m,b)=>{if(e.startsWith('product_variants?'))return[variant];if(e.includes('country_code=eq.KR'))return[{variant_id:'v',official_product_code:'M29090'}];if(e.startsWith('market_products?on_conflict')){saved=b.map(r=>({...r,id:'m'}));return saved;}if(e.includes('price_history.order'))return[{id:'m',price_history:[{amount:2600}]}];if(e==='price_history'){added=b;return b;}if(e.includes('country_code=eq.FR'))return saved.length?saved:prior;throw Error('UNEXPECTED_ENDPOINT');};
+await storePradaMarkets([row],cfg,query);assert.equal(saved[0].current_price,2500);assert.equal(added.length,1);
+prior=[{...saved[0],current_price:2600,price_checked_at:'2026-10-17T01:00:00Z'}];saved=[];added=[];await storePradaMarkets([row],cfg,query);assert.equal(saved[0].current_price,2600);assert.equal(saved[0].price_checked_at,'2026-10-17T01:00:00Z');assert.equal(added.length,0,'older cached sources cannot replace a newer price or append an older change');
+await assert.rejects(storePradaMarkets([{...row,currency:'KRW'}],cfg,query));
+await assert.rejects(storePradaMarkets([{...row,officialUrl:row.officialUrl.replace('fr.louisvuitton','kr.louisvuitton')}],cfg,query));
+console.log('PASS: LV native localized SKU storage, change-only history and newer verified prices preserved');

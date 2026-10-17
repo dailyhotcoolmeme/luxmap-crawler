@@ -47,7 +47,7 @@ export function executePlan(plan, run) {
     // Audit status 2 means every verified bag is stored, but source/category
     // uncertainty remains. Refresh only registered Korean references while the
     // overall run remains failed; never turn that uncertainty into completion.
-    if(job.country==='kr'&&result.status!==0&&!(job.phase==='audit'&&result.status===2))blockedBrands.add(job.brand);
+    if(job.country==='kr'&&result.status!==0&&!(result.status===2&&(job.phase==='audit'||job.brand==='louis-vuitton')))blockedBrands.add(job.brand);
   }
   return failed?1:0;
 }

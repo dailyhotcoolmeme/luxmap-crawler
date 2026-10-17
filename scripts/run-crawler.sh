@@ -65,22 +65,25 @@ STDOUT_FILE="$RUN_DIR/stdout.log"
 STDERR_FILE="$RUN_DIR/stderr.log"
 CDP_URL=""
 CDP_PORT=0
+CDP_OWNED=1
 IMAGE_REFRESH=0
 for option in "$@"; do
   if [ "$option" = '--image-refresh-file' ]; then IMAGE_REFRESH=1; fi
 done
 CHROME_PID=""
 CUTOUT_PID=""
+KEEP_BROWSER=0
 cleanup_browser() {
   if [ -n "$CUTOUT_PID" ]; then
     kill -TERM "$CUTOUT_PID" 2>/dev/null || true
     wait "$CUTOUT_PID" 2>/dev/null || true
     CUTOUT_PID=""
   fi
-  if [ "$CDP_PORT" -gt 0 ]; then
+  if [ "$KEEP_BROWSER" -eq 1 ]; then return; fi
+  if [ "$CDP_OWNED" -eq 1 ] && [ "$CDP_PORT" -gt 0 ]; then
     node "$PROJECT_DIR/scripts/close-crawl-browser.mjs" "$CDP_PORT" "$RUN_DIR/browser-profile" >/dev/null 2>&1 || true
   fi
-  if [ -n "$CHROME_PID" ]; then
+  if [ "$CDP_OWNED" -eq 1 ] && [ -n "$CHROME_PID" ]; then
     kill -TERM "$CHROME_PID" 2>/dev/null || true
     wait "$CHROME_PID" 2>/dev/null || true
     CHROME_PID=""
@@ -102,7 +105,10 @@ if [ "$COUNTRY" = kr ]; then
 fi
 
 RENDER_FOREIGN=0
+LV_RENDER=0
 for option in "$@"; do
+ if [ "$BRAND" = 'louis-vuitton' ] && [ "$COUNTRY" != kr ] && [ "$option" = '--foreign-prices-browser' ]; then RENDER_FOREIGN=1; LV_RENDER=1; fi
+ if [ "$BRAND/$COUNTRY/$option" = 'louis-vuitton/kr/--render-reference-details' ] || [ "$BRAND/$COUNTRY/$option" = 'louis-vuitton/kr/--render-published-source' ] || [ "$BRAND/$COUNTRY/$option" = 'louis-vuitton/kr/--render-published-list' ] || [ "$BRAND/$COUNTRY/$option" = 'louis-vuitton/kr/--expand-rendered-list' ] || [ "$BRAND/$COUNTRY/$option" = 'louis-vuitton/kr/--capture-current-public-data' ] || [ "$BRAND/$COUNTRY/$option" = 'louis-vuitton/kr/--search-ui-price-sample' ]; then RENDER_FOREIGN=1; LV_RENDER=1; fi
  if [ "$option" = '--probe-browser-source' ]; then
   case "$BRAND/$COUNTRY" in dior/kr|saint-laurent/kr|bulgari/kr) RENDER_FOREIGN=1 ;; *) exit 78 ;; esac
  fi
@@ -110,7 +116,14 @@ for option in "$@"; do
   case "$BRAND/$COUNTRY" in hermes/jp|hermes/fr|hermes/it|hermes/es|hermes/us|hermes/sg|hermes/hk) RENDER_FOREIGN=1 ;; *) exit 78 ;; esac
  fi
 done
-if [ "$IMAGE_REFRESH" = 0 ] && { [ "$RENDER_FOREIGN" = 1 ] || jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; }; then
+if [ -n "${LUXURY_REUSE_CDP_URL:-}" ]; then
+  case "$LUXURY_REUSE_CDP_URL" in http://127.0.0.1:[0-9]*) ;; *) echo 'BLOCKED: invalid reusable CDP endpoint.' >&2; exit 78;; esac
+  CDP_URL=$LUXURY_REUSE_CDP_URL
+  CDP_PORT=${CDP_URL##*:}
+  case "$CDP_PORT" in *[!0-9]*|'') exit 78;; esac
+  curl -fsS --max-time 2 "$CDP_URL/json/version" >/dev/null 2>&1 || { echo 'FAILED: reusable browser unavailable.' >&2; exit 1; }
+  CDP_OWNED=0
+elif [ "$IMAGE_REFRESH" = 0 ] && { [ "$RENDER_FOREIGN" = 1 ] || jq -e '.browserMode == "headed-cdp"' "$COUNTRY_CONFIG" >/dev/null 2>&1; }; then
   CDP_PORT=$((9300 + ($$ % 500)))
   BROWSER_EXECUTABLE=$(jq -r '.browserExecutable // "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"' "$COUNTRY_CONFIG")
   BROWSER_ENTRY='about:blank'
@@ -176,6 +189,10 @@ if [ "$IMAGE_REFRESH" = 0 ] && { [ "$RENDER_FOREIGN" = 1 ] || jq -e '.browserMod
 fi
 
 
+if [ "$LV_RENDER" -eq 1 ] && [ -n "$CDP_URL" ]; then KEEP_BROWSER=1; fi
+NETWORK_HOSTS=$(jq -c '.allowedHosts' "$COUNTRY_CONFIG")
+CLOUD_BROWSER_KEY=''
+CF_TEMP_WORKER_NAME=''
 set +e
 env -i \
   PATH="$PATH" \
@@ -191,8 +208,12 @@ env -i \
   CRAWL_RUN_DIR="$RUN_DIR" \
   CRAWL_SUMMARY_FILE="$SUMMARY_FILE" \
   CRAWL_CDP_URL="$CDP_URL" \
+  LUXURY_BROWSER_SESSION_ID="${LUXURY_BROWSER_SESSION_ID:-}" \
+  LUXURY_REUSE_CDP="$(if [ "$CDP_OWNED" -eq 0 ]; then printf 1; else printf 0; fi)" \
   LUXURY_PIPELINE_GUARD="enabled" \
-  node "$PROJECT_DIR/scripts/network-isolate.mjs" "$(jq -c '.allowedHosts' "$COUNTRY_CONFIG")" "$CDP_PORT" \
+  CRAWL_CLOUD_BROWSER_TOKEN="$CLOUD_BROWSER_KEY" \
+  CRAWL_TEMP_WORKER_NAME="$CF_TEMP_WORKER_NAME" \
+  node "$PROJECT_DIR/scripts/network-isolate.mjs" "$NETWORK_HOSTS" "$CDP_PORT" \
   "$CRAWLER_ENTRY" --country-config "$COUNTRY_CONFIG" "$@" \
   >"$STDOUT_FILE" 2>"$STDERR_FILE"
 CRAWL_EXIT=$?

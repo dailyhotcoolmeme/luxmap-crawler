@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {foreignModelEndpoint,foreignModelRecord,foreignSkuEndpoint,nativeModelEndpoint} from '../crawler/common/louis-vuitton-foreign-model.js';
+const cfg={country:'FR',locale:'fra-fr',currency:'EUR',entryUrl:'https://fr.louisvuitton.com/fra-fr/homepage',localePrefix:'/fra-fr/',productSegment:'produits'},code='M29090',kr='https://kr.louisvuitton.com/kor-kr/products/bag-nvprod7890048v/M29090';
+assert.equal(foreignModelEndpoint(cfg,kr,code),'https://api.louisvuitton.com/api/fra-fr/catalog/product/nvprod7890048v');
+assert.equal(foreignSkuEndpoint(cfg,code),'https://api.louisvuitton.com/api/fra-fr/catalog/sku/M29090/persodetails');
+assert.equal(nativeModelEndpoint(cfg,{productId:'nvprod99999v'}),'https://api.louisvuitton.com/api/fra-fr/catalog/product/nvprod99999v');
+for(const productId of ['../invalid','https://example.com','nvprod1v?x=1',''])assert.throws(()=>nativeModelEndpoint(cfg,{productId}));
+assert.throws(()=>foreignModelEndpoint({...cfg,locale:'kor-kr'},kr,code),/SCOPE/);
+const model={identifier:code,url:'/fra-fr/produits/sac-nvprod7890048v',offers:{priceSpecification:{price:2500,priceCurrency:'EUR'}}};
+const data={name:'Sac',model:[model]},record=foreignModelRecord(data,cfg,code,'2026-10-17T00:00:00Z');
+assert.equal(record.officialUrl,'https://fr.louisvuitton.com/fra-fr/produits/sac-nvprod7890048v/M29090');assert.equal(record.price,2500);
+for(const m of [{...model,identifier:'M29091'},{...model,offers:{priceSpecification:{price:100,priceCurrency:'KRW'}}},{...model,url:'https://kr.louisvuitton.com/kor-kr/products/bag'}])assert.throws(()=>foreignModelRecord({...data,model:[m]},cfg,code,'2026-10-17T00:00:00Z'));
+assert.throws(()=>foreignModelRecord({...data,model:[model,model]},cfg,code,'2026-10-17T00:00:00Z'));
+console.log('PASS: published KR model ID, explicit foreign SKU/currency and native localized URL; no Korean price substitution');
