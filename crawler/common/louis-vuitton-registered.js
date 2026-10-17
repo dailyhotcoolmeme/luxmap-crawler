@@ -6,7 +6,7 @@ export function validRegisteredLouisVuitton(p){
  if(!/^[A-Z0-9]{5,16}$/.test(code??'')||markets.length!==1||media.length!==1||m.official_product_code!==code||m.currency_code!=='KRW'||m.price_status!=='confirmed'||!(Number(m.current_price)>0))return null;
  const u=new URL(m.official_url);if(u.origin!=='https://kr.louisvuitton.com'||u.search||u.hash||u.username||u.password||!u.pathname.startsWith('/kor-kr/products/')||u.pathname.split('/').at(-1)!==code)return null;
  if(!media[0].r2_object_key?.startsWith('products/louis-vuitton/sku-'+code.toLowerCase()+'/'+code+'/cutout-v1/')||!/[a-f0-9]{64}\.webp$/.test(media[0].r2_object_key))return null;
- return {code,id:p.id,url:m.official_url,price:Number(m.current_price),imageKey:media[0].r2_object_key};
+ return {code,id:p.id,name:p.name_original,url:m.official_url,price:Number(m.current_price),imageKey:media[0].r2_object_key};
 }
 export function readRegisteredLouisVuitton(root){
  const dir=root+'/crawler/completeness/louis-vuitton/registered-reference-source';if(!fs.existsSync(dir+'/summary.json'))return [];

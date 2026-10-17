@@ -4,6 +4,7 @@ import {spawnSync} from 'node:child_process';
 import {request} from 'playwright-core';
 import {createHash} from 'node:crypto';
 import {cleanLouisVuittonName,selectLouisVuittonAttribute} from '../crawler/common/louis-vuitton-metadata.js';
+import {readRegisteredLouisVuitton} from '../crawler/common/louis-vuitton-registered.js';
 import {louisVuittonCode} from '../crawler/common/louis-vuitton-product.js';
 const root=path.resolve(import.meta.dirname,'..'),base=root+'/crawler/completeness/louis-vuitton/catalog-source',out=root+'/crawler/completeness/louis-vuitton/metadata-repair';
 if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||!process.env.SUPABASE_SERVICE_ROLE_KEY||spawnSync(root+'/scripts/crawl-output-guard.sh',[base+'/summary.json'],{stdio:'ignore'}).status)throw Error('REPAIR_GUARD');
@@ -13,6 +14,7 @@ const expanded=root+'/crawler/completeness/louis-vuitton/expanded-catalog-source
 if(spawnSync(root+'/scripts/crawl-output-guard.sh',[expanded+'/summary.json'],{stdio:'ignore'}).status)throw Error('EXPANDED_SOURCE_GUARD');
 const available=new Map(JSON.parse(fs.readFileSync(expanded+'/candidates.json')).map(r=>[r.code,r]));
 for(const id of fs.readdirSync(runBase)){const file=runBase+'/'+id+'/artifacts/public-verified/summary.json';if(!fs.existsSync(file)||spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status)continue;for(const r of JSON.parse(fs.readFileSync(file)))if(r.status==='PUBLIC_CATALOG_VERIFIED'&&!sourceMap.has(r.variantCode)){const source=available.get(r.variantCode);if(!source||source.url!==r.officialUrl)throw Error('IMPORTED_SOURCE_IDENTITY');sourceMap.set(r.variantCode,source);}}
+for(const r of readRegisteredLouisVuitton(root))if(!sourceMap.has(r.code)&&typeof r.name==='string'&&r.name.trim())sourceMap.set(r.code,{code:r.code,url:r.url,name:r.name});
 records.splice(0,records.length,...sourceMap.values());
 if(!records.length||records.length>10000||new Set(records.map(r=>r.code)).size!==records.length)throw Error('REPAIR_SCOPE');
 const fieldsDir=root+'/crawler/completeness/louis-vuitton/field-source';let fields=[];

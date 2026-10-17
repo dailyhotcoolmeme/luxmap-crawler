@@ -21,8 +21,8 @@ function walkJson(value,depth=0){if(depth>60||++nodeCount>500000)throw Error('ME
 // Actual public KR catalogue JSON, distinct from a fetched website document.
 // Retain every SKU-owned model field; classification is checked separately.
 let apiIndex=0;
-for(const evidence of sourceRows.filter(r=>r.parentModel==='LV 공식 SKU 상품 모델 연결'&&/^CATALOG_HTTP_\d+$/.test(r.status))){
- apiIndex++;if(evidence.status!=='CATALOG_HTTP_200'||!/^https:\/\/api\.louisvuitton\.com\/api\/kor-kr\/catalog\/product\/[A-Za-z0-9_-]+$/.test(evidence.officialUrl))continue;
+for(const evidence of sourceRows.filter(r=>['LV 공식 SKU 상품 모델 연결','한국 동일 SKU 해외 SKU 연결'].includes(r.parentModel)&&/^(?:CATALOG|API)_HTTP_\d+$/.test(r.status))){
+ apiIndex++;if(!['CATALOG_HTTP_200','API_HTTP_200'].includes(evidence.status)||!/^https:\/\/api\.louisvuitton\.com\/api\/kor-kr\/catalog\/product\/[A-Za-z0-9_-]+$/.test(evidence.officialUrl))continue;
  const file=source+'/raw/'+(path.basename(source)==='20261016T233606Z-69293'?'':'api-')+apiIndex+'.source';if(!fs.existsSync(file))continue;sourceStamp=fs.statSync(file).mtime.toISOString();const text=read(file);if(Buffer.byteLength(text)>cfg.maxResponseBytes)throw Error('SOURCE_LIMIT');let data;try{data=JSON.parse(text);}catch{rows.push(row('REJECTED_API_JSON'));continue;}walkJson(data);
 }
 for(const file of fs.readdirSync(source+'/raw').filter(f=>/^\d+\.source$/.test(f)&& (confirmedPrefix===null||Number(f.split('.')[0])<=confirmedPrefix))){sourceStamp=fs.statSync(source+'/raw/'+file).mtime.toISOString();const html=read(source+'/raw/'+file);if(Buffer.byteLength(html)>cfg.maxResponseBytes)throw Error('SOURCE_LIMIT');
