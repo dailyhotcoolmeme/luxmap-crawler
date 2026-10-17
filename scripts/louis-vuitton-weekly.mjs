@@ -8,7 +8,7 @@ const node=(file,a=[])=>run(process.execPath,[root+'/scripts/'+file,...a]);
 const guard=f=>{if(run(root+'/scripts/crawl-output-guard.sh',[f]))throw Error('WEEKLY_SUMMARY_GUARD');return JSON.parse(fs.readFileSync(f));};
 const row=status=>({brand:'louis-vuitton',country:'KR',parentModel:'주간 한국 발견 및 등록 상품 갱신',variantCode:'TOTAL',price:null,currency:'KRW',status,officialUrl:'https://kr.louisvuitton.com/kor-kr/homepage'});
 const seed=()=>{if(node('seed-louis-vuitton-registered.mjs'))throw Error('REGISTERED_SEED_FAILED');};
-if(country!=='kr'){process.exit(node('louis-vuitton-market.mjs',[country,'--api-sku',...args]));}
+if(country!=='kr'){const status=node('louis-vuitton-market.mjs',[country,'--api-sku',...args]);if(status===78)process.exit(78);const verified=node('verify-louis-vuitton-markets.mjs');process.exit(verified===0?status:verified);}
 let code=2;const rows=[];
 try{
  seed();
