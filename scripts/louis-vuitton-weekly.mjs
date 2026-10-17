@@ -3,7 +3,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 const root=path.resolve(import.meta.dirname,'..'),country=process.argv[2],args=process.argv.slice(3),catalog=root+'/crawler/completeness/louis-vuitton';
 if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||!process.env.LUXURY_COORDINATOR_OWNER||!['kr','jp','fr','it','es','us','sg','hk'].includes(country)||args.some(a=>!['--discover-reference','--refresh','--limit','1'].includes(a)))throw Error('WEEKLY_LV_SCOPE');
-const run=(file,a=[])=>{const r=spawnSync(file,a,{cwd:root,env:process.env,stdio:'ignore',timeout:a.some(v=>String(v).endsWith('/louis-vuitton-market.mjs'))?7200000:1800000});return r.error||r.signal?78:r.status??1;};
+const run=(file,a=[])=>{const r=spawnSync(file,a,{cwd:root,env:process.env,stdio:['ignore','pipe','pipe'],maxBuffer:1048576,timeout:a.some(v=>String(v).endsWith('/louis-vuitton-market.mjs'))?7200000:1800000});if(r.status){const code=/Error: ([A-Z][A-Z0-9_]{1,35})\b/.exec(String(r.stderr??''))?.[1];if(code)rows.push(row(code));}return r.error||r.signal?78:r.status??1;};
 const node=(file,a=[])=>run(process.execPath,[root+'/scripts/'+file,...a]);
 const guard=f=>{if(run(root+'/scripts/crawl-output-guard.sh',[f]))throw Error('WEEKLY_SUMMARY_GUARD');return JSON.parse(fs.readFileSync(f));};
 const row=status=>({brand:'louis-vuitton',country:'KR',parentModel:'주간 한국 발견 및 등록 상품 갱신',variantCode:'TOTAL',price:null,currency:'KRW',status,officialUrl:'https://kr.louisvuitton.com/kor-kr/homepage'});
