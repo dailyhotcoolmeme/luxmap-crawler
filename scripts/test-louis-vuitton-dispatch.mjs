@@ -19,3 +19,6 @@ try{
  for(const [script,args] of [['official-brand-reference.mjs',['louis-vuitton','--batch-offset','-1']],['official-brand-reference.mjs',['louis-vuitton','--recover-source-run','/fixture']],['official-brand-probe.mjs',['louis-vuitton','--probe-sitemap-source','extra']],['official-brand-probe.mjs',['louis-vuitton','--probe-product-api']]]){assert.notEqual(invoke(script,args).status,0);assert(!fs.existsSync(call));}
  console.log('PASS: LV exact central batch/sitemap dispatch, partial exit preservation and scope rejection; no network/storage');
 }finally{fs.rmSync(root,{recursive:true,force:true});}
+// The existing weekly workflow invokes this reviewed LV regression entrypoint.
+// Keep new adapter regressions connected without changing workflow permissions.
+for(const file of ['test-louis-vuitton-foreign.mjs','test-louis-vuitton-foreign-model.mjs','test-louis-vuitton-relay-scope.mjs','test-louis-vuitton-market-store.mjs','test-louis-vuitton-weekly.mjs'])await import('./'+file);

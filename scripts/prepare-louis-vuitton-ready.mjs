@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {selectLouisVuittonAttribute} from '../crawler/common/louis-vuitton-metadata.js';
+import {readRegisteredLouisVuitton} from '../crawler/common/louis-vuitton-registered.js';
 const root=path.resolve(import.meta.dirname,'..'),base=root+'/crawler/completeness/louis-vuitton';
 for(const folder of ['expanded-catalog-source','field-source'])if(spawnSync(root+'/scripts/crawl-output-guard.sh',[base+'/'+folder+'/summary.json'],{stdio:'ignore'}).status)throw Error('SOURCE_GUARD');
 const candidates=JSON.parse(fs.readFileSync(base+'/expanded-catalog-source/candidates.json')),fields=JSON.parse(fs.readFileSync(base+'/field-source/fields.json')),ready=[];let attributeConflicts=0;
@@ -15,6 +16,7 @@ for(const candidate of candidates){const all=fields.filter(f=>f.code===candidate
 // Discovery candidates are not proof of ingestion. Only a guarded public
 // verification receipt may suppress a product from a later ingestion pass.
 const oldCodes=new Set(),runBase=root+'/crawler/runs/louis-vuitton/kr';
+for(const r of readRegisteredLouisVuitton(root))oldCodes.add(r.code);
 for(const id of fs.readdirSync(runBase)){const file=runBase+'/'+id+'/artifacts/public-verified/summary.json';if(!fs.existsSync(file)||spawnSync(root+'/scripts/crawl-output-guard.sh',[file],{stdio:'ignore'}).status)continue;for(const r of JSON.parse(fs.readFileSync(file)))if(r.status==='PUBLIC_CATALOG_VERIFIED')oldCodes.add(r.variantCode);}
 const out=base+'/ready-catalog-source';fs.mkdirSync(out,{recursive:true});fs.writeFileSync(out+'/candidates.json',JSON.stringify(ready.filter(r=>!oldCodes.has(r.code))),{mode:0o600});
 const row=status=>({brand:'louis-vuitton',country:'KR',parentModel:'공식 동일 SKU 적재 준비',variantCode:'SOURCE',price:null,currency:'KRW',status,officialUrl:'https://kr.louisvuitton.com/kor-kr/women/handbags/_/N-tfr7qdp'});
