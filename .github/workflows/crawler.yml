@@ -46,6 +46,7 @@ jobs:
         run: |
           scripts/token-safety-gate.sh > /dev/null
           node scripts/test-catalog-completeness.mjs
+          node scripts/test-catalog-product-contract.mjs
           node scripts/test-catalog-target-batches.mjs
           node scripts/test-prada-sitemap.mjs
           node scripts/test-crawler-schedule.mjs

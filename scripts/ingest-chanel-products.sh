@@ -33,6 +33,10 @@ esac
 if ! jq -e 'length > 0 and all(.[]; .country == "KR" and .currency == "KRW" and (.normalizedCode | type == "string" and length > 0) and (.modelKey | type == "string" and length > 0))' "$RECORDS_FILE" >/dev/null; then
   echo 'BLOCKED: invalid Korean reference batch.' >&2; exit 2
 fi
+: "${SUPABASE_ANON_KEY:?missing public verification key}"
+# Validate all records, including explicit unresolved attributes, before any write.
+mkdir -p "$(dirname "$RECORDS_FILE")/catalog-contract"
+node "$PROJECT_DIR/scripts/catalog-product-contract.mjs" validate "$RECORDS_FILE" "$INGEST_BRAND" "$(dirname "$RECORDS_FILE")/catalog-contract/summary.json"
 
 request() (
   request_method=$1 request_endpoint=$2 request_payload=${3:-} request_output_file=$4
@@ -152,6 +156,10 @@ while [ "$index" -lt "$count" ]; do
   old_variant=$(mktemp)
   request GET "product_variants?brand_id=eq.$brand_id&normalized_code=eq.$product_code&limit=1" '' "$old_variant"
   is_new=$(jq 'length == 0' "$old_variant")
+  expected_variant=$(mktemp)
+  printf '%s' "$payload" >"$expected_variant"
+  node "$PROJECT_DIR/scripts/catalog-product-contract.mjs" merge "$expected_variant" "$old_variant" "$expected_variant"
+  payload=$(jq -c . "$expected_variant")
   variant_changed=$(printf '%s' "$payload" | jq --slurpfile old "$old_variant" '
     del(.first_seen_at,.last_seen_at) | to_entries | any(.[]; .value != $old[0][0][.key])')
   request POST 'product_variants?on_conflict=brand_id,normalized_code' "$payload" "$response"
@@ -205,6 +213,14 @@ while [ "$index" -lt "$count" ]; do
   else
     request POST 'product_media?on_conflict=variant_id,sha256' "$payload" "$response"
   fi
+  # Public-role readback, shared by every domestic brand. Service-role readback
+  # alone cannot establish that the application can see the stored attributes.
+  public_variant=$(mktemp)
+  public_variant_code=$(curl -sS --max-time 30 -o "$public_variant" -w '%{http_code}' \
+    -H "apikey: $SUPABASE_ANON_KEY" \
+    "$SUPABASE_URL/rest/v1/product_variants?id=eq.$variant_id&select=normalized_code,name_ko,name_original,material_ko,material_original,color_ko,color_original,width_mm,height_mm,depth_mm")
+  [ "$public_variant_code" = 200 ] || { echo 'FAILED: CATALOG_PUBLIC_QUERY' >&2; exit 1; }
+  node "$PROJECT_DIR/scripts/catalog-product-contract.mjs" verify "$expected_variant" "$public_variant"
   if [ "$is_new" = true ]; then
     new_count=$((new_count + 1))
   elif [ "$variant_changed" = true ] || [ "$market_changed" = true ] || [ "$(jq -r '.[0].sha256 // empty' "$primary")" != "$image_sha" ]; then
