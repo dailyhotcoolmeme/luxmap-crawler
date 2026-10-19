@@ -5,6 +5,18 @@ import {request} from 'playwright-core';
 import {diorForeignDataPrices} from './dior-foreign-page-data.js';
 import {parseOfficialProduct} from './dior-official-core.js';
 import {hashUrl,validateDiorPublishedRoutes,preserveDiorRegisteredFields} from './dior-weekly-routes.js';
+import {diorPageDataPrice} from './dior-page-data.js';
+// Source-only collection intentionally has no storage credential/manifest.
+// Bind its price projection to the seed's independently public-verified KR
+// reference instead of assuming the later ingestion environment exists here.
+export function diorWeeklyDomesticRecord(body,canonical,cfg,references){
+ if(cfg.brand!=='dior'||cfg.country!=='KR'||cfg.currency!=='KRW')throw Error('SCHEDULED_REFERENCE_SCOPE');
+ const code=new URL(canonical).pathname.split('/').at(-1),normalized=code.replace(/[^a-z0-9]/gi,'').toUpperCase(),prior=references.get(normalized);
+ if(!prior)return parseOfficialProduct(body,canonical,cfg,code,{handbagEvidence:true});
+ const market=prior.market_products?.filter(m=>m.country_code==='KR');
+ if(prior.normalized_code!==normalized||market?.length!==1||market[0].currency_code!=='KRW'||market[0].official_product_code!==normalized||market[0].official_url!==canonical)throw Error('SCHEDULED_REFERENCE_IDENTITY');
+ return diorPageDataPrice(body,canonical,code);
+}
 export async function collectDiorWeeklyData(){
  const root=path.resolve(import.meta.dirname,'../..'),a=process.argv.slice(2),run=process.env.CRAWL_RUN_DIR;
  const newOnly=a.includes('--new-only'),tail=a.slice(5).filter(x=>x!=='--new-only'),sample=tail.join(' ')==='--limit 1';
@@ -32,7 +44,7 @@ export async function collectDiorWeeklyData(){
    const bytes=await res.body();if(bytes.length>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');
    const body=bytes.toString('utf8');if(/cf-chl|captcha-delivery|verify you are human|<title[^>]*>\s*access denied/i.test(body))throw Error('ACCESS_BLOCKED');
    if(country==='KR'){
-    const code=new URL(t.canonical).pathname.split('/').at(-1),p=parseOfficialProduct(body,t.canonical,cfg,code,{handbagEvidence:true});
+    const p=diorWeeklyDomesticRecord(body,t.canonical,cfg,byCode);
     rows.push(row('EXACT_SKU',t.canonical,p.normalizedCode,p.price));
    }else for(const p of diorForeignDataPrices(body,t.canonical,country,new Set(byCode.keys()),new Date().toISOString())){
     const old=prices.get(p.normalizedCode);if(old&&old.price!==p.price)throw Error('FOREIGN_PRICE_CONFLICT');prices.set(p.normalizedCode,p);
