@@ -13,6 +13,9 @@ try{
  const pipeline=fs.readFileSync(root+'/scripts/run-brand-country-pipeline.sh','utf8');
  assert(pipeline.includes("/usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network*)'"));
  put('run-brand-country-pipeline.sh',pipeline.replaceAll('/usr/bin/sandbox-exec',scripts+'/inherited-sandbox.sh'));
+ put('select-dior-executed-run.mjs',fs.readFileSync(root+'/scripts/select-dior-executed-run.mjs','utf8'));
+ fs.mkdirSync(temp+'/crawler/common',{recursive:true});fs.copyFileSync(root+'/crawler/common/dior-executed-run.js',temp+'/crawler/common/dior-executed-run.js');
+ fs.writeFileSync(temp+'/package.json',JSON.stringify({type:'module'}));
  put('inherited-sandbox.sh',`#!/bin/sh
 [ "$1" = -p ] && [ "$2" = '(version 1)(allow default)(deny network*)' ] || exit 78
 shift 2

@@ -1,0 +1,4 @@
+import fs from 'node:fs';import path from 'node:path';import {spawnSync} from 'node:child_process';import {maintenanceManifest} from '../crawler/common/registered-maintenance.js';
+const root=path.resolve(import.meta.dirname,'..'),source=path.resolve(process.argv[2]??'');
+if(process.argv.length!==3||process.env.CRAWL_BRAND!=='dior'||!source.startsWith(root+'/crawler/runs/dior/kr/')||fs.realpathSync(source)!==source||spawnSync(root+'/scripts/crawl-output-guard.sh',[source+'/summary.json'],{stdio:'ignore'}).status)throw Error('CUTOUT_SOURCE_SCOPE');
+const codes=JSON.parse(fs.readFileSync(source+'/summary.json')).filter(r=>r.status==='EXACT_SKU').map(r=>r.variantCode);if(!codes.length||codes.length>25||codes.some(c=>!/^[A-Z0-9]+$/.test(c)))throw Error('CUTOUT_SOURCE_SCOPE');const manifest=maintenanceManifest(),known=new Set(manifest?.codes??[]);process.stdout.write(codes.every(c=>known.has(c))?'0':'1');

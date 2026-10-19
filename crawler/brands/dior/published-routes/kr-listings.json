@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "country": "KR",
+  "routes": [
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/ko_kr/fashion/womens-fashion/bags/all-the-bags.json",
+      "canonical": "https://www.dior.com/ko_kr/fashion/womens-fashion/bags/all-the-bags",
+      "observedAt": "2026-10-18T23:16:21.062Z",
+      "responseSha256": "9a100c9a6087bf3af56f393fb1a07ac69287cc36d7547f33c5cbb167ecf7873e"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/ko_kr/fashion/mens-fashion/bags/all-bags.json",
+      "canonical": "https://www.dior.com/ko_kr/fashion/mens-fashion/bags/all-bags",
+      "observedAt": "2026-10-18T23:16:22.948Z",
+      "responseSha256": "26e8341e1ca114d68e658b69de628992e0d4e2ee6e211a73c20e458b7707d784"
+    }
+  ]
+}

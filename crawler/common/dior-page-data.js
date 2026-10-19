@@ -1,5 +1,6 @@
 import {celineNodes,celineText} from './celine-html.js';
 import {diorDetailAttributes,diorSubtitleAttributes} from './dior-detail-attributes.js';
+import {diorOwnImageProof} from './dior-own-image.js';
 
 const normalize=v=>String(v??'').replace(/[^a-z0-9]/gi,'').toUpperCase();
 const escape=v=>String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
@@ -95,6 +96,7 @@ export function diorPageDataProduct(source,url,expectedCode){
  if(typeof p.sizeAndFit==='string'&&p.sizeAndFit.length<=10000)texts.push(...p.sizeAndFit.split(/\r?\n/));
  const labels='<link rel="canonical" href="'+escape(url)+'"><main data-sku="'+code+'">'+texts.map(v=>'<p>'+escape(v)+'</p>').join('')+'</main>';
  const details=diorDetailAttributes(labels,url,code),subtitle=diorSubtitleAttributes(p.subtitle);
+ const ownImageProof=diorOwnImageProof(p,url,source);
  const images=[];let visited=0;
  function scan(v,depth=0){
   if(++visited>3000||depth>10)throw Error('PAGE_IMAGE_BOUND');
@@ -103,7 +105,7 @@ export function diorPageDataProduct(source,url,expectedCode){
  }
  // A transparent own-product view comes first; no cross-sell/variant images.
  scan(p.views?.transparent);scan(p.views);scan(p.medias);
- return {'@type':'Product',sku:p.code,productID:String(p.sku??p.code),name:p.title,url,category:'Handbags',image:images.slice(0,8),color:diorPageDataSubtitleColor(p.subtitle,Boolean(details.material))??diorExplicitDescribedColor(p.subtitle,p.description),material:details.material??subtitle.material??null,
+ return {'@type':'Product',sku:p.code,productID:String(p.sku??p.code),name:p.title,url,category:'Handbags',image:images.length?images.slice(0,8):ownImageProof.urls,...(images.length?{}:{ownImageProof}),color:diorPageDataSubtitleColor(p.subtitle,Boolean(details.material))??diorExplicitDescribedColor(p.subtitle,p.description),material:details.material??subtitle.material??null,
   width:details.widthMm?{value:details.widthMm,unitCode:'MMT'}:null,height:details.heightMm?{value:details.heightMm,unitCode:'MMT'}:null,depth:details.depthMm?{value:details.depthMm,unitCode:'MMT'}:null,
   description:typeof p.description==='string'?p.description:null,offers:{price:p.price.value,priceCurrency:'KRW',url}};
 }

@@ -9,6 +9,7 @@ import {celineOriginalImageUrl} from './celine-image-url.js';
 import {bulgariOriginalImageUrl} from './bulgari-image-url.js';
 import {hermesOriginalImageUrl} from './hermes-image-url.js';
 import {diorCutoutQuality} from './dior-image-quality.js';
+import {verifiedDiorOwnImage} from './dior-own-image.js';
 import {registeredPriceOnly} from './registered-maintenance.js';
 
 const root=path.resolve(import.meta.dirname,'../..');
@@ -37,7 +38,7 @@ export function originalImageUrl(imageUrl,expectedCode,sourceProperties){
   url.pathname=`/image/upload/${match[1]}`;url.search='';
  }else if(url.hostname==='assets.christiandior.com'){
   const asset=url.pathname.match(/^\/is\/image\/diorprod\/([A-Z0-9]+)(?:_SBG)?_E\d{2}(?:-\d+)?$/);
-  if(!asset||!expectedCode||asset[1]!==expectedCode)throw Error('IMAGE_SOURCE_PATH');
+  if((!asset||!expectedCode||asset[1]!==expectedCode)&&!verifiedDiorOwnImage(imageUrl,expectedCode,sourceProperties?.diorOwnImageProof))throw Error('IMAGE_SOURCE_PATH');
   // Native asset identity; never invent a different view. Transform and URL
   // fragment aliases must not create distinct retry identities.
   url.search='';url.hash='';
@@ -98,10 +99,11 @@ export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expe
  if(registeredPriceOnly(expectedCode))return {maintenancePriceOnly:true};
  await startWorker();
  const sourceImageUrl=originalImageUrl(imageUrl,expectedCode,sourceProperties);
+ const isDiorSource=new URL(sourceImageUrl).hostname==='assets.christiandior.com';
  let response;
  for(let attempt=0;attempt<3;attempt++){
   try{response=await context.request.get(sourceImageUrl,{timeout:30000,maxRedirects:0});break;}
-  catch(error){const timeout=/timeout/i.test(error.message??''),reset=/ECONNRESET|socket hang up|connection reset|socket disconnected/i.test(error.message??'');if((timeout||reset)&&attempt<2)continue;throw Error(timeout?'IMAGE_NETWORK_TIMEOUT':reset?'IMAGE_NETWORK_RESET':'IMAGE_REQUEST_FAILED');}
+  catch(error){const timeout=/timeout/i.test(error.message??''),reset=/ECONNRESET|socket hang up|connection reset|socket disconnected/i.test(error.message??'');if(!isDiorSource&&(timeout||reset)&&attempt<2)continue;throw Error(timeout?'IMAGE_NETWORK_TIMEOUT':reset?'IMAGE_NETWORK_RESET':'IMAGE_REQUEST_FAILED');}
  }
  if([403,429].includes(response.status()))throw Error('IMAGE_ACCESS_BLOCKED');
  if(!response.ok()||!/^image\/(jpeg|png|webp)(?:;|$)/i.test(response.headers()['content-type']??''))throw Error('IMAGE_DOWNLOAD_FAILED');

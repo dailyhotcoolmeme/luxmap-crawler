@@ -6,7 +6,7 @@ if(process.argv.includes('--audit-reference')){
  const {auditOfficialReferenceCatalog}=await import('../../../scripts/audit-official-reference.mjs');
  process.exitCode=(await auditOfficialReferenceCatalog({brand:'dior'})).exitCode;
 }
-else if(process.argv.includes('--scheduled-page-data')){
+else if(process.argv.includes('--scheduled-page-data')||process.argv.includes('--scheduled-listing-data')){
  const {collectDiorWeeklyData}=await import('../../common/dior-weekly-data.js');await collectDiorWeeklyData();
 }
 else if(process.argv.includes('--scheduled-price-records')){

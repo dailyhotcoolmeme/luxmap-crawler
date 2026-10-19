@@ -93,7 +93,16 @@ trap cleanup_browser EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if [ "$COUNTRY" = kr ]; then
+CUTOUT_NEEDED=1
+if [ "$BRAND/$COUNTRY" = dior/kr ]; then
+ case "${1:-}" in
+  --scheduled-page-data|--scheduled-listing-data) CUTOUT_NEEDED=0 ;;
+  --recover-source-run)
+   CUTOUT_NEEDED=$(CRAWL_BRAND=dior node "$PROJECT_DIR/scripts/dior-cutout-required.mjs" "${2:?source run required}") || exit 78
+   case "$CUTOUT_NEEDED" in 0|1) ;; *) exit 78;; esac ;;
+ esac
+fi
+if [ "$COUNTRY" = kr ] && [ "$CUTOUT_NEEDED" = 1 ]; then
   mkfifo "$RUN_DIR/cutout-input.fifo" "$RUN_DIR/cutout-output.fifo"
   chmod 600 "$RUN_DIR/cutout-input.fifo" "$RUN_DIR/cutout-output.fifo"
   env -i PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" \

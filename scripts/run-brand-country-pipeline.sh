@@ -135,7 +135,11 @@ else
     exit "$REFERENCE_EXIT" ;;
   esac
  fi
- RUN_DIR=$(find "$PROJECT_DIR/crawler/runs/$BRAND/$COUNTRY" -mindepth 1 -maxdepth 1 -type d -print | sort | tail -n 1)
+ if [ "$BRAND/$COUNTRY" = dior/kr ]; then
+  RUN_DIR=$(node "$PROJECT_DIR/scripts/select-dior-executed-run.mjs")
+ else
+  RUN_DIR=$(find "$PROJECT_DIR/crawler/runs/$BRAND/$COUNTRY" -mindepth 1 -maxdepth 1 -type d -print | sort | tail -n 1)
+ fi
 fi
 RECORD_FILE="$RUN_DIR/artifacts/records.json"
 if [ "$COUNTRY" = kr ]; then

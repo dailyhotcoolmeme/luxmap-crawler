@@ -1,5 +1,52 @@
 최신 주간 계약은 [weekly-product-maintenance.md](weekly-product-maintenance.md)를 따른다. 아래 과거 통합 등록 설명은 신규 SKU에만 적용하며 기존 한국 SKU는 가격만 갱신한다. 첫 원격 실행39183933588은 실패했고 예약 등록을 수집 성공으로 간주하지 않는다.
 
+## 2026-10-19 verified coverage update
+
+- Local verified public catalogue: 644 KR codes. The actual women's379 and
+  men's196 delivered exact-code cards overlap by4: union571, registered562,
+  unresolved9. Existing82 outside those lists remain preserved. This is not
+  an Actions full-run result or a claim that search `nbHits` equals delivered
+  cards. Current incomplete9 remain incomplete, not offsale.
+- The original local missing-code pass actually registered288 integrated
+  products; its exact foreign prices are1745/2016, unknown271 pairs. The
+  final3 (two specifically approved DIOR AND RIMOWA cabin suitcases and one
+  repaired own-photo binding) also have21/21 foreign prices. These are local
+  source/store/public-verification receipts, not new GitHub collection counts.
+- Keep the existing Monday09:00 KST registry/schedule and existing-brand jobs.
+  The reviewed product routes now cover all644 public KR references, and two
+  actually successful official KR bag-list data URLs are pinned separately.
+  New discovery reads these lists through the same coordinator/runner, binds
+  delivered exact canonicals to a proven same-build product control, verifies
+  runtime source hashes again, deduplicates code/canonical routes, and excludes
+  registered codes. It does not invent a build, rotate a profile or retry a
+  denied URL. Pagination beyond the proven first complete payload is rejected.
+- New KR records join an explicit exact listing color only after independent
+  own code/backend-or-posted-variation/title/subtitle/URI/KRW-price agreement.
+  Name, own original photo, KRW, color, material and actual metric axes must be
+  present before image processing/storage. Each new product is isolated for
+  recovery so one bad image cannot discard other normal products in its source
+  batch. Prepared source files are never selected as executed workers.
+- An opaque photo asset filename is accepted only when the independently
+  validated own product's views/medias directly publish that URL, bound to the
+  exact raw source SHA/canonical/SKU. Cross-sell/other-option images are excluded.
+  CPU person/foreground/cutout quality, original retention, R2 and anonymous
+  public gates are unchanged. Explicit labeled suitcase axes with trailing
+  capacity/weight text are parsed; dimensions without axes are not guessed.
+- Existing KR references remain price/history-only; price parsing does not
+  traverse photos/attributes. Dior source-only and entirely registered recovery
+  do not even launch the CPU cutout worker. Foreign7 collect only prices for the
+  same registered KR codes. No foreign attributes/photos are imported.
+- The19 pinned failed-image input hashes include this local investigation and
+  prevent repeating failed inputs. Nine unresolved items consist of five failed
+  own-photo quality cases, one missing own photo, two missing explicit colors,
+  and one missing physical dimensions. They are not filled with guesses or
+  turned into full-success. New actual source evidence is required.
+- Raw responses, product snapshots, private runtime state, credentials and the
+  finite local one-off runners are not committed. Only reusable code, tests,
+  public route/provenance metadata and irreversible failure hashes are shipped.
+  Parser checks and an unchanged enabled schedule are not proof of a subsequent
+  whole weekly collection; report the actual Actions result separately.
+
 # Dior verified-route weekly collection
 
 The owner approved publishing and executing this integration on 2026-10-19.

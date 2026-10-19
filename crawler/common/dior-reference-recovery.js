@@ -8,12 +8,25 @@ import {inspectDiorNativeEvidence} from '../../scripts/report-dior-native-eviden
 import {downloadAndOptimizeImage,closeImageProcessor,originalImageUrl,IMAGE_PROCESSING_VERSION} from './image-processor.js';
 import {requireDiorIntegratedAttributes} from './dior-image-quality.js';
 import {preserveDiorRegisteredFields} from './dior-weekly-routes.js';
+import {diorListedProduct} from './dior-listed-product.js';
 import {registeredPriceOnly} from './registered-maintenance.js';
 export function diorImageInputKey(product){
- const source=originalImageUrl(product.sourceImageUrl,product.normalizedCode);
+ const source=originalImageUrl(product.sourceImageUrl,product.normalizedCode,product.sourceProperties);
  return createHash('sha256').update(product.normalizedCode+'\0'+source+'\0'+IMAGE_PROCESSING_VERSION).digest('hex');
 }
-export const diorOrdinaryImageFailure=code=>['IMAGE_BYTE_LIMIT','MASK_RANGE','EMPTY_MASK','EMPTY_BOUNDS','DIOR_IMAGE_QUALITY_REJECTED','DIOR_SOURCE_FOREGROUND_UNCERTAIN','DIOR_PERSON_IN_PRODUCT_PHOTO'].includes(code);
+export const diorOrdinaryImageFailure=code=>['IMAGE_BYTE_LIMIT','MASK_RANGE','EMPTY_MASK','EMPTY_BOUNDS','DIOR_IMAGE_QUALITY_REJECTED','DIOR_SOURCE_FOREGROUND_UNCERTAIN','DIOR_PERSON_IN_PRODUCT_PHOTO','IMAGE_REQUEST_FAILED','IMAGE_NETWORK_TIMEOUT','IMAGE_NETWORK_RESET','IMAGE_DOWNLOAD_FAILED'].includes(code);
+export function diorFailureHistoryItems(content,single,summary){
+ const items=single?[content]:content;if(!Array.isArray(items)||items.length>75)throw Error('IMAGE_FAILURE_HISTORY');
+ return items.map(original=>{
+  const item={...original};
+  if(single&&!item.failureCode&&item.imageProcessingVersion==='original-cutout-v1'){
+   const codes=[...new Set(summary.filter(r=>r.variantCode===item.code&&diorOrdinaryImageFailure(r.status)).map(r=>r.status))];
+   if(codes.length===1)item.failureCode=codes[0];
+  }
+  if(!diorOrdinaryImageFailure(item.failureCode)||item.key!==diorImageInputKey({normalizedCode:item.code,sourceImageUrl:item.sourceImageUrl,sourceProperties:item.sourceProperties}))throw Error('IMAGE_FAILURE_HISTORY');
+  return item;
+ });
+}
 export function diorUnfailedImages(product,failed){
  const urls=[product.sourceImageUrl,...(product.sourceImageCandidates??[])],unique=new Map();
  for(const url of urls)try{const p={...product,sourceImageUrl:url},key=diorImageInputKey(p);if(!failed.has(key)&&!unique.has(key))unique.set(key,url);}catch{}
@@ -31,7 +44,7 @@ export function selectDiorPublishedImage(html,product,selection,failedKeys){
  throw Error('IMAGE_SELECTION_NOT_PUBLISHED');
 }
 export function reusableDiorImageMetadata(cached,product){
- let source;try{source=originalImageUrl(product.sourceImageUrl,product.normalizedCode);}catch{return false;}
+ let source;try{source=originalImageUrl(product.sourceImageUrl,product.normalizedCode,product.sourceProperties);}catch{return false;}
  return cached.normalizedCode===product.normalizedCode&&cached.sourceImageUrl===source&&cached.imageProcessingVersion==='original-cutout-v1'&&cached.imageWidth===960&&cached.imageHeight===960&&cached.imageProof?.diorQuality?.processingRevision==='dior-catalog-v2'&&cached.imageProof?.diorQuality?.passed===true&&cached.imageProof?.diorQuality?.personCheck?.cpuOffline===true&&cached.imageProof?.diorQuality?.personCheck?.detected===false&&cached.imageProof?.cpuOfflineVerified===true&&cached.imageProof?.outputVerified===true&&cached.imageProof?.originalSourceVerified===true&&cached.imageProof?.sourceUrl===source&&cached.imageProof?.sha256===cached.imageSha256&&/^[a-f0-9]{64}$/.test(cached.imageSha256??'')&&/^[a-f0-9]{64}$/.test(cached.imageProof?.sourceSha256??'');
 }
 export function diorPreparedImageLimit(key,documentLimit){
@@ -79,8 +92,8 @@ export async function recoverDiorReference(){
   for(const basename of ['image-failed-inputs.json','image-failure-input.json']){const file=prior+'/artifacts/'+basename;let st;
   try{st=await fs.lstat(file);}catch(e){if(e.code==='ENOENT')continue;throw e;}
   if(!st.isFile()||st.isSymbolicLink()||st.size>131072||spawnSync(root+'/scripts/crawl-output-guard.sh',[prior+'/summary.json'],{stdio:'ignore'}).status)throw Error('IMAGE_FAILURE_HISTORY');
-  const content=JSON.parse(await fs.readFile(file)),items=basename==='image-failure-input.json'?[content]:content;if(!Array.isArray(items)||items.length>75)throw Error('IMAGE_FAILURE_HISTORY');
-  for(const item of items){if(!diorOrdinaryImageFailure(item.failureCode)||item.key!==diorImageInputKey({normalizedCode:item.code,sourceImageUrl:item.sourceImageUrl}))throw Error('IMAGE_FAILURE_HISTORY');failedKeys.add(item.key);}
+  const content=JSON.parse(await fs.readFile(file)),historyRows=JSON.parse(await fs.readFile(prior+'/summary.json')),items=diorFailureHistoryItems(content,basename==='image-failure-input.json',historyRows);
+  for(const item of items){if(!diorOrdinaryImageFailure(item.failureCode)||item.key!==diorImageInputKey({normalizedCode:item.code,sourceImageUrl:item.sourceImageUrl,sourceProperties:item.sourceProperties}))throw Error('IMAGE_FAILURE_HISTORY');failedKeys.add(item.key);}
   }
  }
  const selectionStat=await fs.lstat(selectionFile).catch(e=>{if(e.code==='ENOENT')return null;throw e;});
@@ -91,11 +104,21 @@ export async function recoverDiorReference(){
   }
  }
  const inputs=[];let classificationRejected=0,attributesRejected=0;
+ const listingProofs=new Map(),listingProofFile=source+'/artifacts/listing-color-proofs.json';
+ if(await fs.stat(listingProofFile).catch(()=>null)){
+  const proofs=JSON.parse(await fs.readFile(listingProofFile));if(!Array.isArray(proofs)||proofs.length>25)throw Error('LISTING_COLOR_PROOF_SCOPE');
+  for(const proof of proofs){
+   const f=proof.source;if(!accepted.some(r=>r.variantCode===proof.code)||listingProofs.has(proof.code)||typeof f!=='string'||!f.startsWith(root+'/crawler/runs/dior/kr/')||path.basename(path.dirname(f))!=='raw'||!/^\d+\.source$/.test(path.basename(f))||await fs.realpath(f)!==f)throw Error('LISTING_COLOR_PROOF_SCOPE');
+   const sum=path.dirname(path.dirname(f))+'/summary.json';if(spawnSync(root+'/scripts/crawl-output-guard.sh',[sum],{stdio:'ignore'}).status)throw Error('LISTING_COLOR_PROOF_GUARD');
+   const rows=JSON.parse(await fs.readFile(sum));if(!rows.some(r=>r.status==='NORMAL_KR_STATIC_LISTING_DATA')||rows.some(r=>/BLOCKED|UNAUTHORIZED|GUARD|POLICY|SECURITY/.test(r.status)))throw Error('LISTING_COLOR_PROOF_NOT_NORMAL');
+   const st=await fs.stat(f);if(st.size>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');let b;try{await fs.chmod(f,0o600);b=await fs.readFile(f,'utf8');}finally{await fs.chmod(f,st.mode&0o777);}if(createHash('sha256').update(b).digest('hex')!==proof.sourceSha256)throw Error('LISTING_COLOR_PROOF_HASH');listingProofs.set(proof.code,b);
+  }
+ }
  for(const name of (await fs.readdir(source+'/raw')).filter(n=>/^\d+\.source$/.test(n))){
   const file=source+'/raw/'+name,stat=await fs.lstat(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>cfg.maxResponseBytes)throw Error('SOURCE_LIMIT');
   let html;try{await fs.chmod(file,0o600);html=await fs.readFile(file,'utf8');}finally{await fs.chmod(file,stat.mode&0o777);}
   for(const row of accepted){
-   let product;try{product=parseOfficialProduct(html,row.officialUrl,cfg,row.variantCode,{handbagEvidence:true});}catch{continue;}
+   let product;try{product=diorListedProduct(html,row.officialUrl,cfg,row.variantCode,listingProofs.get(row.variantCode));}catch{continue;}
    // Category links can include global navigation: independently require an
    // explicit bag type in the official product name before issuing a proof.
    if(!registeredPriceOnly(product.normalizedCode)&&!isDiorBagName(product.productName)){classificationRejected++;continue;}
@@ -123,13 +146,13 @@ export async function recoverDiorReference(){
   let image=reused,last;
   if(!image)for(const candidate of candidates){
    product.sourceImageUrl=candidate;
-   try{image=await downloadAndOptimizeImage({request:{get:async(url,options)=>{if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');return context.get(url,options);}}},candidate,artifact,product.normalizedCode);break;}
-   catch(e){if(!diorOrdinaryImageFailure(e.message))throw e;last=e;const item={code:product.normalizedCode,sourceImageUrl:originalImageUrl(candidate,product.normalizedCode),key:diorImageInputKey(product),failureCode:e.message};failedKeys.add(item.key);failedInputs.push(item);await fs.writeFile(artifact+'/image-failed-inputs.json',JSON.stringify(failedInputs),{mode:0o600});}
+   try{image=await downloadAndOptimizeImage({request:{get:async(url,options)=>{if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');return context.get(url,options);}}},candidate,artifact,product.normalizedCode,product.sourceProperties);break;}
+   catch(e){if(!diorOrdinaryImageFailure(e.message))throw e;last=e;const item={code:product.normalizedCode,sourceImageUrl:originalImageUrl(candidate,product.normalizedCode,product.sourceProperties),sourceProperties:product.sourceProperties,key:diorImageInputKey(product),failureCode:e.message};failedKeys.add(item.key);failedInputs.push(item);await fs.writeFile(artifact+'/image-failed-inputs.json',JSON.stringify(failedInputs),{mode:0o600});}
   }
   if(!image)throw last??Error('DIOR_NO_QUALITY_APPROVED_IMAGES');
   if(reused)rows.push({brand:'dior',country:'KR',parentModel:'검증된 로컬 원본과 누끼 재사용',variantCode:product.normalizedCode,price:product.price,currency:'KRW',status:'IMAGE_PREPARED_CACHE_REUSED',officialUrl:product.officialUrl});
   records.push({...product,...image});rows.push({brand:'dior',country:'KR',parentModel:product.productName,variantCode:product.normalizedCode,price:product.price,currency:'KRW',status:'REFERENCE_IMAGE_READY',officialUrl:product.officialUrl});
   await fs.writeFile(run+'/summary.json',JSON.stringify(rows),{mode:0o600});
- }}catch(e){if(['IMAGE_BYTE_LIMIT','MASK_RANGE'].includes(e.message)&&active)await fs.writeFile(artifact+'/image-failure-input.json',JSON.stringify({code:active.normalizedCode,sourceImageUrl:originalImageUrl(active.sourceImageUrl,active.normalizedCode),imageProcessingVersion:IMAGE_PROCESSING_VERSION,key:diorImageInputKey(active),failureCode:e.message}),{mode:0o600});rows.push({brand:'dior',country:'KR',parentModel:'',variantCode:active?.normalizedCode??'RUN',price:null,currency:'KRW',status:/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'IMAGE_RECOVERY_FAILED',officialUrl:active?.officialUrl??cfg.entryUrl});process.exitCode=1;}
+ }}catch(e){if(['IMAGE_BYTE_LIMIT','MASK_RANGE'].includes(e.message)&&active)await fs.writeFile(artifact+'/image-failure-input.json',JSON.stringify({code:active.normalizedCode,sourceImageUrl:originalImageUrl(active.sourceImageUrl,active.normalizedCode,active.sourceProperties),sourceProperties:active.sourceProperties,imageProcessingVersion:IMAGE_PROCESSING_VERSION,key:diorImageInputKey(active),failureCode:e.message}),{mode:0o600});rows.push({brand:'dior',country:'KR',parentModel:'',variantCode:active?.normalizedCode??'RUN',price:null,currency:'KRW',status:/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'IMAGE_RECOVERY_FAILED',officialUrl:active?.officialUrl??cfg.entryUrl});process.exitCode=1;}
  finally{await fs.writeFile(artifact+'/records.json',JSON.stringify(records),{mode:0o600});await fs.writeFile(run+'/summary.json',JSON.stringify(rows),{mode:0o600});await closeImageProcessor();await context.dispose();}
 }

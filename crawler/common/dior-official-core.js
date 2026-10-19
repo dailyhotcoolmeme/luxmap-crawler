@@ -7,6 +7,7 @@ import {parseLouisVuittonProduct,louisVuittonCode} from './louis-vuitton-product
 import {inspectDiorNativeEvidence} from '../../scripts/report-dior-native-evidence.mjs';
 import {diorDetailAttributes} from './dior-detail-attributes.js';
 import {diorPageDataProduct,diorPageDataPrice} from './dior-page-data.js';
+import {verifiedDiorOwnImage} from './dior-own-image.js';
 import {registeredPriceOnly} from './registered-maintenance.js';
 import {diorPageDataRoutes,diorPageDataRouteForReceipt,diorStaticColorListingRoute} from './dior-page-data-routing.js';
 import {diorForeignDataRoute,diorForeignDataPrices} from './dior-foreign-page-data.js';
@@ -33,7 +34,7 @@ export function diorPublicProofCodes(rows){
  const codes=new Set();for(const r of rows){const match=typeof r.officialUrl==='string'&&r.officialUrl.match(/^https:\/\/www\.dior\.com\/ko_kr\/fashion\/products\/([A-Z0-9]+_[A-Z0-9]+)\/?$/);if(r.brand!=='dior'||r.country!=='KR'||r.currency!=='KRW'||r.status!=='PUBLIC_CATALOG_VERIFIED'||!match||normalizeOfficialCode(match[1])!==r.variantCode)throw Error('DIOR_PUBLIC_PROOF_IDENTITY');codes.add(r.variantCode);}return codes;
 }
 const clean=value=>String(value??'').replace(/\s+/g,' ').trim();
-export const isDiorBagName=name=>/(?:\s백(?:\s|$)|토트|숄더|핸드백|탑\s핸들백|지퍼\s슬링백|크로스백|백팩|벨트백|스트랩백|보스턴|호보|클러치|파우치|브리프케이스|메신저|tote|handbag|shoulder bag|backpack|clutch|pouch|briefcase|messenger)/i.test(name)&&!/(?:스트랩|참|strap|charm)\s*$/i.test(name);
+export const isDiorBagName=name=>/(?:\s백(?:\s|$)|토트|숄더|핸드백|탑\s핸들백|지퍼\s슬링백|크로스백|백팩|벨트백|스트랩백|보스턴|호보|클러치|파우치|브리프케이스|메신저|tote|handbag|shoulder bag|backpack|clutch|pouch|briefcase|messenger|^DIOR AND RIMOWA 기내용 캐리어$)/i.test(name)&&!/(?:스트랩|참|strap|charm)\s*$/i.test(name);
 const typeIs=(node,type)=>[node?.['@type']].flat().includes(type);
 
 export function officialUrl(value,cfg,base=cfg.entryUrl){
@@ -66,6 +67,7 @@ export function parseOfficialProduct(html,url,cfg,expectedCode=null,{handbagEvid
     const p=existing[0];if(clean(p.name)!==clean(own.name))throw Error('PAGE_DATA_NAME_CONFLICT');
     const prices=[p.offers].flat().filter(Boolean);if(prices.some(o=>o.priceCurrency!=='KRW'||Number(o.price)!==own.offers.price))throw Error('PAGE_DATA_PRICE_CONFLICT');
     for(const key of ['color','material','width','height','depth','description'])if(!p[key]&&own[key])p[key]=own[key];
+    p.ownImageProof=own.ownImageProof;if(!p.image||![p.image].flat().some(Boolean))p.image=own.image;
    }
   }
  }
@@ -128,7 +130,7 @@ export function parseOfficialProduct(html,url,cfg,expectedCode=null,{handbagEvid
   if(asset.protocol==='https:'&&!asset.username&&!asset.password&&cfg.imageHosts.includes(asset.hostname)){
    if(cfg.brand==='dior'&&cfg.country==='KR'){
     const identity=asset.pathname.match(/^\/is\/image\/diorprod\/([A-Z0-9]+)(?:_SBG)?_E\d{2}(?:-\d+)?$/)?.[1];
-    if(asset.hostname!=='assets.christiandior.com'||identity!==code)continue;
+    if(asset.hostname!=='assets.christiandior.com'||identity!==code&&!(p.ownImageProof?.sourceSha256===crypto.createHash('sha256').update(html).digest('hex')&&verifiedDiorOwnImage(asset.href,code,p.ownImageProof)))continue;
     if(sourceImageCandidates.length<8&&!sourceImageCandidates.includes(asset.href))sourceImageCandidates.push(asset.href);
     sourceImageUrl??=asset.href;
    }else{sourceImageUrl=asset.href;break;}

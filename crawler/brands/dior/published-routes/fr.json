@@ -1657,6 +1657,78 @@
       "canonical": "https://www.dior.com/fr_fr/fashion/sacs/sacs",
       "observedAt": "2026-10-19T00:26:41.846Z",
       "responseSha256": "2291c399149fb72baab7d06a404d33b16bbd0162b494f2f780621a61a2912982"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/M2822OSNW_M79U.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/M2822OSNW_M79U",
+      "observedAt": "2026-10-19T04:16:45.924Z",
+      "responseSha256": "5efb5d76fd28c93e80f0cc99ae3928d97f407dcbe48013142ff9b2716c1367e9"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/M1383UBOL_M900.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/M1383UBOL_M900",
+      "observedAt": "2026-10-19T04:16:46.501Z",
+      "responseSha256": "550c864f1dad1620bdfe91706ce2b14a2327d738a6845740c85bef3f53fca2ae"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/M1383UTZQ_M928.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/M1383UTZQ_M928",
+      "observedAt": "2026-10-19T04:16:47.327Z",
+      "responseSha256": "ec5f85fd3736cf53b53c1de799b8968ccfd03c913c34369a4a4c39999fea658e"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/M1382UBOL_M900.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/M1382UBOL_M900",
+      "observedAt": "2026-10-19T04:16:47.933Z",
+      "responseSha256": "86d7da917b80278ed2860752811ac6b7c768863b95f4f15a634eab2a46f105e8"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/M2822PSNW_M39Z.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/M2822PSNW_M39Z",
+      "observedAt": "2026-10-19T04:16:49.060Z",
+      "responseSha256": "2170183d955085e7e46071ecac7f1f551d90fc9b82734e4c22e5caeb7418d82e"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/M0759OWKA_M911.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/M0759OWKA_M911",
+      "observedAt": "2026-10-19T04:16:50.015Z",
+      "responseSha256": "8a7b7bdbc72d9cdafb0bc56d45e3d4bcb95daae6450f01bad16f2e2cc64e8d9c"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/1LLBR187KEC_H00N.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/1LLBR187KEC_H00N",
+      "observedAt": "2026-10-19T04:16:50.834Z",
+      "responseSha256": "fe5079a4358b2e2348486132fc89e239e19e957340db8d40748565b68a100bcd"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/1DBSH296VBA_H080.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/1DBSH296VBA_H080",
+      "observedAt": "2026-10-19T04:16:51.722Z",
+      "responseSha256": "279b263808b0ac06c23c4ecf84c4bab297ab9367118f0fa170287606aece7eb9"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/1ADPO093YKK_H00N.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/1ADPO093YKK_H00N",
+      "observedAt": "2026-10-19T04:16:52.339Z",
+      "responseSha256": "26927056b6fa43be9481d5bd10d8349c50898b68242cd198dbb7fd33b337a19b"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/1ESBA199LLG_H00N.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/1ESBA199LLG_H00N",
+      "observedAt": "2026-10-19T04:16:53.049Z",
+      "responseSha256": "24807f0e0f989e40826484390a7c011b36931b6bea012d9852e093b078fe93a9"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/1ESPO333YKY_H03E.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/1ESPO333YKY_H03E",
+      "observedAt": "2026-10-19T04:16:53.608Z",
+      "responseSha256": "713c63723d3101e6787f13da14827c36ef9fb9424e722c8fe5419e3361283234"
+    },
+    {
+      "url": "https://www.dior.com/_next/data/5pUJYFsbbxl14RKkwzvX0/fr_fr/fashion/products/1ESPO333LLG_H00N.json",
+      "canonical": "https://www.dior.com/fr_fr/fashion/products/1ESPO333LLG_H00N",
+      "observedAt": "2026-10-19T04:16:54.232Z",
+      "responseSha256": "caea1c772e83c25a44d13d28147e2fa6f29a71eefa700a9507767dc1dc572e8a"
     }
   ]
 }

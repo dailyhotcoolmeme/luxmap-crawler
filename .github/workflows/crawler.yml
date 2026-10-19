@@ -64,6 +64,9 @@ jobs:
           node scripts/test-dior-foreign-page-data.mjs
           node scripts/test-dior-market-store.mjs
           node scripts/test-dior-weekly.mjs
+          node scripts/test-dior-own-image.mjs
+          node scripts/test-dior-run-selection.mjs
+          node scripts/test-dior-weekly-discovery.mjs
           node scripts/test-louis-vuitton-product.mjs
           node scripts/test-louis-vuitton-ready.mjs
           node scripts/test-louis-vuitton-serialized-data.mjs

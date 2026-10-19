@@ -26,11 +26,18 @@ export function diorDetailAttributes(html,url,code,exactProductName=null){
  const excluded=n=>{for(let p=n;p;p=p.parent){if(['header','footer','nav','aside'].includes(p.tag)||/recommend|related|cross-sell|recently|carousel/i.test(p.attrs.class??''))return true;for(const key of ['data-product-id','data-sku'])if(p.attrs[key]&&normalize(p.attrs[key])!==normalize(code))return true;}return false;};
  const textOf=n=>celineText(n).replace(/&(?:nbsp|#160|#x0*a0);/gi,' ').replace(/\s+/g,' ').trim();
  const materials=new Set(),dimensions=new Map(),colors=new Set();
+ const explicitAxes=text=>{
+  const m=text.match(/^(?:크기|치수|dimensions)\s*[:：]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(cm|mm)\s*\(\s*(길이|높이|너비|깊이|폭|가로|세로|length|height|width|depth)\s*[x×]\s*(길이|높이|너비|깊이|폭|가로|세로|length|height|width|depth)\s*[x×]\s*(길이|높이|너비|깊이|폭|가로|세로|length|height|width|depth)\s*\)(.*)$/i);
+  if(!m||m[8].trim()&&!/^(?:[•·,;]|무게|중량|용량|기내|볼륨|weight|capacity)/i.test(m[8].trim()))return null;
+  const axes=m.slice(5,8).map(x=>x.toLowerCase()),hasLength=axes.some(x=>['길이','length','가로'].includes(x)),keys=axes.map(x=>['높이','세로','height'].includes(x)?'heightMm':['깊이','폭','depth'].includes(x)?'depthMm':x==='너비'?(hasLength?'depthMm':'widthMm'):'widthMm');
+  if(new Set(keys).size!==3)return null;const values=m.slice(1,4).map(v=>Number(v)*(m[4].toLowerCase()==='cm'?10:1));if(!values.every(v=>v>0&&v<=10000))return null;return Object.fromEntries(keys.map((k,i)=>[k,values[i]]));
+ };
  const material=/^(?:(?:(?:주요|메인)\s*)?소재|material)\s*[:：]\s*(.{1,160})$/i;
  const metric=/^(?:크기|치수|dimensions)\s*[:：]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(cm|mm)(?:\s*\/\s*\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?\s*인치)?\s*\(\s*(?:바닥부\s+)?(?:길이|가로|length)\s*[x×]\s*(?:높이|세로|height)\s*[x×]\s*(?:너비|폭|width|depth)\s*\)\s*$/i;
  for(const n of nodes){
   if(!['li','p','dd','div','span'].includes(n.tag)||excluded(n))continue;
   const text=textOf(n),m=text.match(material),d=text.match(metric);
+  const axes=explicitAxes(text);if(axes)dimensions.set([axes.widthMm,axes.heightMm,axes.depthMm].join('|'),axes);
   if(m&&!/[<>]|(?:색상|컬러|크기|치수|소재|material|dimensions)\s*[:：]/i.test(m[1]))materials.add(m[1].trim());
   if(d){const scale=d[4].toLowerCase()==='cm'?10:1,values=d.slice(1,4).map(v=>Number(v)*scale);if(values.every(v=>Number.isFinite(v)&&v>0&&v<=10000))dimensions.set(values.join('|'),{widthMm:values[0],heightMm:values[1],depthMm:values[2]});}
  }
