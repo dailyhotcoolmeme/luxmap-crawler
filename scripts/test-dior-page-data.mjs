@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict';
-import {diorPageDataProduct as parse,diorPageDataSubtitleColor,diorExplicitDescribedColor} from '../crawler/common/dior-page-data.js';
+import {diorPageDataProduct as parse,diorPageDataSubtitleColor,diorExplicitDescribedColor,diorPageDataPrice} from '../crawler/common/dior-page-data.js';
 import {parseOfficialProduct} from '../crawler/common/dior-official-core.js';
 const code='M12345_M900',url='https://www.dior.com/ko_kr/fashion/products/'+code;
 const product={sku:'1234567890123',backendSku:code,code,title:'검증 토트 백',subtitle:'블랙 송아지 가죽',price:{value:1000000,currency:'KRW'},characteristics:['주요 소재: 송아지 가죽'],sizeAndFit:'크기: 24 x 16 x 5cm (길이 x 높이 x 너비)\n휴대폰 수납',views:{transparent:{images:{url:'https://assets.christiandior.com/is/image/diorprod/M12345M900_E01'}}},crossSells:[{code:'OTHER_CODE',image:'https://assets.christiandior.com/is/image/diorprod/OTHER_E01'}]};
 const data=p=>({pageProps:{identifier:code,locale:'ko_kr',product:p},__N_SSG:true}),source=JSON.stringify(data(product));
+const priceOnly={code,backendSku:code,price:product.price};
+assert.equal(diorPageDataPrice(JSON.stringify(data(priceOnly)),url,code).price,1000000);
+assert.equal(diorPageDataPrice(JSON.stringify({props:data(priceOnly)}),url,code).normalizedCode,'M12345M900');
+assert.equal(diorPageDataPrice(JSON.stringify(data({...priceOnly,views:{ignored:'bad'},characteristics:[{}],title:null})),url,code).price,1000000);
+for(const changed of [{...priceOnly,backendSku:'OTHER_CODE'},{...priceOnly,code:'OTHER_CODE'},{...priceOnly,price:{value:100,currency:'USD'}},{...priceOnly,price:{value:0,currency:'KRW'}}])assert.throws(()=>diorPageDataPrice(JSON.stringify(data(changed)),url,code));
+assert.throws(()=>diorPageDataPrice(JSON.stringify({recommendations:[priceOnly]}),url,code));
+assert.throws(()=>diorPageDataPrice(source,url+'?x=1',code));
 const p=parse(source,url,code);assert.equal(p.sku,code);assert.equal(p.productID,'1234567890123');assert.equal(p.color,'블랙');assert.equal(p.material,'송아지 가죽');assert.equal(p.width.value,240);assert.equal(p.height.value,160);assert.equal(p.depth.value,50);assert.equal(p.image.length,1);
 const html='<link rel="canonical" href="'+url+'"><script id="__NEXT_DATA__" type="application/json">'+source+'</script>';
 assert.deepEqual(parse(html,url,code),p);assert.equal(parse(html.replace(url,url+'OTHER'),url,code),null);

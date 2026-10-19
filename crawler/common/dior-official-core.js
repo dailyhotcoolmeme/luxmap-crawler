@@ -6,7 +6,8 @@ import {request,chromium} from 'playwright-core';
 import {parseLouisVuittonProduct,louisVuittonCode} from './louis-vuitton-product.js';
 import {inspectDiorNativeEvidence} from '../../scripts/report-dior-native-evidence.mjs';
 import {diorDetailAttributes} from './dior-detail-attributes.js';
-import {diorPageDataProduct} from './dior-page-data.js';
+import {diorPageDataProduct,diorPageDataPrice} from './dior-page-data.js';
+import {registeredPriceOnly} from './registered-maintenance.js';
 import {diorPageDataRoutes,diorPageDataRouteForReceipt,diorStaticColorListingRoute} from './dior-page-data-routing.js';
 import {diorForeignDataRoute,diorForeignDataPrices} from './dior-foreign-page-data.js';
 
@@ -53,6 +54,7 @@ function nodes(html){
 export function parseOfficialProduct(html,url,cfg,expectedCode=null,{handbagEvidence=false}={}){
  if(blocked.test(html))throw Error('ACCESS_BLOCKED');
  url=officialUrl(url,cfg);
+ if(cfg.brand==='dior'&&cfg.country==='KR'&&registeredPriceOnly(normalizeOfficialCode(expectedCode??new URL(url).pathname.split('/').at(-1))))return diorPageDataPrice(html,url,expectedCode??new URL(url).pathname.split('/').at(-1));
  if(cfg.brand==='louis-vuitton')return parseLouisVuittonProduct(html,url,cfg,expectedCode,{handbagEvidence:false});
  const products=nodes(html).filter(p=>typeIs(p,'Product')&&normalizeOfficialCode(p.sku||p.mpn));
  if(cfg.brand==='dior'&&cfg.country==='KR'){

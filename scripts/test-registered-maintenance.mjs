@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {maintenanceBrands,partitionMaintenanceRecords,storeRegisteredPrices} from '../crawler/common/registered-maintenance.js';
 import {downloadAndOptimizeImage} from '../crawler/common/image-processor.js';
+import {parseOfficialProduct} from '../crawler/common/dior-official-core.js';
 const root=path.resolve(import.meta.dirname,'..'),base=root+'/crawler/runtime/registered-maintenance',now=new Date().toISOString();
 fs.mkdirSync(base,{recursive:true});
 for(const brand of maintenanceBrands){
@@ -10,6 +11,13 @@ for(const brand of maintenanceBrands){
  try{
   fs.writeFileSync(file,JSON.stringify({schema:1,brand,checkedAt:now,codes:['EXISTING1']}),{mode:0o600});
   process.env.LUXURY_REGISTERED_MANIFEST=file;process.env.CRAWL_BRAND=brand;
+  if(brand==='dior'){
+   const code='EXIST_ING1',url='https://www.dior.com/ko_kr/fashion/products/'+code,cfg={brand:'dior',country:'KR',currency:'KRW',entryUrl:'https://www.dior.com/ko_kr/fashion',localePrefix:'/ko_kr/',imageHosts:['assets.christiandior.com']};
+   const source=JSON.stringify({pageProps:{identifier:code,locale:'ko_kr',product:{code,backendSku:code,price:{value:123,currency:'KRW'}}}});
+   assert.equal(parseOfficialProduct(source,url,cfg,code,{handbagEvidence:true}).maintenancePriceOnly,true);
+   assert.equal(parseOfficialProduct(source,url,cfg,code,{handbagEvidence:true}).price,123);
+   assert.throws(()=>parseOfficialProduct(source.replaceAll('EXIST_ING1','NEW_CODE'),url.replace('EXIST_ING1','NEW_CODE'),cfg,'NEW_CODE',{handbagEvidence:true}),/TITLE_MISSING/);
+  }
   let imageRequests=0;
   assert.deepEqual(await downloadAndOptimizeImage({request:{get:()=>{imageRequests++;throw Error('MUST_NOT_FETCH');}}},'https://invalid.invalid/no-image','/unused','EXISTING1'),{maintenancePriceOnly:true});
   assert.equal(imageRequests,0);

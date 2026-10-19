@@ -4,6 +4,30 @@ import {diorDetailAttributes,diorSubtitleAttributes} from './dior-detail-attribu
 const normalize=v=>String(v??'').replace(/[^a-z0-9]/gi,'').toUpperCase();
 const escape=v=>String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 
+// Exact self-product price projection for already registered KR references.
+// Never traverse images, variants, recommendations or attributes here.
+export function diorPageDataPrice(source,url,expectedCode){
+ if(typeof source!=='string'||Buffer.byteLength(source)>8388608)throw Error('PAGE_DATA_BOUND');
+ const u=new URL(url),match=u.pathname.match(/^\/ko_kr\/fashion\/products\/([A-Z0-9]+_[A-Z0-9]+)$/),code=normalize(expectedCode);
+ if(u.origin!=='https://www.dior.com'||u.username||u.password||u.search||u.hash||!match||normalize(match[1])!==code)throw Error('PAGE_DATA_URL_MISMATCH');
+ let docs;
+ if(/^\s*\{/.test(source)){try{docs=[JSON.parse(source)];}catch{throw Error('PAGE_DATA_JSON_INVALID');}}
+ else{
+  const canonicals=celineNodes(source).filter(n=>n.tag==='link'&&n.attrs.rel==='canonical');
+  if(canonicals.length!==1||canonicals[0].attrs.href!==url)throw Error('PAGE_DATA_URL_MISMATCH');
+  const blocks=[...source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].filter(m=>/\bid\s*=\s*["']__NEXT_DATA__["']/i.test(m[1])&&/\btype\s*=\s*["']application\/json["']/i.test(m[1]));
+  try{docs=blocks.map(m=>JSON.parse(m[2]));}catch{throw Error('PAGE_DATA_JSON_INVALID');}
+ }
+ const props=docs.map(d=>d.pageProps??d.props?.pageProps).filter(p=>p?.product);
+ if(props.length!==1)throw Error('PAGE_DATA_CONFLICT');
+ const own=props[0],p=own.product;
+ if(own.locale!=='ko_kr')throw Error('PAGE_DATA_COUNTRY_MISMATCH');
+ if(normalize(own.identifier)!==code||normalize(p.code)!==code||normalize(p.backendSku)!==code)throw Error('PAGE_DATA_SKU_MISMATCH');
+ if(p.price?.currency!=='KRW'||typeof p.price.value!=='number'||!Number.isFinite(p.price.value)||p.price.value<=0)throw Error('PAGE_DATA_PRICE_INVALID');
+ if(own.content?.canonicalPathname&&new URL(own.content.canonicalPathname,u.origin).href!==url)throw Error('PAGE_DATA_URL_MISMATCH');
+ return {brand:'dior',country:'KR',currency:'KRW',originalCode:p.code,normalizedCode:code,officialUrl:url,price:p.price.value,priceStatus:'confirmed',checkedAt:new Date().toISOString(),maintenancePriceOnly:true};
+}
+
 // A literal shade prefix from this product's subtitle corroborated by this
 // same product's explicit "X 컬러/색상" statement. Do not infer a color from
 // general marketing words, the title, a picture, or a product-code suffix.

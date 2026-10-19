@@ -98,7 +98,7 @@ export async function recoverDiorReference(){
    let product;try{product=parseOfficialProduct(html,row.officialUrl,cfg,row.variantCode,{handbagEvidence:true});}catch{continue;}
    // Category links can include global navigation: independently require an
    // explicit bag type in the official product name before issuing a proof.
-   if(!isDiorBagName(product.productName)){classificationRejected++;continue;}
+   if(!registeredPriceOnly(product.normalizedCode)&&!isDiorBagName(product.productName)){classificationRejected++;continue;}
    if(!registeredPriceOnly(product.normalizedCode)&&JSON.parse(await fs.readFile(source+'/summary.json')).some(r=>r.status==='SOURCE_BATCH_RECORDED')){
     const refs=JSON.parse(await fs.readFile(root+'/crawler/runtime/dior-weekly/references.json'));
     const prior=refs.find(v=>v.normalized_code===product.normalizedCode);if(prior)product=preserveDiorRegisteredFields(product,prior);
@@ -110,7 +110,7 @@ export async function recoverDiorReference(){
    if(existing){if(!sameDiorRecoveryIdentity(existing,product))throw Error('RECOVERY_IDENTITY');continue;}
    // A CPU-only reparse is not a fresh observation of the official price.
    product.checkedAt=stat.mtime.toISOString();
-   product.referenceProof={schema:1,exactReferenceVerified:true,classificationEvidenceVerified:true,countryCurrencyVerified:true,brand:'dior',category:'bag',country:'KR',currency:'KRW',code:product.normalizedCode,officialUrl:product.officialUrl};inputs.push(product);
+   if(!registeredPriceOnly(product.normalizedCode))product.referenceProof={schema:1,exactReferenceVerified:true,classificationEvidenceVerified:true,countryCurrencyVerified:true,brand:'dior',category:'bag',country:'KR',currency:'KRW',code:product.normalizedCode,officialUrl:product.officialUrl};inputs.push(product);
   }
  }
  if(!inputs.length)throw Error(attributesRejected?'DIOR_INTEGRATED_FIELDS_UNRESOLVED':'BAG_CLASSIFICATION_UNRESOLVED');
