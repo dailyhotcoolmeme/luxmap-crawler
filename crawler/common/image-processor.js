@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import {celineOriginalImageUrl} from './celine-image-url.js';
 import {bulgariOriginalImageUrl} from './bulgari-image-url.js';
 import {hermesOriginalImageUrl} from './hermes-image-url.js';
+import {diorCutoutQuality} from './dior-image-quality.js';
 
 const root=path.resolve(import.meta.dirname,'../..');
 export const IMAGE_PROCESSING_VERSION='original-cutout-v1';
@@ -34,11 +35,11 @@ export function originalImageUrl(imageUrl,expectedCode,sourceProperties){
   if(!match||!expectedCode||match[1].split('/').at(-1).replace(/[^a-z0-9]/gi,'').toUpperCase()!==expectedCode)throw Error('IMAGE_SOURCE_PATH');
   url.pathname=`/image/upload/${match[1]}`;url.search='';
  }else if(url.hostname==='assets.christiandior.com'){
-  const asset=url.pathname.match(/^\/is\/image\/diorprod\/([A-Z0-9]+)_E\d{2}(?:-\d+)?$/);
+  const asset=url.pathname.match(/^\/is\/image\/diorprod\/([A-Z0-9]+)(?:_SBG)?_E\d{2}(?:-\d+)?$/);
   if(!asset||!expectedCode||asset[1]!==expectedCode)throw Error('IMAGE_SOURCE_PATH');
-  // The official schema publishes a cropped Scene7 rendition. Keep the exact
-  // SKU asset identity and remove only server-side crop/size transforms.
-  url.search='';
+  // Native asset identity; never invent a different view. Transform and URL
+  // fragment aliases must not create distinct retry identities.
+  url.search='';url.hash='';
  }else if(url.hostname==='kr.louisvuitton.com'){
   const image=decodeURIComponent(url.pathname).match(/^\/images\/is\/image\/lv\/1\/PP_VP_L\/[^/]+--([A-Z]{1,2}\d{4,6}|M\d[A-Z]\d{3})_[^/]+\.(?:jpg|jpeg|png)$/i);
   if(!image||image[1].toUpperCase()!==expectedCode||url.search||url.hash)throw Error('IMAGE_SOURCE_PATH');
@@ -111,18 +112,23 @@ export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expe
  }
  const id=crypto.randomUUID(),input=path.join(artifactDir,`${id}-original.image`),temp=path.join(artifactDir,`${id}-cutout.webp`);
  await fs.writeFile(input,source,{mode:0o600});
+ let personCheck=null;
  const job=jobQueue.then(async()=>{
   const resultPromise=receive();
-  inputStream.write(JSON.stringify({input,output:temp})+'\n');
+  inputStream.write(JSON.stringify({input,output:temp,...(new URL(sourceImageUrl).hostname==='assets.christiandior.com'?{qualityMode:'dior-catalog-v2'}:{})})+'\n');
   const result=await resultPromise;
   if(!result.ok)throw Error(result.code??'IMAGE_MASK_FAILED');
+  personCheck=result.personCheck??null;
+  if(new URL(sourceImageUrl).hostname==='assets.christiandior.com'&&personCheck?.detected!==false)throw Error('DIOR_PERSON_CHECK_UNAVAILABLE');
  });
  jobQueue=job.catch(()=>{});
  await job;
  const output=await fs.readFile(temp),info=await sharp(output).metadata();
  if(info.width!==960||info.height!==960||!info.hasAlpha||output.length>4*1024*1024)throw Error('IMAGE_OUTPUT_INVALID');
+ const diorQuality=new URL(sourceImageUrl).hostname==='assets.christiandior.com'?{...await diorCutoutQuality(output),personCheck}:null;
+ if(diorQuality&&!diorQuality.passed)throw Error('DIOR_IMAGE_QUALITY_REJECTED');
  const sha256=crypto.createHash('sha256').update(output).digest('hex'),outputPath=path.join(artifactDir,`${sha256}.webp`);
  await fs.rename(temp,outputPath);
- const imageProof={schema:1,originalSourceVerified:true,cpuOfflineVerified:true,outputVerified:true,processingVersion:IMAGE_PROCESSING_VERSION,sourceUrl:sourceImageUrl,sourceSha256:crypto.createHash('sha256').update(source).digest('hex'),sourceWidth:metadata.width,sourceHeight:metadata.height,sha256,width:info.width,height:info.height,hasAlpha:info.hasAlpha};
+ const imageProof={schema:1,originalSourceVerified:true,cpuOfflineVerified:true,outputVerified:true,processingVersion:IMAGE_PROCESSING_VERSION,sourceUrl:sourceImageUrl,sourceSha256:crypto.createHash('sha256').update(source).digest('hex'),sourceWidth:metadata.width,sourceHeight:metadata.height,sha256,width:info.width,height:info.height,hasAlpha:info.hasAlpha,...(diorQuality?{diorQuality:{...diorQuality,processingRevision:'dior-catalog-v2'}}:{})};
  return {sourceImageUrl,imagePath:outputPath,imageSha256:sha256,imageMimeType:'image/webp',imageWidth:960,imageHeight:960,imageBytes:output.length,imageProcessingVersion:IMAGE_PROCESSING_VERSION,originalImagePath:input,imageProof};
 }

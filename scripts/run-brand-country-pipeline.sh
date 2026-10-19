@@ -69,6 +69,9 @@ case "$BRAND/$COUNTRY" in
   rolex/jp|rolex/fr|rolex/it|rolex/es|rolex/us|rolex/sg|rolex/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
   hermes/jp|hermes/fr|hermes/it|hermes/es|hermes/us|hermes/sg|hermes/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
   louis-vuitton/jp|louis-vuitton/fr|louis-vuitton/it|louis-vuitton/es|louis-vuitton/us|louis-vuitton/sg|louis-vuitton/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
+  dior/jp|dior/fr|dior/it|dior/es|dior/us|dior/sg|dior/hk)
+   [ "${1:-}" = --scheduled-price-records ] || exit 78
+   INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-van-cleef-country.mjs" ;;
   bottega-veneta/jp|bottega-veneta/fr|bottega-veneta/it|bottega-veneta/es|bottega-veneta/us|bottega-veneta/sg|bottega-veneta/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-bottega-country.mjs" ;;
   prada/jp|prada/fr|prada/it|prada/es|prada/us|prada/sg|prada/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;
   chanel/jp|chanel/fr|chanel/it|chanel/es|chanel/us|chanel/sg|chanel/hk) INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-chanel-country.sh" ;;

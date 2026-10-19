@@ -12,7 +12,7 @@ if(!Number.isInteger(schedule.hour)||schedule.hour<0||schedule.hour>23||!Number.
 for(const job of schedule.jobs){
  if(!fs.existsSync(path.join(root,job.adapter)))throw new Error('adapter missing');
  const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',job.brand,'countries',job.country)));
- const listingUrls=config.listingUrls??(job.brand==='bottega-veneta'?config.probeListingUrls:null);
+ const listingUrls=config.listingUrls??(job.brand==='bottega-veneta'?config.probeListingUrls:job.brand==='dior'?[config.entryUrl]:null);
  const lvLocales={kr:'kor-kr',jp:'jpn-jp',fr:'fra-fr',it:'ita-it',es:'esp-es',us:'eng-us',sg:'eng-sg',hk:'eng-hk'};
  const louisVuitton=job.brand==='louis-vuitton'&&lvLocales[job.country]===config.locale&&config.localePrefix==='/'+config.locale+'/'&&new URL(config.entryUrl).origin==='https://'+job.country+'.louisvuitton.com'&&config.allowedHosts.length===2&&config.allowedHosts.includes(job.country+'.louisvuitton.com')&&config.allowedHosts.includes('api.louisvuitton.com')&&config.browserMode==='http'&&config.maxProductsPerRun===25&&config.maxRequestsPerRun===80&&config.maxDiscoveryPages===20;
  const priceOnly=job.brand==='bottega-veneta'&&job.country!=='kr'&&config.browserMode==='http'&&config.maxImagesPerProduct===0&&config.entryUrl===`https://www.bottegaveneta.com${config.localePrefix.replace(/\/$/,'')}`;

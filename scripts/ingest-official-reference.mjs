@@ -7,12 +7,14 @@ import {createHash} from 'node:crypto';
 import {officialReferenceReceipt} from '../crawler/common/official-reference-receipt.js';
 import {validateOfficialReference} from '../crawler/common/official-reference-validation.js';
 import {runIdempotentStorage} from '../crawler/common/storage-recovery.js';
+import {requireDiorIntegratedAttributes,diorCutoutQuality} from '../crawler/common/dior-image-quality.js';
 const root=path.resolve(import.meta.dirname,'..'),brand=process.env.LUXURY_INGEST_BRAND,file=process.argv[2];
 if(!['hermes','dior','saint-laurent','bulgari','louis-vuitton'].includes(brand)||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||process.env.LUXURY_PIPELINE_GUARD!=='enabled')throw Error('GUARDED_INGEST_REQUIRED');
 const cfg=JSON.parse(await fs.readFile(path.join(root,'crawler/brands',brand,'countries/kr'))),recordBytes=await fs.readFile(file),records=JSON.parse(recordBytes);
 if(!Array.isArray(records)||records.length<1||records.length>25)throw Error('BATCH_LIMIT');
 // Validate the entire batch before any remote write.
 const codes=records.map(r=>validateOfficialReference(r,cfg));if(new Set(codes).size!==codes.length)throw Error('DUPLICATE_REFERENCE');
+if(brand==='dior')for(const r of records){requireDiorIntegratedAttributes(r);if(!r.imageProof?.diorQuality?.passed||r.imageProof?.diorQuality?.personCheck?.detected!==false||!(await diorCutoutQuality(await fs.readFile(r.imagePath))).passed)throw Error('DIOR_IMAGE_QUALITY_REJECTED');}
 const folder=path.join(path.dirname(file),'public-verified');await fs.mkdir(folder,{recursive:true});
 const rows=[],summary=path.join(folder,'summary.json'),receipts={schema:1,brand,country:'KR',recordFileSha256:createHash('sha256').update(recordBytes).digest('hex'),checkedAt:new Date().toISOString(),entries:{}};let active='RUN';
 const save=async()=>{await fs.writeFile(summary,JSON.stringify(rows),{mode:0o600});if(spawnSync(root+'/scripts/crawl-output-guard.sh',[summary],{stdio:'ignore'}).status)throw Error('SUMMARY_GUARD');};
@@ -35,6 +37,7 @@ try{
   const receiptFile=path.join(folder,'proof-receipts.json'),temp=receiptFile+'.tmp';
   await fs.writeFile(temp,JSON.stringify(receipts),{mode:0o600});await fs.rename(temp,receiptFile);
   rows.push({brand,country:'KR',parentModel:'공개 한국 상품 검증',variantCode:code,price:record.price,currency:'KRW',status:'PUBLIC_CATALOG_VERIFIED',officialUrl:record.officialUrl});
+  if(brand==='dior')rows.push({brand,country:'KR',parentModel:'속성·사진을 함께 공개 검증',variantCode:code,price:record.price,currency:'KRW',status:'KR_FULL_RECORD_PUBLIC_VERIFIED',officialUrl:record.officialUrl});
   rows.push({brand,country:'KR',parentModel:'독립 처리 검증 증거',variantCode:code,price:null,currency:'KRW',status:receipt?'REFERENCE_PROOF_RECEIPT_SAVED':'LEGACY_PROOF_RECEIPT_MISSING',officialUrl:record.officialUrl});await save();
  }
 }catch(e){rows.push({brand,country:'KR',parentModel:'한국 상품 적재 검증',variantCode:active,price:null,currency:'KRW',status:/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'STORAGE_VERIFY_FAILED',officialUrl:cfg.entryUrl});await save();process.exitCode=1;}

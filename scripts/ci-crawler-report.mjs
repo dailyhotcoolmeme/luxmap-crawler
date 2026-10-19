@@ -8,6 +8,10 @@ if(process.env.RUN_MODE==='reference-smoke'&&fs.existsSync(sample)&&Date.now()-f
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const rows=[];
 for(const job of schedule.jobs){
+ if(job.brand==='dior'){
+  for(const file of [path.join(root,'crawler/completeness/dior/weekly',job.country,'summary.json'),...(job.country==='kr'?[path.join(root,'crawler/completeness/dior/weekly-audit/summary.json'),path.join(root,'crawler/completeness/dior/weekly-snapshot/summary.json')]:[])])if(fs.existsSync(file)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(file)));
+  continue;
+ }
  if(job.brand==='louis-vuitton'){
   const files=[`crawler/louis-vuitton-progress/${job.country}/summary.json`,...(job.country==='kr'?['crawler/louis-vuitton-progress/kr/weekly/summary.json','crawler/completeness/louis-vuitton/metadata-repair/summary.json','crawler/completeness/louis-vuitton/weekly-audit/summary.json','crawler/completeness/louis-vuitton/foreign-public/summary.json']:[])];
   const base=path.join(root,'crawler/runs/louis-vuitton',job.country),last=fs.existsSync(base)?fs.readdirSync(base).sort().at(-1):null;if(last)files.push(path.relative(root,path.join(base,last,'summary.json')));

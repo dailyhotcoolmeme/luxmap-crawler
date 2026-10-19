@@ -17,7 +17,7 @@ on:
         required: true
         default: all
         type: choice
-        options: [all, bottega-veneta, van-cleef-arpels, louis-vuitton]
+        options: [all, bottega-veneta, van-cleef-arpels, louis-vuitton, dior]
 permissions:
   contents: read
 concurrency:
@@ -41,6 +41,7 @@ jobs:
         if: inputs.mode != 'parser-check'
         run: |
           LUXURY_SETUP_PYTHON="$(brew --prefix python@3.11)/bin/python3.11" scripts/setup-image-runtime.sh > /dev/null 2>&1
+          node scripts/build-dior-person-check.mjs
           node scripts/test-image-pipeline.mjs
       - name: Check platform and token safeguards
         run: |
@@ -55,6 +56,11 @@ jobs:
           node scripts/test-dior-official-core.mjs
           node scripts/test-dior-detail-attributes.mjs
           node scripts/test-dior-native-evidence.mjs
+          node scripts/test-dior-page-data.mjs
+          node scripts/test-dior-page-data-routing.mjs
+          node scripts/test-dior-foreign-page-data.mjs
+          node scripts/test-dior-market-store.mjs
+          node scripts/test-dior-weekly.mjs
           node scripts/test-louis-vuitton-product.mjs
           node scripts/test-louis-vuitton-ready.mjs
           node scripts/test-louis-vuitton-serialized-data.mjs
@@ -66,6 +72,13 @@ jobs:
           test -x '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
           /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)' /usr/bin/true
           mkdir -p app crawler/service
+      - name: Restore Dior denial receipts only
+        if: inputs.mode != 'parser-check' && inputs.mode != 'image-check'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: crawler/runtime/dior-weekly/failures
+          key: ${{ runner.os }}-dior-denials-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ runner.os }}-dior-denials-
       - name: Collect and ingest through unified registry
         if: inputs.mode != 'image-check' && inputs.mode != 'parser-check'
         env:
@@ -88,6 +101,12 @@ jobs:
           else
             node scripts/coordinated-crawler.mjs "$@" > /dev/null 2>&1
           fi
+      - name: Preserve Dior denial receipts only
+        if: always() && inputs.mode != 'parser-check' && inputs.mode != 'image-check'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: crawler/runtime/dior-weekly/failures
+          key: ${{ runner.os }}-dior-denials-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Close owned browser processes
         if: always()
         run: node scripts/close-finished-crawl-browsers.mjs > /dev/null 2>&1

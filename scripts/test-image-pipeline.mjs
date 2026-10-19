@@ -8,6 +8,8 @@ import {originalImageUrl,IMAGE_PROCESSING_VERSION,downloadAndOptimizeImage,close
 const root=path.resolve(import.meta.dirname,'..');
 assert.equal(IMAGE_PROCESSING_VERSION,'original-cutout-v1');
 const diorAsset='https://assets.christiandior.com/is/image/diorprod/M1409OHSUM09I_E01-1';
+assert.equal(originalImageUrl(diorAsset.replace('_E01-1','_SBG_E01')+'?crop=0,0,10,10&wid=640','M1409OHSUM09I'),diorAsset.replace('_E01-1','_SBG_E01'));
+assert.throws(()=>originalImageUrl(diorAsset.replace('_E01-1','_SBG_E01'),'OTHER'),/IMAGE_SOURCE_PATH/);
 assert.equal(originalImageUrl(diorAsset+'?crop=1,2,3,4&wid=1850','M1409OHSUM09I'),diorAsset);
 assert.throws(()=>originalImageUrl(diorAsset,'M1409OHSTM911'));
 assert.throws(()=>originalImageUrl(diorAsset));
@@ -55,6 +57,10 @@ try{
  assert.equal(image.imageProof.originalSourceVerified,true);assert.equal(image.imageProof.cpuOfflineVerified,true);assert.equal(image.imageProof.outputVerified,true);
  assert.equal(image.imageProof.sha256,image.imageSha256);assert.equal(image.imageProof.sourceUrl,image.sourceImageUrl);assert.equal(image.imageProof.width,960);assert.equal(image.imageProof.height,960);assert.equal(image.imageProof.hasAlpha,true);assert.match(image.imageProof.sourceSha256,/^[a-f0-9]{64}$/);
  assert(fs.existsSync(image.originalImagePath),'original retained until storage verification');
+ const dior=await downloadAndOptimizeImage(context,diorAsset,temp,'M1409OHSUM09I');
+ assert.equal(dior.imageProof.diorQuality.passed,true);
+ assert.equal(dior.imageProof.diorQuality.processingRevision,'dior-catalog-v2');
+ assert(fs.existsSync(dior.originalImagePath));
  await closeImageProcessor();
  const exit=child.exitCode??await new Promise(resolve=>child.once('exit',resolve));assert.equal(exit,0);
 }finally{child.kill();fs.rmSync(temp,{recursive:true,force:true});}

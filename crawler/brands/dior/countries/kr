@@ -17,8 +17,8 @@
     "www.dior.com",
     "assets.christiandior.com"
   ],
-  "browserMode": "headed-cdp",
-  "maxDiscoveryPages": 20,
+  "browserMode": "http",
+  "maxDiscoveryPages": 100,
   "maxProductsPerRun": 25,
   "maxRequestsPerRun": 80,
   "maxResponseBytes": 8388608,

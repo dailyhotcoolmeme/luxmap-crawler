@@ -42,7 +42,8 @@
     "prada": "scripts/audit-prada-catalog.mjs",
     "bottega-veneta": "scripts/audit-bottega-catalog.mjs",
     "rolex": "scripts/audit-rolex-catalog.mjs",
-    "louis-vuitton": "scripts/audit-louis-vuitton-catalog.mjs"
+    "louis-vuitton": "scripts/audit-louis-vuitton-catalog.mjs",
+    "dior": "scripts/audit-dior-catalog.mjs"
   },
   "jobs": [
     {
@@ -284,6 +285,46 @@
       "brand": "louis-vuitton",
       "country": "hk",
       "adapter": "scripts/louis-vuitton-weekly.mjs"
+    },
+    {
+      "brand": "dior",
+      "country": "kr",
+      "adapter": "scripts/dior-weekly.mjs"
+    },
+    {
+      "brand": "dior",
+      "country": "jp",
+      "adapter": "scripts/dior-weekly.mjs"
+    },
+    {
+      "brand": "dior",
+      "country": "fr",
+      "adapter": "scripts/dior-weekly.mjs"
+    },
+    {
+      "brand": "dior",
+      "country": "it",
+      "adapter": "scripts/dior-weekly.mjs"
+    },
+    {
+      "brand": "dior",
+      "country": "es",
+      "adapter": "scripts/dior-weekly.mjs"
+    },
+    {
+      "brand": "dior",
+      "country": "us",
+      "adapter": "scripts/dior-weekly.mjs"
+    },
+    {
+      "brand": "dior",
+      "country": "sg",
+      "adapter": "scripts/dior-weekly.mjs"
+    },
+    {
+      "brand": "dior",
+      "country": "hk",
+      "adapter": "scripts/dior-weekly.mjs"
     }
   ]
 }

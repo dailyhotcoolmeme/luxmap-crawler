@@ -1,0 +1,25 @@
+{
+  "brand": "dior",
+  "country": "ES",
+  "currency": "EUR",
+  "locale": "es_es",
+  "entryUrl": "https://www.dior.com/es_es/fashion",
+  "localePrefix": "/es_es/",
+  "siteHosts": [
+    "www.dior.com"
+  ],
+  "allowedHosts": [
+    "www.dior.com"
+  ],
+  "imageHosts": [
+    "www.dior.com"
+  ],
+  "browserMode": "http",
+  "maxDiscoveryPages": 20,
+  "maxProductsPerRun": 25,
+  "maxRequestsPerRun": 80,
+  "maxResponseBytes": 8388608,
+  "maxCandidates": 10000,
+  "navigationTimeoutMs": 30000,
+  "sourceValidation": "unverified"
+}

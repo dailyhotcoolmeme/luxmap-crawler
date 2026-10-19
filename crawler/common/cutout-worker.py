@@ -4,10 +4,27 @@ import hashlib
 import importlib.metadata
 import json
 import socket
+import subprocess
 import sys
 from pathlib import Path
 
 MODEL_SHA = "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491"
+
+
+def check_dior_person(source):
+    # This worker already has deny-all-network enforced by its parent. A nested
+    # sandbox-exec from the proxy-isolated collector is not supported by macOS.
+    root = Path(__file__).resolve().parents[2]
+    binary = root / '.image-runtime/dior-person-check'
+    proof = json.loads(Path(str(binary)+'.json').read_text())
+    if proof.get('cpuOnly') is not True or hashlib.sha256(binary.read_bytes()).hexdigest() != proof['binarySha256'] or hashlib.sha256(Path(__file__).with_name('dior-person-check.swift').read_bytes()).hexdigest() != proof['sourceSha256']:
+        raise RuntimeError('DIOR_PERSON_CHECK_RUNTIME')
+    result = subprocess.run([str(binary)], input=json.dumps({'input': str(source)})+'\n', text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30)
+    if result.returncode != 0 or result.stdout.strip() not in ('NO_PERSON_DETECTED', 'PERSON_DETECTED'):
+        raise RuntimeError('DIOR_PERSON_CHECK_UNAVAILABLE')
+    if result.stdout.strip() == 'PERSON_DETECTED':
+        raise RuntimeError('DIOR_PERSON_IN_PRODUCT_PHOTO')
+    return {'schema': 1, 'cpuOffline': True, 'detected': False, 'revision': 2, 'detectorSha256': proof['binarySha256']}
 
 
 def require_isolation():
@@ -37,7 +54,7 @@ def verify_runtime(model):
         raise RuntimeError("RUNTIME_DEPENDENCY")
 
 
-def make_cutout(original, session, np, Image):
+def make_cutout(original, session, np, Image, quality_mode=None):
     # Official PNG alpha is source evidence, not a generated mask. Preserve it
     # rather than discarding transparency and segmenting hidden RGB pixels.
     if original.mode == "RGBA" and original.getchannel("A").getextrema()[0] < 255:
@@ -64,6 +81,36 @@ def make_cutout(original, session, np, Image):
         raise RuntimeError("EMPTY_MASK")
     mask = Image.fromarray(((prediction-minimum)/(maximum-minimum)*255).clip(0, 255).astype("uint8"))
     mask = mask.resize(original.size, Image.Resampling.LANCZOS)
+    if quality_mode == 'dior-catalog-v2':
+        # Catalog assets on a near-uniform light studio background sometimes
+        # produce a very faint model mask. Never normalize that faint mask into
+        # an apparently successful product. Check native RGB evidence first.
+        rgb = np.asarray(original, dtype=np.int16)
+        edge = np.concatenate((rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]))
+        bg = np.median(edge, axis=0)
+        uniform = float((np.max(np.abs(edge-bg), axis=1) < 12).mean())
+        delta = np.max(np.abs(rgb-bg), axis=2)
+        contrast = delta > 28
+        alpha = np.asarray(mask)
+        supported = float((alpha[contrast] > 128).mean()) if contrast.any() else 0
+        # Only a demonstrably uniform studio asset is eligible for a literal
+        # background-color mask. No altered RGB, inferred parts, or model photo.
+        # Bright/low-contrast products and border-touching subjects are refused.
+        fraction = float(contrast.mean())
+        if uniform > .995 and float(bg.min()) > 235 and .03 < fraction < .65:
+            near = delta > 12
+            frame = np.concatenate((near[:4].ravel(), near[-4:].ravel(), near[:, :4].ravel(), near[:, -4:].ravel()))
+            if float(frame.mean()) < .001 and supported < .90:
+                # Preserve every source pixel with distinct catalog foreground
+                # color. Continuous antialias only at the background boundary.
+                literal = np.clip((delta.astype(np.float32)-8)/8, 0, 1)*255
+                # Never erase pale product parts retained by the pinned model.
+                literal = np.maximum(literal, alpha)
+                mask = Image.fromarray(literal.astype('uint8'))
+            elif supported < .90:
+                raise RuntimeError('DIOR_SOURCE_FOREGROUND_UNCERTAIN')
+        elif supported < .90:
+            raise RuntimeError('DIOR_SOURCE_FOREGROUND_UNCERTAIN')
     foreground = float((np.asarray(mask) > 16).mean())
     if not .01 < foreground < .85:
         raise RuntimeError("MASK_RANGE")
@@ -106,16 +153,17 @@ def main():
                 if image.width*image.height > 24000000 or min(image.size) < 200:
                     raise RuntimeError("PIXEL_LIMIT")
                 original = ImageOps.exif_transpose(image).convert("RGBA")
-            result = make_cutout(original, session, np, Image)
+            person_check = check_dior_person(source) if job.get('qualityMode') == 'dior-catalog-v2' else None
+            result = make_cutout(original, session, np, Image, job.get('qualityMode'))
             result.save(destination, "WEBP", quality=86, method=4)
             with Image.open(destination) as stored:
                 if stored.size != (960,960) or stored.getpixel((0,0))[3] != 0:
                     raise RuntimeError("OUTPUT_VERIFY")
-            print(json.dumps({"ok": True}), flush=True)
+            print(json.dumps({"ok": True, **({'personCheck': person_check} if person_check else {})}, separators=(',', ':')), flush=True)
         except Exception as error:
             code = str(error) if isinstance(error, RuntimeError) else "CUTOUT_FAILED"
             print(json.dumps({"ok": False, "code": code[:40]}), flush=True)
-            if code in ("MASK_RANGE", "EMPTY_MASK", "EMPTY_BOUNDS"):
+            if code in ("MASK_RANGE", "EMPTY_MASK", "EMPTY_BOUNDS", "DIOR_SOURCE_FOREGROUND_UNCERTAIN", "DIOR_PERSON_IN_PRODUCT_PHOTO"):
                 continue
             return 1
     return 0
