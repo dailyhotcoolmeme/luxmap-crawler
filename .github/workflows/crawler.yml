@@ -50,6 +50,8 @@ jobs:
           node scripts/test-catalog-product-contract.mjs
           node scripts/test-registered-maintenance.mjs
           node scripts/test-catalog-progress.mjs
+          node scripts/test-guarded-summary-pages.mjs
+          node scripts/test-weekly-phase-result.mjs
           node scripts/test-catalog-target-batches.mjs
           node scripts/test-prada-sitemap.mjs
           node scripts/test-crawler-schedule.mjs
@@ -120,7 +122,7 @@ jobs:
         if: always()
         with:
           name: guarded-summary
-          path: .ci-report/summary.json
+          path: .ci-report/summary*.json
           retention-days: 1
           if-no-files-found: ignore
   live-progress:

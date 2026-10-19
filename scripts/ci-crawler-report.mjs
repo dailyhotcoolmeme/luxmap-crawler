@@ -2,11 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {summaryPages} from '../crawler/common/guarded-summary-pages.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const sample=path.join(root,'crawler/service/weekly-samples/summary.json');
 if(process.env.RUN_MODE==='reference-smoke'&&fs.existsSync(sample)&&Date.now()-fs.statSync(sample).mtimeMs<3600000&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[sample],{stdio:'ignore'}).status===0){fs.mkdirSync(path.join(root,'.ci-report'),{recursive:true});fs.copyFileSync(sample,path.join(root,'.ci-report/summary.json'));process.exit(0);}
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const rows=[];
+const execution=path.join(root,'crawler/service/execution-summary.json');
+if(fs.existsSync(execution)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[execution],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(execution)));
 for(const brand of new Set(schedule.jobs.map(j=>j.brand))){
  const base=path.join(root,'crawler/runs',brand,'kr');if(!fs.existsSync(base))continue;
  const verified=new Set(),unconfirmed=new Set(),fresh=new Set(),failures=new Set();
@@ -96,6 +99,9 @@ for(const job of schedule.jobs){
  rows.push({brand:job.brand,country:config.country,parentModel:'KR reference',variantCode:new URL(url).pathname.match(/\/p\/([^/]+)/)?.[1]||'unknown',price:null,currency:config.currency,status:status.slice(0,40),officialUrl:url});
 }
 fs.mkdirSync(path.join(root,'.ci-report'),{recursive:true});
-const file=path.join(root,'.ci-report/summary.json');
-fs.writeFileSync(file,JSON.stringify([...new Map(rows.map(row=>[JSON.stringify(row),row])).values()]));
-if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0){fs.unlinkSync(file);throw new Error('CI summary blocked');}
+const unique=[...new Map(rows.map(row=>[JSON.stringify(row),row])).values()];
+for(const [index,page]of summaryPages(unique).entries()){
+ const file=path.join(root,'.ci-report',index===0?'summary.json':`summary-${index}.json`);
+ fs.writeFileSync(file,JSON.stringify(page),{mode:0o600});
+ if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0){fs.unlinkSync(file);throw new Error('CI summary blocked');}
+}

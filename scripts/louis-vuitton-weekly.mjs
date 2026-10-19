@@ -43,10 +43,12 @@ try{
    rows.push(row('NEW_DISCOVERY_PIPELINE_EXECUTED'));
   }
  }else{
-  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRODUCT_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRODUCT_REFRESH_FAILED');rows.push(row('REGISTERED_KR_PRICE_REFRESHED'));
+  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRODUCT_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRODUCT_REFRESH_FAILED');code=s;rows.push(row(s===0?'REGISTERED_KR_PRICE_REFRESHED':'REGISTERED_KR_REFRESH_INCOMPLETE'));
  }
- rows.push(row('DISCOVERY_AUDIT_REQUIRED'));
+ if(args.includes('--discover-reference')){code=node('audit-louis-vuitton-catalog.mjs',['kr']);if(![0,2].includes(code))throw Error('INDEPENDENT_AUDIT_FAILED');rows.push(row(code===0?'DISCOVERY_SCOPE_VERIFIED':'DISCOVERY_AUDIT_REQUIRED'));}
+ else rows.push(row('PRICE_PHASE_NOT_DISCOVERY_AUDIT'));
 }catch(e){rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'WEEKLY_KR_FAILED'));code=/SAFETY|GUARD|LIMIT/.test(e.message)?78:1;}
 finally{const out=root+'/crawler/louis-vuitton-progress/kr/weekly';fs.mkdirSync(out,{recursive:true});fs.writeFileSync(out+'/summary.json',JSON.stringify(rows),{mode:0o600});guard(out+'/summary.json');}
-// Registered prices may continue, but independent discovery remains partial.
+// A price refresh can succeed independently; the full plan also requires the
+// fresh independent discovery audit above and every registered country job.
 process.exitCode=code;

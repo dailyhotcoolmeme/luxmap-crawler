@@ -4,6 +4,7 @@ import {spawnSync} from 'node:child_process';
 import {guardedRest} from '../crawler/common/guarded-rest.js';
 import {validateDiorPublishedRoutes} from '../crawler/common/dior-weekly-routes.js';
 import {diorForeignDataPrices} from '../crawler/common/dior-foreign-page-data.js';
+import {domesticPhaseResult} from '../crawler/common/weekly-phase-result.js';
 const root=path.resolve(import.meta.dirname,'..'),args=process.argv.slice(2),country=args[0],smoke=args.includes('--limit'),dir=root+'/crawler/runtime/dior-weekly';
 if(process.env.LUXURY_SERVICE_GUARD!=='enabled'||!process.env.LUXURY_COORDINATOR_OWNER||!['kr','jp','fr','it','es','us','sg','hk'].includes(country)||!['--discover-reference','--refresh','--refresh --limit 1'].includes(args.slice(1).join(' ')))throw Error('SCHEDULED_DIOR_SCOPE');
 fs.mkdirSync(dir,{recursive:true});
@@ -44,7 +45,11 @@ try{
  }
  fs.writeFileSync(dir+'/'+country+'-sources.json',JSON.stringify(sources),{mode:0o600});
  if(country==='hk'&&!smoke){const r=spawnSync(process.execPath,[root+'/scripts/network-isolate.mjs','["nxgnbrdxxmlhtcnymqsl.supabase.co","api.cloudflare.com","luxury-assets.dailyhotcoolmeme.workers.dev"]','0',process.execPath,root+'/scripts/refresh-dior-snapshot.mjs'],{cwd:root,env:{...process.env,NODE_USE_ENV_PROXY:'1'},stdio:'ignore',timeout:180000});if(r.status)throw Error('PUBLIC_SNAPSHOT_UPDATE_FAILED');}
- const unresolved=refs.length-verified.size;
- report('REGISTERED_KR_'+refs.length,'DATA_TARGETS_'+routes.length,'DATA_ATTEMPTED_'+attempted,'PUBLIC_CODES_VERIFIED_'+verified.size,'UNCONFIRMED_PAIRS_'+Math.max(0,unresolved),smoke?'SAMPLE_NOT_FULL_CATALOG':failed?'PARTIAL_VERIFIED_WITH_FAILURES':'REGISTERED_SCOPE_VERIFIED','DISCOVERY_SCOPE_NOT_COMPLETE');
- process.exitCode=failed||country==='kr'&&!smoke?2:0;
+ const targetCodes=newOnly?routes.map(r=>new URL(r.canonical).pathname.split('/').at(-1).replaceAll('_','')):refs.map(r=>r.normalized_code);
+ const phase=domesticPhaseResult({targetCodes,verifiedCodes:verified,failed,sample:smoke});
+ const unresolved=country==='kr'?phase.missing:refs.length-verified.size;
+ report('REGISTERED_KR_'+refs.length,'DATA_TARGETS_'+routes.length,'DATA_ATTEMPTED_'+attempted,'PUBLIC_CODES_VERIFIED_'+verified.size,'UNCONFIRMED_PAIRS_'+Math.max(0,unresolved),country==='kr'?phase.status:smoke?'SAMPLE_NOT_FULL_CATALOG':failed?'PARTIAL_VERIFIED_WITH_FAILURES':'REGISTERED_SCOPE_VERIFIED',newOnly?'INDEPENDENT_DISCOVERY_AUDIT_NEEDED':'PRICE_PHASE_NOT_DISCOVERY_AUDIT');
+ // Smoke verifies only its explicitly attempted record, never all registered
+ // references. Full domestic refresh must verify every registered SKU.
+ process.exitCode=country==='kr'?(smoke?(failed||verified.size!==1?2:0):phase.exitCode):failed?2:0;
 }catch(e){const prior=folder+'/summary.json',statuses=fs.existsSync(prior)?guard(prior).map(r=>r.status):[];report(...statuses.filter(s=>!/^RUNNING_|STORING_/.test(s)),/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'SCHEDULED_DIOR_FAILED');process.exitCode=e.message==='SAFETY_STOP'?78:country==='kr'&&fs.existsSync(dir+'/references.json')?2:1;}
