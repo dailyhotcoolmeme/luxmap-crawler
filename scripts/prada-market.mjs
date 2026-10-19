@@ -13,6 +13,7 @@ const config=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands/prada/cou
 const state=path.join(root,'crawler','prada-progress',country);
 fs.mkdirSync(state,{recursive:true});
 const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+let sampleCodes=null;
 if(!key)throw new Error('server credential required');
 async function query(endpoint,method='GET',body){
  return guardedRest(endpoint,method,body,key);
@@ -34,12 +35,13 @@ function writeSummary(rows,phase){
 }
 async function verify(){
  let rows=await references();const markets=[];
+ if(sampleCodes)rows=rows.filter(r=>sampleCodes.has(r.normalized_code));
  const scopeIndex=process.argv.indexOf('--reference-codes-file');
  if(scopeIndex>=0){const selected=JSON.parse(fs.readFileSync(process.argv[scopeIndex+1]));if(!Array.isArray(selected)||!selected.length||selected.length>500||selected.some(code=>typeof code!=='string'||!/^[A-Z0-9]+$/.test(code)))throw new Error('invalid verification scope');const codes=new Set(selected);rows=rows.filter(row=>codes.has(row.normalized_code));if(rows.length!==codes.size)throw new Error('verification reference missing');}
  for(let offset=0;;offset+=500){const batch=await query(`market_products?country_code=eq.${config.country}&select=variant_id,official_product_code,current_price,currency_code,official_url&order=id&limit=500&offset=${offset}`);markets.push(...batch);if(batch.length<500)break;}
  const summaries=rows.map(row=>{const market=markets.find(item=>item.variant_id===row.id);const valid=market&&market.official_product_code===row.normalized_code&&market.currency_code===config.currency&&market.official_url.startsWith(`https://www.prada.com${config.referenceDetailPrefix}`)&&decodeURIComponent(new URL(market.official_url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase()===row.normalized_code;return {brand:'prada',country:config.country,parentModel:'한국 기준',variantCode:row.normalized_code,price:valid?Number(market.current_price)||null:null,currency:config.currency,status:valid?(market.current_price==null?'price_unavailable':'confirmed'):'unprocessed',officialUrl:market?.official_url?.length<=500?market.official_url:config.listingUrls[0]};});
  let discoveryMissing=0;
- if(country==='kr'&&scopeIndex<0){
+ if(country==='kr'&&scopeIndex<0&&!sampleCodes){
   const runs=path.join(root,'crawler/runs/prada/kr');const discovery=fs.readdirSync(runs).sort().reverse().find(name=>fs.existsSync(path.join(runs,name,'artifacts/discovered-urls.json')));
   if(!discovery)throw new Error('discovery baseline missing');const urls=JSON.parse(fs.readFileSync(path.join(runs,discovery,'artifacts/discovered-urls.json')));const codes=new Set(rows.map(row=>row.normalized_code));discoveryMissing=urls.filter(url=>!codes.has(decodeURIComponent(new URL(url).pathname.split('/').at(-1)).replace(/[^a-z0-9]/gi,'').toUpperCase())).length;
  }
@@ -89,6 +91,7 @@ try{
    }));
   }
   const limitIndex=process.argv.indexOf('--limit');let selected=limitIndex>=0?rows.slice(0,Number(process.argv[limitIndex+1])):rows;
+  if(limitIndex>=0)sampleCodes=new Set(selected.map(r=>r.normalized_code));
   let index=new Map(),familyByStyle=new Map();if(country!=='kr'&&selected.length){writeSummary([{normalized_code:'INDEX',official_url:config.listingUrls[0]}],'BUILDING_PRICE_INDEX');const run=pipeline(['--crawl-only',process.argv.includes('--independent-index')?'--sitemap-price-index':'--build-price-index']);index=new Map(JSON.parse(fs.readFileSync(path.join(run,'artifacts/price-url-index.json'))));
    const sitemapCache=path.join(state,'verified-sitemap-index.json');
    if(fs.existsSync(sitemapCache)){

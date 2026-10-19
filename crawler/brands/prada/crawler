@@ -211,10 +211,10 @@ try{
       }
       if(!response.ok())throw fail('DETAIL_HTTP_FAILED');
       if(!new URL(response.url()).pathname.startsWith(config.referenceDetailPrefix))throw fail('WRONG_COUNTRY_REDIRECT');
-      const row=parsePradaProduct(html,url,config,map);
+      const existingPrice=config.country==='KR'&&registeredPriceOnly(code),row=parsePradaProduct(html,url,config,map,{requireImage:!existingPrice});
       recordAvailability(run,config,url,200,true);
-      if(config.country==='KR'&&classifyPradaCandidate(row,isPradaBag)!=='bag')throw fail('BAG_CLASSIFICATION_UNVERIFIED');
-      if(config.country==='KR'&&!args.includes('--prices-only')&&!registeredPriceOnly(row.normalizedCode)){
+      if(config.country==='KR'&&!existingPrice&&classifyPradaCandidate(row,isPradaBag)!=='bag')throw fail('BAG_CLASSIFICATION_UNVERIFIED');
+      if(config.country==='KR'&&!args.includes('--prices-only')&&(!existingPrice||args.includes('--expand-variants'))){
         const modelResponse=await get(`${url}.model.json`);
         if(!modelResponse.ok())throw fail('PRODUCT_MODEL_HTTP_FAILED');
         const modelText=await modelResponse.text();await fs.writeFile(path.join(run,'raw',`${code}-product-model.json`),modelText);

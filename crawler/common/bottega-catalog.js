@@ -8,6 +8,7 @@ import {bottegaModel} from './bottega-model.js';
 import {resolveBottegaListingReference} from './bottega-listing-reference.js';
 import crypto from 'node:crypto';
 import {downloadAndOptimizeImage,closeImageProcessor} from './image-processor.js';
+import {registeredPriceOnly} from './registered-maintenance.js';
 import {recordAvailability} from './catalog-availability.js';
 
 export async function collectBottega(){
@@ -102,15 +103,16 @@ export async function collectBottega(){
      if(matches.length!==1||matches[0].normalizedCode!==expected)throw Error('EXACT_REFERENCE_REQUIRED');
      options={expectedCode:expected,expectedProductId:alias};
     }
-    const row=parseBottegaProduct(page.text,url,cfg,options);
+    const expected=source.find(p=>p.url===url)?.sku.toUpperCase(),existingPrice=registeredPriceOnly(expected);
+    const row=parseBottegaProduct(page.text,url,cfg,{...options,...(existingPrice?{requireImageReference:false}:{})});
     if(!proof)recordAvailability(run,cfg,url,200,true);
     if(proof){if(row.normalizedCode!==proof.normalizedCode||row.price!==proof.price||row.currency!==proof.currency)throw Error('METADATA_PROOF_MISMATCH');row.checkedAt=(await fs.stat(proof.proofFile)).mtime.toISOString();}
-    if(/키링|백\s*참|백\s*장식|스트랩|헤어|카드\s*홀더/.test(row.productName)){
+    if(!existingPrice&&/키링|백\s*참|백\s*장식|스트랩|헤어|카드\s*홀더/.test(row.productName)){
      summaries.push(summarize('OFFICIAL_ACCESSORY_EXCLUDED',row));await save();continue;
     }
-    if(!row.officialCategories.includes('Bags')&&!listed.has(row.normalizedCode))throw Error('BAG_CATEGORY_UNVERIFIED');
+    if(!existingPrice&&!row.officialCategories.includes('Bags')&&!listed.has(row.normalizedCode))throw Error('BAG_CATEGORY_UNVERIFIED');
     // Fail closed on incomplete options; never create an artificial colour or size.
-    if(!row.colorDisplay||!row.sourceImageUrl){
+    if(!existingPrice&&(!row.colorDisplay||!row.sourceImageUrl)){
      await fs.writeFile(path.join(artifact,`${row.normalizedCode}-incomplete-fields.json`),JSON.stringify(row),{mode:0o600});
      throw Error('REFERENCE_DETAILS_INCOMPLETE');
     }

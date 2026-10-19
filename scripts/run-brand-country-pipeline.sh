@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+umask 077
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$PROJECT_DIR/scripts/crawler-env.sh"
@@ -138,7 +139,9 @@ else
 fi
 RECORD_FILE="$RUN_DIR/artifacts/records.json"
 if [ "$COUNTRY" = kr ]; then
- LUXURY_PIPELINE_GUARD=enabled SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" node "$PROJECT_DIR/scripts/ingest-catalog-availability.mjs" "$RUN_DIR"
+ if LUXURY_PIPELINE_GUARD=enabled SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" node "$PROJECT_DIR/scripts/ingest-catalog-availability.mjs" "$RUN_DIR" 2>"$RUN_DIR/availability.private-log"; then :; else
+  STAGE_EXIT=$?; node "$PROJECT_DIR/scripts/report-pipeline-failure.mjs" "$RUN_DIR" AVAILABILITY "$RUN_DIR/availability.private-log"; exit "$STAGE_EXIT"
+ fi
 fi
 [ -f "$RECORD_FILE" ] || { echo "BLOCKED: validated records missing." >&2; exit 1; }
 if [ "$REFERENCE_EXIT" -eq 2 ]; then
@@ -184,7 +187,7 @@ if [ -n "$LUXURY_REGISTERED_MANIFEST" ]; then
  INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-weekly-products.mjs"
 fi
 
-env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+if env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   LUXURY_PIPELINE_GUARD=enabled \
   SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" \
   SUPABASE_ANON_KEY="$PUBLIC_KEY" \
@@ -198,7 +201,9 @@ env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   WRANGLER_SEND_METRICS=false \
   node "$PROJECT_DIR/scripts/network-isolate.mjs" \
   '["nxgnbrdxxmlhtcnymqsl.supabase.co","api.cloudflare.com","4c0f5d706177b84ade4d424a08ec46e8.r2.cloudflarestorage.com","luxury-assets.dailyhotcoolmeme.workers.dev"]' 0 \
-  "$INGEST_SCRIPT" "$RECORD_FILE" "$MAINTENANCE_ADAPTER"
+  "$INGEST_SCRIPT" "$RECORD_FILE" "$MAINTENANCE_ADAPTER" 2>"$RUN_DIR/storage.private-log"; then :; else
+ STAGE_EXIT=$?; node "$PROJECT_DIR/scripts/report-pipeline-failure.mjs" "$RUN_DIR" PRICE_STORAGE "$RUN_DIR/storage.private-log"; exit "$STAGE_EXIT"
+fi
 storage_stage INGEST_VERIFIED
 if [ "$COUNTRY" = kr ]; then
  LUXURY_PIPELINE_GUARD=enabled SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" node "$PROJECT_DIR/scripts/ingest-catalog-availability.mjs" "$RUN_DIR"

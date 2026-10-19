@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium, request } from "playwright-core";
 import { downloadAndOptimizeImage,closeImageProcessor } from "../../common/image-processor.js";
+import {registeredPriceOnly} from '../../common/registered-maintenance.js';
 import {refreshImages} from '../../common/image-refresh.js';
 import { normalizeProductCode, originalCodeFromText, parseDimensions } from "../../common/product-normalizer.js";
 import {productReady} from '../../common/product-ready.js';
@@ -281,7 +282,7 @@ try {
       const imageUrl = extracted.imageCandidates.find((url) => {
         try { return allowedHosts.has(new URL(url).hostname) && !/(logo|icon|sprite)/i.test(url); } catch { return false; }
       });
-      if (!imageUrl&&config.country==='KR') throw new Error("official product image not found");
+      if (!imageUrl&&config.country==='KR'&&!registeredPriceOnly(normalizedCode)) throw new Error("official product image not found");
 
       stage = "IMAGE";
       // Foreign markets attach prices to Korean variants; never recollect/store their images.

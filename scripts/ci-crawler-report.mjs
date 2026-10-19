@@ -19,6 +19,8 @@ for(const brand of new Set(schedule.jobs.map(j=>j.brand))){
  for(const status of ['EXISTING_PRICE_VERIFIED_'+verified.size,'NEW_FULL_RECORD_VERIFIED_'+fresh.size,'EXISTING_PRICE_UNCONFIRMED_'+unconfirmed.size,...failures])rows.push({brand,country:'KR',parentModel:'주간 기존 가격·신규 통합 등록 구분',variantCode:'TOTAL',price:null,currency:'KRW',status,officialUrl:cfg.entryUrl??cfg.listingUrls[0]});
 }
 for(const job of schedule.jobs){
+ const runBase=path.join(root,'crawler/runs',job.brand,job.country),runId=fs.existsSync(runBase)?fs.readdirSync(runBase).sort().at(-1):null;
+ if(runId)for(const name of ['pipeline-report','runtime-report']){const f=path.join(runBase,runId,name,'summary.json');if(fs.existsSync(f)&&spawnSync(root+'/scripts/crawl-output-guard.sh',[f],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(f)));}
  if(job.brand==='dior'){
   for(const file of [path.join(root,'crawler/completeness/dior/weekly',job.country,'summary.json'),...(job.country==='kr'?[path.join(root,'crawler/completeness/dior/weekly-audit/summary.json'),path.join(root,'crawler/completeness/dior/weekly-snapshot/summary.json')]:[])])if(fs.existsSync(file)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(file)));
   continue;
