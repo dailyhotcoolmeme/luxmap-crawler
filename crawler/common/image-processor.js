@@ -9,6 +9,7 @@ import {celineOriginalImageUrl} from './celine-image-url.js';
 import {bulgariOriginalImageUrl} from './bulgari-image-url.js';
 import {hermesOriginalImageUrl} from './hermes-image-url.js';
 import {diorCutoutQuality} from './dior-image-quality.js';
+import {registeredPriceOnly} from './registered-maintenance.js';
 
 const root=path.resolve(import.meta.dirname,'../..');
 export const IMAGE_PROCESSING_VERSION='original-cutout-v1';
@@ -92,6 +93,9 @@ export async function closeImageProcessor(){
  lines?.close();
 }
 export async function downloadAndOptimizeImage(context,imageUrl,artifactDir,expectedCode,sourceProperties){
+ // Scheduled existing references are price-only. This is deliberately before
+ // worker startup, image URL processing and any image HTTP request.
+ if(registeredPriceOnly(expectedCode))return {maintenancePriceOnly:true};
  await startWorker();
  const sourceImageUrl=originalImageUrl(imageUrl,expectedCode,sourceProperties);
  let response;

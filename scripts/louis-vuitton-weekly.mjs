@@ -43,7 +43,7 @@ try{
    rows.push(row('NEW_DISCOVERY_PIPELINE_EXECUTED'));
   }
  }else{
-  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRODUCT_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRODUCT_REFRESH_FAILED');rows.push(row('REGISTERED_KR_FULL_RECORD_REFRESHED'));
+  const s=node('louis-vuitton-market.mjs',['kr','--api-sku',...args]);if(s===78)throw Error('KR_PRODUCT_SAFETY_STOP');if(![0,2].includes(s))throw Error('KR_PRODUCT_REFRESH_FAILED');rows.push(row('REGISTERED_KR_PRICE_REFRESHED'));
  }
  rows.push(row('DISCOVERY_AUDIT_REQUIRED'));
 }catch(e){rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'WEEKLY_KR_FAILED'));code=/SAFETY|GUARD|LIMIT/.test(e.message)?78:1;}

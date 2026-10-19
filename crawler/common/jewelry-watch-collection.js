@@ -74,7 +74,7 @@ export async function collectReference(){
      return context.get(url,options);
     }}},product.image,artifact,product.normalizedCode);
     delete product.image;records.push({...product,...image});
-    rows.push(row(product.price===null?'PRICE_UNPUBLISHED':'REFERENCE_IMAGE_READY',url,product.normalizedCode,product.price));
+    rows.push(row(image.maintenancePriceOnly?'REGISTERED_PRICE_READY':product.price===null?'PRICE_UNPUBLISHED':'REFERENCE_IMAGE_READY',url,product.normalizedCode,product.price));
    }catch(e){
     if(/BLOCKED|LIMIT|UNAUTHORIZED|SANDBOX|GUARD|WORKER|RUNTIME|OFFLINE/.test(e.message))throw e;
     failed++;rows.push(row(/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'PRODUCT_REQUEST_FAILED',url,referenceCode(url,cfg.brand)));

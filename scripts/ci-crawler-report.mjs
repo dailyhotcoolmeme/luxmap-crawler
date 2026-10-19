@@ -7,6 +7,17 @@ const sample=path.join(root,'crawler/service/weekly-samples/summary.json');
 if(process.env.RUN_MODE==='reference-smoke'&&fs.existsSync(sample)&&Date.now()-fs.statSync(sample).mtimeMs<3600000&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[sample],{stdio:'ignore'}).status===0){fs.mkdirSync(path.join(root,'.ci-report'),{recursive:true});fs.copyFileSync(sample,path.join(root,'.ci-report/summary.json'));process.exit(0);}
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
 const rows=[];
+for(const brand of new Set(schedule.jobs.map(j=>j.brand))){
+ const base=path.join(root,'crawler/runs',brand,'kr');if(!fs.existsSync(base))continue;
+ const verified=new Set(),unconfirmed=new Set(),fresh=new Set(),failures=new Set();
+ for(const id of fs.readdirSync(base))for(const name of ['registered-price-verified','public-verified','verified']){
+  const f=path.join(base,id,'artifacts',name,'summary.json');if(!fs.existsSync(f)||spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[f],{stdio:'ignore'}).status)continue;
+  for(const r of JSON.parse(fs.readFileSync(f))){if(r.status==='REGISTERED_PRICE_PUBLIC_VERIFIED')verified.add(r.variantCode);else if(r.status==='REGISTERED_PRICE_UNCONFIRMED')unconfirmed.add(r.variantCode);else if(r.status==='PUBLIC_CATALOG_VERIFIED')fresh.add(r.variantCode);else if(name==='registered-price-verified'&&r.status!=='REGISTERED_NEWER_PRICE_PRESERVED')failures.add(r.status);}
+ }
+ if(!verified.size&&!unconfirmed.size&&!fresh.size&&!failures.size)continue;
+ const cfg=JSON.parse(fs.readFileSync(path.join(root,'crawler/brands',brand,'countries/kr')));
+ for(const status of ['EXISTING_PRICE_VERIFIED_'+verified.size,'NEW_FULL_RECORD_VERIFIED_'+fresh.size,'EXISTING_PRICE_UNCONFIRMED_'+unconfirmed.size,...failures])rows.push({brand,country:'KR',parentModel:'주간 기존 가격·신규 통합 등록 구분',variantCode:'TOTAL',price:null,currency:'KRW',status,officialUrl:cfg.entryUrl??cfg.listingUrls[0]});
+}
 for(const job of schedule.jobs){
  if(job.brand==='dior'){
   for(const file of [path.join(root,'crawler/completeness/dior/weekly',job.country,'summary.json'),...(job.country==='kr'?[path.join(root,'crawler/completeness/dior/weekly-audit/summary.json'),path.join(root,'crawler/completeness/dior/weekly-snapshot/summary.json')]:[])])if(fs.existsSync(file)&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status===0)rows.push(...JSON.parse(fs.readFileSync(file)));

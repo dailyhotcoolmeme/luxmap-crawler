@@ -107,6 +107,13 @@ PUBLIC_KEY=$(printf '%s' "$KEYS_JSON" | jq -r '.[] | select(.name=="anon") | .ap
 unset ACCESS_TOKEN KEYS_JSON
 fi
 
+LUXURY_REGISTERED_MANIFEST=''
+if [ "$COUNTRY" = kr ] && [ "${LUXURY_WEEKLY_MAINTENANCE:-}" = enabled ]; then
+ SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" SUPABASE_ANON_KEY="$PUBLIC_KEY" node "$PROJECT_DIR/scripts/prepare-registered-maintenance.mjs" "$BRAND"
+ LUXURY_REGISTERED_MANIFEST="$PROJECT_DIR/crawler/runtime/registered-maintenance/$BRAND.json"
+ export LUXURY_REGISTERED_MANIFEST
+fi
+
 REFERENCE_EXIT=0
 if [ -n "$CELINE_PARTIAL_RUN" ]; then
  RUN_DIR="$CELINE_PARTIAL_RUN"
@@ -171,6 +178,11 @@ storage_stage() {
 }
 storage_stage INGEST_STARTING
 
+MAINTENANCE_ADAPTER=''
+if [ -n "$LUXURY_REGISTERED_MANIFEST" ]; then
+ MAINTENANCE_ADAPTER="$INGEST_SCRIPT"
+ INGEST_SCRIPT="$PROJECT_DIR/scripts/ingest-weekly-products.mjs"
+fi
 
 env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   LUXURY_PIPELINE_GUARD=enabled \
@@ -181,11 +193,12 @@ env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
   LUXURY_SERVICE_STATE_DIR="${LUXURY_SERVICE_STATE_DIR:-}" \
   LUXURY_MARKET_COUNTRY="$COUNTRY" \
   LUXURY_INGEST_BRAND="$BRAND" \
+  LUXURY_REGISTERED_MANIFEST="$LUXURY_REGISTERED_MANIFEST" \
   LUXURY_PARTIAL_REFERENCE_MODE="$(if [ -n "$CELINE_PARTIAL_RUN" ]; then printf 'celine-four-v1'; fi)" \
   WRANGLER_SEND_METRICS=false \
   node "$PROJECT_DIR/scripts/network-isolate.mjs" \
   '["nxgnbrdxxmlhtcnymqsl.supabase.co","api.cloudflare.com","4c0f5d706177b84ade4d424a08ec46e8.r2.cloudflarestorage.com","luxury-assets.dailyhotcoolmeme.workers.dev"]' 0 \
-  "$INGEST_SCRIPT" "$RECORD_FILE"
+  "$INGEST_SCRIPT" "$RECORD_FILE" "$MAINTENANCE_ADAPTER"
 storage_stage INGEST_VERIFIED
 if [ "$COUNTRY" = kr ]; then
  LUXURY_PIPELINE_GUARD=enabled SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" node "$PROJECT_DIR/scripts/ingest-catalog-availability.mjs" "$RUN_DIR"

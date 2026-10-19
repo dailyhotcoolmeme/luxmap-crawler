@@ -17,11 +17,12 @@ for(const brand of brands){
   if(records.length!==1)throw Error('SAMPLE_SIZE_NOT_ONE');row=records[0];
   const code=row.normalizedCode.toUpperCase(),brandRow=guardedRest(`brands?slug=eq.${brand}&select=id`)[0];
   const products=guardedRest(`product_variants?brand_id=eq.${brandRow.id}&normalized_code=eq.${code}&select=id,active,market_products(id,country_code,currency_code,current_price,official_product_code,official_url,price_checked_at),product_media(is_primary,sha256,r2_object_key,width,height)`, 'GET',undefined,process.env.EXPO_PUBLIC_SUPABASE_KEY);
-  const product=products[0],market=product?.market_products?.find(m=>m.country_code==='KR'),media=product?.product_media?.find(m=>m.is_primary&&m.sha256===row.imageSha256);
+  const product=products[0],market=product?.market_products?.find(m=>m.country_code==='KR'),media=product?.product_media?.find(m=>m.is_primary&&(row.maintenancePriceOnly||m.sha256===row.imageSha256));
   if(products.length!==1||!product.active||!market||market.currency_code!=='KRW'||market.official_product_code!==code||market.official_url!==row.officialUrl||row.price==null||Number(market.current_price)!==row.price||Date.parse(market.price_checked_at)<Date.parse(row.checkedAt))throw Error('SAMPLE_PUBLIC_PRICE_MISMATCH');
   const history=guardedRest(`price_history?market_product_id=eq.${market.id}&select=amount,currency_code&order=observed_at.desc&limit=1`)[0];
   if(!history||Number(history.amount)!==row.price||history.currency_code!=='KRW')throw Error('SAMPLE_HISTORY_MISMATCH');
-  if(!media||media.width!==960||media.height!==960||row.imageProcessingVersion!=='original-cutout-v1')throw Error('SAMPLE_IMAGE_MISMATCH');
+  if(row.maintenancePriceOnly){const f=path.join(run,'artifacts/registered-price-verified/summary.json');if(spawnSync(root+'/scripts/crawl-output-guard.sh',[f],{stdio:'ignore'}).status||!JSON.parse(fs.readFileSync(f)).some(p=>p.variantCode===code&&p.status==='REGISTERED_PRICE_PUBLIC_VERIFIED'&&p.price===row.price&&p.officialUrl===row.officialUrl))throw Error('SAMPLE_PRICE_ONLY_PROOF_REQUIRED');}
+  if(!media||media.width!==960||media.height!==960||!row.maintenancePriceOnly&&row.imageProcessingVersion!=='original-cutout-v1')throw Error('SAMPLE_IMAGE_MISMATCH');
   const imageUrl='https://luxury-assets.dailyhotcoolmeme.workers.dev/media/'+media.r2_object_key.split('/').map(encodeURIComponent).join('/');
   const bytes=execFileSync(process.execPath,[path.join(root,'scripts/network-isolate.mjs'),'["luxury-assets.dailyhotcoolmeme.workers.dev"]','0','/usr/bin/curl','-fsS','--max-time','30',imageUrl],{env:{PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR},stdio:['ignore','pipe','pipe'],maxBuffer:4194304,timeout:35000});
   if(crypto.createHash('sha256').update(bytes).digest('hex')!==media.sha256)throw Error('SAMPLE_R2_HASH_MISMATCH');

@@ -36,7 +36,7 @@ try{
  process.exitCode=await executeBrandPool(plan,(job,{signal,abortAll})=>runBrandChild(
   path.join(root,'scripts/with-supabase-env.sh'),
   [process.execPath,path.join(root,job.adapter),job.country,...job.args],
-  {cwd:root,env:process.env,signal,abortAll}
+  {cwd:root,env:{...process.env,LUXURY_WEEKLY_MAINTENANCE:'enabled'},signal,abortAll}
  ),{concurrency,signal:cancellation.signal});
  if(referenceSmoke&&brandSelection<0&&process.exitCode===0){const result=spawnSync(process.execPath,[path.join(root,'scripts/verify-reference-smoke.mjs')],{cwd:root,env:process.env,stdio:'ignore',timeout:180000});process.exitCode=result.signal||result.error?78:result.status??1;}
 }finally{for(const signal of ['SIGTERM','SIGINT'])process.removeListener(signal,stop);}

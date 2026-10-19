@@ -20,14 +20,14 @@ const save=()=>{fs.writeFileSync(out+'/summary.json',JSON.stringify(rows),{mode:
 const pipeline=args=>{const before=new Set(fs.readdirSync(base)),p=spawnSync(root+'/scripts/run-brand-country-pipeline.sh',['louis-vuitton',country,...args],{cwd:root,env:{...process.env,...browserEnv},stdio:'ignore',timeout:1800000}),created=fs.readdirSync(base).filter(id=>!before.has(id));if(created.length!==1)throw Error('COUNTRY_RUN_MISSING');const dir=base+'/'+created[0],proof=guard(dir+'/summary.json');if(p.status===78)throw Error(proof.some(r=>r.status==='SECURITY_VERIFICATION_REQUIRED')?'SECURITY_VERIFICATION_REQUIRED':'COUNTRY_SAFETY_STOP');return {dir,proof,status:p.status??1};};
 const verifyKoreanBatch=result=>{
  if(country!=='kr')return;
- const ready=result.proof.filter(r=>r.status==='KR_FULL_RECORD_READY').map(r=>r.variantCode);
+ const ready=result.proof.filter(r=>['KR_FULL_RECORD_READY','REGISTERED_PRICE_READY'].includes(r.status)).map(r=>r.variantCode);
  if(!ready.length)return;
  const proof=guard(result.dir+'/artifacts/public-verified/summary.json');
- const verified=proof.filter(r=>r.status==='PUBLIC_CATALOG_VERIFIED').map(r=>r.variantCode);
+ const verified=proof.filter(r=>['PUBLIC_CATALOG_VERIFIED','REGISTERED_PRICE_PUBLIC_VERIFIED'].includes(r.status)).map(r=>r.variantCode);
  if(verified.length!==ready.length||new Set(verified).size!==ready.length||ready.some(code=>!verified.includes(code)))throw Error('KR_FULL_RECORD_PUBLIC_FAILED');
  for(const code of verified)domesticVerified.add(code);
  domesticUnresolved+=result.proof.filter(r=>r.status.startsWith('KR_ATTRIBUTES_UNRESOLVED_')).length;
- rows.push(row('KR_FULL_RECORD_PUBLIC_VERIFIED_'+ready.length));save();
+ rows.push(row('KR_REGISTERED_PRICE_VERIFIED_'+ready.length));save();
 };
 let references=[];
 try{

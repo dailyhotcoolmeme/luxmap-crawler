@@ -7,13 +7,15 @@ import {parseOfficialProduct} from './dior-official-core.js';
 import {hashUrl,validateDiorPublishedRoutes,preserveDiorRegisteredFields} from './dior-weekly-routes.js';
 export async function collectDiorWeeklyData(){
  const root=path.resolve(import.meta.dirname,'../..'),a=process.argv.slice(2),run=process.env.CRAWL_RUN_DIR;
- if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||![5,7].includes(a.length)||a.length===7&&a.slice(5).join(' ')!=='--limit 1'||a[2]!=='--scheduled-page-data'||a[3]!=='--offset'||!/^\d+$/.test(a[4])||Number(a[4])%25)throw Error('SCHEDULED_DATA_GUARD');
+ const newOnly=a.includes('--new-only'),tail=a.slice(5).filter(x=>x!=='--new-only'),sample=tail.join(' ')==='--limit 1';
+ if(process.env.CRAWL_MODE!=='deterministic-only'||process.env.LUXURY_PIPELINE_GUARD!=='enabled'||process.env.LUXURY_NETWORK_ISOLATED!=='enabled'||!['','--limit 1'].includes(tail.join(' '))||a.filter(x=>x==='--new-only').length>1||a[2]!=='--scheduled-page-data'||a[3]!=='--offset'||!/^\d+$/.test(a[4])||Number(a[4])%25)throw Error('SCHEDULED_DATA_GUARD');
  const cfg=JSON.parse(fs.readFileSync(a[1])),country=cfg.country,offset=Number(a[4]),dir=root+'/crawler/runtime/dior-weekly';
  const refs=JSON.parse(fs.readFileSync(dir+'/references.json')),byCode=new Map(refs.map(v=>[v.normalized_code,v]));
  if(!refs.length||refs.length>cfg.maxCandidates||byCode.size!==refs.length)throw Error('REGISTERED_REFERENCE_SCOPE');
  const all=validateDiorPublishedRoutes(JSON.parse(fs.readFileSync(root+'/crawler/brands/dior/published-routes/'+country.toLowerCase()+'.json')),country).sort((a,b)=>Number(!a.canonical.includes('/products/'))-Number(!b.canonical.includes('/products/'))||a.url.localeCompare(b.url));
  const denied=new Set(JSON.parse(fs.readFileSync(root+'/crawler/brands/dior/published-routes/denied.json')));
- const targets=all.filter(r=>country!=='KR'||byCode.has(new URL(r.canonical).pathname.split('/').at(-1).replaceAll('_',''))).slice(offset,offset+(a.length===7?1:25));
+ if(newOnly&&country!=='KR')throw Error('SCHEDULED_DATA_GUARD');
+ const targets=all.filter(r=>country!=='KR'||byCode.has(new URL(r.canonical).pathname.split('/').at(-1).replaceAll('_',''))!==newOnly).slice(offset,offset+(sample?1:25));
  if(!targets.length||targets.length>cfg.maxProductsPerRun)throw Error('SCHEDULED_TARGET_LIMIT');
  const rows=[],index=[],prices=new Map(),row=(status,url=cfg.entryUrl,code='RUN',price=null)=>({brand:'dior',country,parentModel:'검증된 공식 데이터 주간 수집',variantCode:code,price,currency:cfg.currency,status,officialUrl:url});
  let client,calls=0;
@@ -30,7 +32,7 @@ export async function collectDiorWeeklyData(){
    const bytes=await res.body();if(bytes.length>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');
    const body=bytes.toString('utf8');if(/cf-chl|captcha-delivery|verify you are human|<title[^>]*>\s*access denied/i.test(body))throw Error('ACCESS_BLOCKED');
    if(country==='KR'){
-    const code=new URL(t.canonical).pathname.split('/').at(-1),p=preserveDiorRegisteredFields(parseOfficialProduct(body,t.canonical,cfg,code,{handbagEvidence:true}),byCode.get(code.replaceAll('_','')));
+    const code=new URL(t.canonical).pathname.split('/').at(-1),p=parseOfficialProduct(body,t.canonical,cfg,code,{handbagEvidence:true});
     rows.push(row('EXACT_SKU',t.canonical,p.normalizedCode,p.price));
    }else for(const p of diorForeignDataPrices(body,t.canonical,country,new Set(byCode.keys()),new Date().toISOString())){
     const old=prices.get(p.normalizedCode);if(old&&old.price!==p.price)throw Error('FOREIGN_PRICE_CONFLICT');prices.set(p.normalizedCode,p);

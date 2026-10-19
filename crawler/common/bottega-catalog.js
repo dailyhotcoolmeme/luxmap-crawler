@@ -115,7 +115,7 @@ export async function collectBottega(){
      throw Error('REFERENCE_DETAILS_INCOMPLETE');
     }
     Object.assign(row,bottegaModel(row.productName));
-    if(!args.includes('--metadata-only'))Object.assign(row,await downloadAndOptimizeImage({request:context},row.sourceImageUrl,artifact));
+    if(!args.includes('--metadata-only'))Object.assign(row,await downloadAndOptimizeImage({request:context},row.sourceImageUrl,artifact,row.normalizedCode));
     records.push(row);summaries.push(summarize(args.includes('--metadata-only')?'EXACT_METADATA_CONFIRMED':'confirmed',row));
     await fs.writeFile(path.join(artifact,'records.json'),JSON.stringify(records),{mode:0o600});await save();
     }catch(error){

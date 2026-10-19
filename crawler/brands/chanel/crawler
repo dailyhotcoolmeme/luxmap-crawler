@@ -286,7 +286,7 @@ try {
       stage = "IMAGE";
       // Foreign markets attach prices to Korean variants; never recollect/store their images.
       recordAvailability(runDir,config,officialUrl,200,true);
-      const image = config.country==='KR'&&!auditVariants?await downloadAndOptimizeImage({ request: imageRequest }, imageUrl, artifactDir):{};
+      const image = config.country==='KR'&&!auditVariants?await downloadAndOptimizeImage({ request: imageRequest }, imageUrl, artifactDir, normalizedCode):{};
       const checkedAt = new Date().toISOString();
       const material = typeof product.material === "string" ? product.material.trim() : null;
       const color = typeof product.color === "string" ? product.color.trim() : null;

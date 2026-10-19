@@ -1,3 +1,5 @@
+최신 주간 계약은 [weekly-product-maintenance.md](weekly-product-maintenance.md)를 따른다. 아래 과거 통합 등록 설명은 신규 SKU에만 적용하며 기존 한국 SKU는 가격만 갱신한다. 첫 원격 실행39183933588은 실패했고 예약 등록을 수집 성공으로 간주하지 않는다.
+
 # Dior verified-route weekly collection
 
 The owner approved publishing and executing this integration on 2026-10-19.

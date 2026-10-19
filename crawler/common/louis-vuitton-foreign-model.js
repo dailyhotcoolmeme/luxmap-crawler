@@ -9,6 +9,7 @@ import {louisVuittonForeignUrl} from './louis-vuitton-foreign.js';
 import {koreanModelRecord} from './louis-vuitton-korean-record.js';
 import {readRegisteredLouisVuitton} from './louis-vuitton-registered.js';
 import {downloadAndOptimizeImage,closeImageProcessor} from './image-processor.js';
+import {registeredPriceOnly} from './registered-maintenance.js';
 import {catalogImageKey,heldCatalogItem,catalogItemFailureKind} from './catalog-workflow.js';
 import {validateKoreanCatalogRecord} from './catalog-product-contract.js';
 const locales={KR:'kor-kr',JP:'jpn-jp',FR:'fra-fr',IT:'ita-it',ES:'esp-es',US:'eng-us',SG:'eng-sg',HK:'eng-hk'};
@@ -50,20 +51,20 @@ export async function collectLouisVuittonForeignModels(){
   if(skuMode){url=foreignSkuEndpoint(cfg,t.code);const lookup=await get();url=nativeModelEndpoint(cfg,lookup.data);const result=await get();let record=foreignModelRecord(result.data,cfg,t.code,result.checkedAt);
    if(domestic){
     record=koreanModelRecord(result.data,cfg,record);
-    if(failedUrls.has(record.sourceImageUrl))throw Error('IMAGE_ACCESS_STOP_HELD');
+    if(!registeredPriceOnly(t.code)&&failedUrls.has(record.sourceImageUrl))throw Error('IMAGE_ACCESS_STOP_HELD');
     const source={code:t.code,images:[{url:record.sourceImageUrl}]};
     // Only diagnosed source/image failures hold an unchanged image. Preserve
     // an earlier generic local-preparation journal entry, not a remote refusal.
     const diagnosed=/^IMAGE_(?:DOWNLOAD_FAILED|FORMAT_INVALID|NETWORK_TIMEOUT|NETWORK_RESET|REQUEST_FAILED)$/;
-    if(heldCatalogItem(source,state.ingestHeld)&&diagnosed.test(state.ingestHeld[t.code].reason))throw Error('REFERENCE_ITEM_HELD');
+    if(!registeredPriceOnly(t.code)&&heldCatalogItem(source,state.ingestHeld)&&diagnosed.test(state.ingestHeld[t.code].reason))throw Error('REFERENCE_ITEM_HELD');
     let blockedImage=false;
     try{
      const optimized=await downloadAndOptimizeImage({request:{get:async(value,options)=>{if(value!==record.sourceImageUrl)throw Error('IMAGE_SOURCE_IDENTITY');if(++calls>cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');const response=await client.get(value,options);if([401,403,429].includes(response.status())){blockedImage=true;rows.push(row('IMAGE_HTTP_'+response.status(),null,value));}return response;}}},record.sourceImageUrl,run+'/artifacts',t.code);
-     record={...record,...optimized};validateKoreanCatalogRecord(record,cfg.brand);
+     record={...record,...optimized};if(!record.maintenancePriceOnly)validateKoreanCatalogRecord(record,cfg.brand);
     }catch(e){if(blockedImage)throw Error('IMAGE_ACCESS_BLOCKED');if(diagnosed.test(e.message)){state.ingestHeld[t.code]={imageKey:catalogImageKey(source),reason:e.message};await fs.mkdir(path.dirname(stateFile),{recursive:true});const tmp=stateFile+'.tmp';await fs.writeFile(tmp,JSON.stringify(state),{mode:0o600});await fs.rename(tmp,stateFile);}if(e.code==='ENOENT'||e.code==='EACCES'||e instanceof TypeError)throw Error('IMAGE_LOCAL_RUNTIME_FAILED');throw e;}
    }
-   if(domestic){const unresolved=['colorDisplay','materialDisplay','widthMm','heightMm','depthMm'].filter(key=>record[key]===null).length;if(unresolved)rows.push(row('KR_ATTRIBUTES_UNRESOLVED_'+unresolved,null,record.officialUrl));}
-   records.push(record);rows.push(row(domestic?'KR_FULL_RECORD_READY':'EXACT_LOCAL_MODEL_PRICE',record.price,record.officialUrl));continue;}
+   if(domestic&&!record.maintenancePriceOnly){const unresolved=['colorDisplay','materialDisplay','widthMm','heightMm','depthMm'].filter(key=>record[key]===null).length;if(unresolved)rows.push(row('KR_ATTRIBUTES_UNRESOLVED_'+unresolved,null,record.officialUrl));}
+   records.push(record);rows.push(row(record.maintenancePriceOnly?'REGISTERED_PRICE_READY':domestic?'KR_FULL_RECORD_READY':'EXACT_LOCAL_MODEL_PRICE',record.price,record.officialUrl));continue;}
   let result=localCache.get(url);if(!result){if(cache.has(url)){result=await read(cache.get(url));rows.push(row('API_SOURCE_CACHE_REUSED'));}else{if(failedUrls.has(url))throw Error('API_REQUEST_HELD');if(calls>=cfg.maxRequestsPerRun)throw Error('REQUEST_LIMIT');if(calls)await new Promise(r=>setTimeout(r,2000));calls++;apiCalls++;const response=await client.get(url,{maxRedirects:0});rows.push(row('API_HTTP_'+response.status()));if([401,403,429].includes(response.status()))throw Error('ACCESS_BLOCKED');if(!response.ok())throw Error('API_SOURCE_UNAVAILABLE');const body=await response.body();if(body.length>cfg.maxResponseBytes)throw Error('RESPONSE_LIMIT');await fs.writeFile(run+'/raw/api-'+apiCalls+'.source',body,{mode:0o600});let data;try{data=JSON.parse(body.toString());}catch{throw Error('API_JSON_UNAVAILABLE');}result={data,checkedAt:new Date().toISOString()};}localCache.set(url,result);}
   const record=foreignModelRecord(result.data,cfg,t.code,result.checkedAt);records.push(record);rows.push(row('EXACT_LOCAL_MODEL_PRICE',record.price,record.officialUrl));
  }catch(e){failed++;const status=/^[A-Z0-9_]{1,40}$/.test(e.message)?e.message:'MODEL_PRICE_FAILED';rows.push(row(status));if(catalogItemFailureKind(status)!=='ordinary'||/CONFLICT/.test(status)){process.exitCode=catalogItemFailureKind(status)==='access'?2:78;break;}}}}

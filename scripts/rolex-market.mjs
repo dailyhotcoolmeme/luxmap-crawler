@@ -24,8 +24,9 @@ try{
    const rows=guard(path.join(run,'summary.json'));
    if(rows.some(r=>/UNAUTHORIZED|SANDBOX|TOKEN|NETWORK_POLICY/.test(r.status)))throw Object.assign(Error('SAFETY_STOP'),{exitCode:78});
    if(code!==0&&code!==2)throw Error('COLLECTION_OR_STORAGE_FAILED');
-   const stored=guard(path.join(run,'artifacts/verified/summary.json')),ready=rows.filter(r=>['REFERENCE_IMAGE_READY','PRICE_UNPUBLISHED'].includes(r.status));
-   if(ready.length!==stored.length||ready.some(r=>!stored.some(v=>v.variantCode===r.variantCode.toUpperCase()&&v.status==='PUBLIC_CATALOG_VERIFIED')))throw Error('STORAGE_VERIFICATION_MISMATCH');
+   const stored=guard(path.join(run,'artifacts/verified/summary.json')),ready=rows.filter(r=>['REFERENCE_IMAGE_READY','PRICE_UNPUBLISHED','REGISTERED_PRICE_READY'].includes(r.status));
+   if(ready.length!==stored.length||ready.some(r=>!stored.some(v=>v.variantCode===r.variantCode.toUpperCase()&&(r.status==='REGISTERED_PRICE_READY'?(r.price===null?v.status==='REGISTERED_PRICE_UNCONFIRMED':['REGISTERED_PRICE_PUBLIC_VERIFIED','REGISTERED_NEWER_PRICE_PRESERVED'].includes(v.status)):v.status==='PUBLIC_CATALOG_VERIFIED'))))throw Error('STORAGE_VERIFICATION_MISMATCH');
+   if(stored.some(r=>r.status==='REGISTERED_PRICE_UNCONFIRMED'))failed=true;
    if(code===2)failed=true;
    if(smoke){if(failed)throw Error('SAMPLE_FAILED');report('SAMPLE_VERIFIED_NOT_FULL_CATALOG');finished=true;break;}
    const next=Number(rows.find(r=>r.status.startsWith('NEXT_OFFSET_'))?.status.slice(12)),left=Number(rows.find(r=>r.status.startsWith('REMAINING_'))?.status.slice(10));

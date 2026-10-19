@@ -8,6 +8,7 @@ import {inspectDiorNativeEvidence} from '../../scripts/report-dior-native-eviden
 import {downloadAndOptimizeImage,closeImageProcessor,originalImageUrl,IMAGE_PROCESSING_VERSION} from './image-processor.js';
 import {requireDiorIntegratedAttributes} from './dior-image-quality.js';
 import {preserveDiorRegisteredFields} from './dior-weekly-routes.js';
+import {registeredPriceOnly} from './registered-maintenance.js';
 export function diorImageInputKey(product){
  const source=originalImageUrl(product.sourceImageUrl,product.normalizedCode);
  return createHash('sha256').update(product.normalizedCode+'\0'+source+'\0'+IMAGE_PROCESSING_VERSION).digest('hex');
@@ -70,7 +71,8 @@ export async function recoverDiorReference(){
  if(spawnSync(root+'/scripts/crawl-output-guard.sh',[source+'/summary.json'],{stdio:'ignore'}).status)throw Error('SUMMARY_GUARD');
  const accepted=JSON.parse(await fs.readFile(source+'/summary.json')).filter(r=>r.status==='EXACT_SKU');
  if(!accepted.length||accepted.length>25)throw Error('RECOVERY_BATCH_LIMIT');
- const imageSelections=new Map(),failedKeys=new Set(),selectionFile=source+'/artifacts/selected-original-images.json';
+ const deniedFile=root+'/crawler/brands/dior/published-routes/image-denied.json',denied=JSON.parse(await fs.readFile(deniedFile));if(!Array.isArray(denied)||denied.some(k=>!/^[a-f0-9]{64}$/.test(k)))throw Error('IMAGE_FAILURE_HISTORY');
+ const imageSelections=new Map(),failedKeys=new Set(denied),selectionFile=source+'/artifacts/selected-original-images.json';
  // Failure history is input-specific and survives a normal collection resume.
  for(const id of await fs.readdir(root+'/crawler/runs/dior/kr')){
   const prior=root+'/crawler/runs/dior/kr/'+id;
@@ -97,11 +99,11 @@ export async function recoverDiorReference(){
    // Category links can include global navigation: independently require an
    // explicit bag type in the official product name before issuing a proof.
    if(!isDiorBagName(product.productName)){classificationRejected++;continue;}
-   if(JSON.parse(await fs.readFile(source+'/summary.json')).some(r=>r.status==='SOURCE_BATCH_RECORDED')){
+   if(!registeredPriceOnly(product.normalizedCode)&&JSON.parse(await fs.readFile(source+'/summary.json')).some(r=>r.status==='SOURCE_BATCH_RECORDED')){
     const refs=JSON.parse(await fs.readFile(root+'/crawler/runtime/dior-weekly/references.json'));
-    product=preserveDiorRegisteredFields(product,refs.find(v=>v.normalized_code===product.normalizedCode));
+    const prior=refs.find(v=>v.normalized_code===product.normalizedCode);if(prior)product=preserveDiorRegisteredFields(product,prior);
    }
-   try{requireDiorIntegratedAttributes(product);}catch{attributesRejected++;continue;}
+   if(!registeredPriceOnly(product.normalizedCode))try{requireDiorIntegratedAttributes(product);}catch{attributesRejected++;continue;}
    if(product.price!==row.price)throw Error('RECOVERY_IDENTITY');
    const selection=imageSelections.get(product.normalizedCode);if(selection){product.sourceImageUrl=selectDiorPublishedImage(html,product,selection,failedKeys);product.sourceImageCandidates=[product.sourceImageUrl];}
    const existing=inputs.find(p=>p.normalizedCode===product.normalizedCode);
@@ -115,6 +117,7 @@ export async function recoverDiorReference(){
  const rows=[],records=[],failedInputs=[],artifact=run+'/artifacts';await fs.mkdir(artifact,{recursive:true});
  const context=await request.newContext({proxy:{server:process.env.LUXURY_NETWORK_PROXY},timeout:30000});let active=null,calls=0;
  try{if(classificationRejected)rows.push({brand:'dior',country:'KR',parentModel:'',variantCode:'RUN',price:null,currency:'KRW',status:`CLASSIFICATION_REJECTED_${classificationRejected}`,officialUrl:cfg.entryUrl});for(const product of inputs){active=product;
+  if(registeredPriceOnly(product.normalizedCode)){records.push({...product,maintenancePriceOnly:true});rows.push({brand:'dior',country:'KR',parentModel:'기존 상품 가격만 수집',variantCode:product.normalizedCode,price:product.price,currency:'KRW',status:'REGISTERED_PRICE_READY',officialUrl:product.officialUrl});continue;}
   const candidates=diorUnfailedImages(product,failedKeys);if(!candidates.length)throw Error('DIOR_NO_NEW_IMAGE_INPUT');
   product.sourceImageUrl=candidates[0];const reused=await reusePreparedImage(root,run,artifact,product,cfg);
   let image=reused,last;

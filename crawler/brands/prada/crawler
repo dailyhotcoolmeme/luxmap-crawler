@@ -6,6 +6,7 @@ import { request } from 'playwright-core';
 import sharp from 'sharp';
 import { productLinks, parsePradaProduct, pradaSupplement, pradaModelProductLinks, decodeHtml, isPradaBag } from '../../common/prada-product.js';
 import { downloadAndOptimizeImage, closeImageProcessor } from '../../common/image-processor.js';
+import {registeredPriceOnly} from '../../common/registered-maintenance.js';
 import {refreshImages} from '../../common/image-refresh.js';
 import { normalizeProductCode } from '../../common/product-normalizer.js';
 import {exactPradaModelPrice} from '../../common/prada-model-price.js';
@@ -213,7 +214,7 @@ try{
       const row=parsePradaProduct(html,url,config,map);
       recordAvailability(run,config,url,200,true);
       if(config.country==='KR'&&classifyPradaCandidate(row,isPradaBag)!=='bag')throw fail('BAG_CLASSIFICATION_UNVERIFIED');
-      if(config.country==='KR'&&!args.includes('--prices-only')){
+      if(config.country==='KR'&&!args.includes('--prices-only')&&!registeredPriceOnly(row.normalizedCode)){
         const modelResponse=await get(`${url}.model.json`);
         if(!modelResponse.ok())throw fail('PRODUCT_MODEL_HTTP_FAILED');
         const modelText=await modelResponse.text();await fs.writeFile(path.join(run,'raw',`${code}-product-model.json`),modelText);
@@ -225,7 +226,7 @@ try{
         if(args.includes('--inspect-metadata'))for(const [field,label]of [['colorDisplay','COLOR'],['materialDisplay','MATERIAL'],['widthMm','WIDTH'],['heightMm','HEIGHT'],['depthMm','DEPTH']])summaries.push({...summarize(row),price:null,status:`${label}_${row[field]==null?'MISSING':'CONFIRMED'}`});
       }
       if(config.country==='KR'&&!args.includes('--prices-only')){
-        Object.assign(row,await downloadAndOptimizeImage({request:context},row.sourceImageUrl,artifact));
+        Object.assign(row,await downloadAndOptimizeImage({request:context},row.sourceImageUrl,artifact,row.normalizedCode));
         if(args.includes('--expand-variants'))for(const [childCode,childUrl] of productLinks(html,url,'kr'))if(childCode.startsWith(row.styleCode)&&!seen.has(childCode)&&!queue.includes(childUrl))queue.push(childUrl);
       }
       rows.push(row);summaries.push(summarize(row));
