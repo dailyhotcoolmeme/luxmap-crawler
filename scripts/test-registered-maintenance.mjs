@@ -23,7 +23,7 @@ for(const brand of maintenanceBrands){
    if(method==='PATCH'){
     assert(endpoint.startsWith('market_products?id=eq.kr1&variant_id=eq.v1&country_code=eq.KR'));
     assert.deepEqual(Object.keys(body).sort(),['current_price','last_seen_at','page_checked_at','price_checked_at','price_status']);
-    writes.push({endpoint,body});Object.assign(state.market_products[0],body);return [structuredClone(state.market_products[0])];
+    writes.push({endpoint,body});Object.assign(state.market_products[0],Object.fromEntries(Object.entries(body).map(([k,v])=>[k,k.endsWith('_at')?v.replace('Z','+00:00'):v])));return [structuredClone(state.market_products[0])];
    }
    if(method==='POST'){assert.equal(endpoint,'price_history');history=[...body,...history];writes.push({endpoint,body});return body;}
    if(endpoint.startsWith('market_products?'))return [{id:'kr1',price_history:history.slice(0,1)}];

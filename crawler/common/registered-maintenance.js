@@ -39,9 +39,9 @@ export async function storeRegisteredPrices(records,brand,query){
   if(r.price===null||m.price_checked_at&&Date.parse(m.price_checked_at)>Date.parse(r.checkedAt)){expected.set(v.id,m);continue;}
   const patch={current_price:r.price,price_status:'confirmed',price_checked_at:r.checkedAt,page_checked_at:r.checkedAt,last_seen_at:r.checkedAt};
   const saved=await query('market_products?id=eq.'+m.id+'&variant_id=eq.'+v.id+'&country_code=eq.KR','PATCH',patch);
-  if(saved.length!==1||saved[0].id!==m.id||Object.keys(patch).some(k=>saved[0][k]!==patch[k]))throw Error('MAINTENANCE_PRICE_WRITE');
+  if(saved.length!==1||saved[0].id!==m.id||Object.keys(patch).some(k=>k.endsWith('_at')?Date.parse(saved[0][k])!==Date.parse(patch[k]):saved[0][k]!==patch[k]))throw Error('MAINTENANCE_PRICE_WRITE');
   if(Number(m.current_price)!==r.price)changed++;
-  expected.set(v.id,{...m,...patch});histories.push({market_product_id:m.id,amount:r.price,currency_code:'KRW',observed_at:r.checkedAt,source_url:r.officialUrl});
+  expected.set(v.id,{...m,...Object.fromEntries(Object.keys(patch).map(k=>[k,saved[0][k]]))});histories.push({market_product_id:m.id,amount:r.price,currency_code:'KRW',observed_at:r.checkedAt,source_url:r.officialUrl});
  }
  if(histories.length){
   const historyEndpoint='market_products?id=in.('+histories.map(h=>h.market_product_id).join(',')+')&select=id,price_history(amount,currency_code)&price_history.order=observed_at.desc&price_history.limit=1&limit=25';
