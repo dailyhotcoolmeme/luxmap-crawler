@@ -4,6 +4,7 @@ import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {summaryPages} from '../crawler/common/guarded-summary-pages.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+try{
 const sample=path.join(root,'crawler/service/weekly-samples/summary.json');
 if(process.env.RUN_MODE==='reference-smoke'&&fs.existsSync(sample)&&Date.now()-fs.statSync(sample).mtimeMs<3600000&&spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[sample],{stdio:'ignore'}).status===0){fs.mkdirSync(path.join(root,'.ci-report'),{recursive:true});fs.copyFileSync(sample,path.join(root,'.ci-report/summary.json'));process.exit(0);}
 const schedule=JSON.parse(fs.readFileSync(path.join(root,'crawler/schedule.json')));
@@ -104,4 +105,14 @@ for(const [index,page]of summaryPages(unique).entries()){
  const file=path.join(root,'.ci-report',index===0?'summary.json':`summary-${index}.json`);
  fs.writeFileSync(file,JSON.stringify(page),{mode:0o600});
  if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status!==0){fs.unlinkSync(file);throw new Error('CI summary blocked');}
+}
+}catch(error){
+ // A diagnostic failure must remain visible even when the aggregate cannot
+ // be built. Preserve already written pages and keep the step failed.
+ const folder=path.join(root,'.ci-report');fs.mkdirSync(folder,{recursive:true});
+ const status=/^[A-Z0-9_]{1,40}$/.test(error.message??'')?error.message:'CI_REPORT_BUILD_FAILED';
+ const file=path.join(folder,'summary-error.json');
+ fs.writeFileSync(file,JSON.stringify([{brand:'catalog',country:'KR',parentModel:'전체 진단 보고서 생성 실패',variantCode:'TOTAL',price:null,currency:'KRW',status,officialUrl:'https://github.com/dailyhotcoolmeme/luxmap-crawler/actions'}]),{mode:0o600});
+ if(spawnSync(path.join(root,'scripts/crawl-output-guard.sh'),[file],{stdio:'ignore'}).status)fs.unlinkSync(file);
+ process.exitCode=1;
 }
