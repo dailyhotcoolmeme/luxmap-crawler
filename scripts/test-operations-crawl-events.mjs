@@ -8,6 +8,7 @@ import {scanCrawlEvents,startIssueReporter} from './sync-operations-crawl-issues
 const root=path.resolve(import.meta.dirname,'..'),temporary=await fs.mkdtemp(path.join(os.tmpdir(),'luxmap-issues-'));
 const config={brand:'chanel',country:'KR',currency:'KRW',siteHosts:['www.chanel.com']},configs=new Map([['chanel:KR',config]]),row={brand:'chanel',country:'KR',variantCode:'AS1234',parentModel:'',price:null,currency:'KRW',status:'IMAGE_RECOVERY_FAILED',officialUrl:'https://www.chanel.com/kr/fashion/p/AS1234/'};
 const options={configs,sourceKey:'fixture:1',observedAt:new Date().toISOString()};
+assert.equal(crawlEvent({...row,status:'NAVIGATION_TIMEOUT'},options).outcome,'failure');
 assert.equal(crawlEvent(row,options).stage,'image');assert.equal(crawlEvent({...row,status:'PRICE_UNAVAILABLE'},options).outcome,'price_unavailable');assert.equal(crawlEvent({...row,status:'confirmed',price:100},options),null);assert.equal(crawlEvent({...row,variantCode:'RUN'},options),null);assert.equal(crawlEvent({...row,officialUrl:'https://evil.example/product'},options),null);assert.equal(crawlEvent({...row,officialUrl:'https://user:secret@www.chanel.com/'},options),null);
 try{
  for(const folder of ['scripts','crawler/brands/chanel/countries','crawler/runs/chanel/kr/fixture'])await fs.mkdir(temporary+'/'+folder,{recursive:true});

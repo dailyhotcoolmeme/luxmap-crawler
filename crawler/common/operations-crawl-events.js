@@ -17,7 +17,7 @@ export function crawlEvent(row,{observedAt,sourceKey,configs}){
  const status=String(row.status??'').toUpperCase();let outcome,stage;
  if(['PUBLIC_CATALOG_VERIFIED','KR_FULL_RECORD_PUBLIC_VERIFIED','PUBLIC_PRICE_VERIFIED','PRICE_STORED_AND_VERIFIED','STORED_AND_VERIFIED','FOREIGN_PRICE_PUBLIC_VERIFIED'].includes(status)){outcome='verified';stage='publication';}
  else if(['PRICE_UNAVAILABLE','COUNTRY_PRODUCT_MISSING','PRODUCT_NOT_FOUND','NO_SEARCH_RESULT','PRICE_NOT_RETURNED'].includes(status)){outcome='price_unavailable';stage='price';}
- else if(/FAILED|FAILURE|ERROR|BLOCKED|DENIED|REJECTED|MISMATCH|MISSING|INVALID|UNPROVEN|UNVERIFIED|HTTP_[45]\d\d|MASK_RANGE|IMAGE_BYTE_LIMIT|REFERENCE_IDENTITY/.test(status)){
+ else if(/FAILED|FAILURE|ERROR|BLOCKED|DENIED|REJECTED|MISMATCH|MISSING|INVALID|UNPROVEN|UNVERIFIED|TIMEOUT|TIMED_OUT|EXCEEDED|MALFORMED|BAD_|UNEXPECTED|UNSUPPORTED|NOT_READY|HTTP_[45]\d\d|MASK_RANGE|IMAGE_BYTE_LIMIT|REFERENCE_IDENTITY/.test(status)){
   outcome='failure';stage=/IMAGE|CUTOUT|MASK/.test(status)?'image':/STORAGE|DATABASE|WRITE|R2_/.test(status)?'storage':/PUBLIC|READBACK/.test(status)?'publication':/MISMATCH|INVALID|UNPROVEN|UNVERIFIED|REJECTED|MISSING|REFERENCE_IDENTITY/.test(status)?'validation':'collection';
  }else return null;
  if(!/^[A-Z0-9_]{1,80}$/.test(status)||!Number.isFinite(Date.parse(observedAt)))return null;
