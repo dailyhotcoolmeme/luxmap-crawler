@@ -16,7 +16,7 @@ export async function scanCrawlEvents(root,{since=0,seen=new Set()}={}){
   let rows;try{rows=guardedSummaryRows(bytes,limits);}catch{skipped++;continue;}
   // The guard validates the current bytes; reject a concurrently replaced file.
   const current=await fs.readFile(file);if(!current.equals(bytes)){skipped++;continue;}guarded++;
-  for(const row of rows){const event=crawlEvent(row,{observedAt:stat.mtime.toISOString(),sourceKey,configs});if(event)events.push(event);}seen.add(sourceKey);
+  for(const row of rows){const event=crawlEvent(row,{observedAt:stat.mtime.toISOString(),sourceKey:path.relative(root,file),configs});if(event)events.push(event);}seen.add(sourceKey);
  }}for(const folder of folders)await walk(folder);
  events.sort((a,b)=>a.observed_at.localeCompare(b.observed_at)||a.event_key.localeCompare(b.event_key));return {events,guarded,skipped};
 }
