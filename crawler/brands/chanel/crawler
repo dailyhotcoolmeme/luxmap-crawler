@@ -108,6 +108,9 @@ async function navigate(page, url) {
       await page.waitForTimeout(config.detailWaitMs);
       return;
     } catch (error) {
+      const failureCode=classifyFailure(error,stage),failedSku=normalizeProductCode(new URL(officialUrl).pathname.match(/\/p\/([^/]+)/)?.[1]);
+      failures.push({officialUrl,failureCode});
+      if(failedSku){const rows=failures.slice(-25).map(f=>({brand:config.brand??'chanel',country:config.country,parentModel:'상품별 실패 기록',variantCode:normalizeProductCode(new URL(f.officialUrl).pathname.match(/\/p\/([^/]+)/)?.[1])||'RUN',price:null,currency:config.currency,status:/^[A-Z0-9_]{1,40}$/.test(f.failureCode)?f.failureCode:'PRODUCT_COLLECTION_FAILED',officialUrl:f.officialUrl}));await fs.writeFile(path.join(runDir,`summary-failures-${Math.floor((failures.length-1)/25)}.json`),JSON.stringify(rows));}
       if (error?.failureCode === 'ACCESS_BLOCKED') throw error;
       lastError = error;
       if (attempt < navigationRetries) await page.waitForTimeout(config.retryDelayMs);
@@ -310,7 +313,6 @@ try {
         throw error;
       }
       if (/product limit exceeded/i.test(error instanceof Error ? error.message : "")) throw error;
-      failures.push({ officialUrl, failureCode: classifyFailure(error, stage) });
     }
   }
 

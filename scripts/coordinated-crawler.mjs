@@ -2,6 +2,7 @@ import {spawn,spawnSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
+import {startIssueReporter} from './sync-operations-crawl-issues.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 // 2026-10-15: disable the unproductive overnight diagnostic expansion.
 const retiredDiagnostics=new Set(['--probe-published-script','--probe-product-chunk','--probe-product-dependencies','--probe-product-api']);
@@ -65,18 +66,20 @@ if(!acquired){
  }
  console.log('SKIPPED: active lease or completed daily run.');process.exit(3);
 }
-let child,timer,heartbeatFailed=false,renewing=false,killTimer,finished=false;
+let child,timer,heartbeatFailed=false,renewing=false,killTimer,finished=false,issueReporter;
 const stop=()=>{if(child){try{process.kill(-child.pid,'SIGTERM');}catch{}killTimer??=setTimeout(()=>{try{process.kill(-child.pid,'SIGKILL');}catch{}},5000);}};
 try{
+ issueReporter=await startIssueReporter({root,since:Date.now(),runKey:source==='github'?`github:${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT??1}`:owner,source});
  child=spawn(process.execPath,[path.join(root,countryReferenceSmoke?'scripts/country-reference-smoke.mjs':verifyReferenceSmoke?'scripts/verify-reference-smoke.mjs':officialReference?'scripts/official-brand-reference.mjs':officialProbe?'scripts/official-brand-probe.mjs':rolexForeign?'scripts/rolex-foreign.mjs':foreign?'scripts/van-cleef-foreign.mjs':onboarding?'scripts/jewelry-watch-onboarding.mjs':'scripts/crawler-daily.mjs'),...(officialReference||officialProbe?process.argv.slice(3):foreign||rolexForeign?process.argv.slice(3):onboarding?[]:process.argv.slice(2))],{cwd:root,env:{...process.env,LUXURY_COORDINATOR_OWNER:owner},detached:true,stdio:'ignore'});
  timer=setInterval(async()=>{if(renewing||finished)return;renewing=true;try{if(!await rpc('heartbeat_crawler_execution',{p_owner:owner})&&!finished)throw new Error('lost lease');}catch{if(!finished){heartbeatFailed=true;stop();}}finally{renewing=false;}},30000);
  for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{heartbeatFailed=true;stop();});
  const code=await new Promise(resolve=>{child.once('error',()=>{finished=true;resolve(1);});child.once('exit',code=>{finished=true;resolve(code??1);});});
  clearInterval(timer);
  const completed=code===0&&!heartbeatFailed&&!partial;
+ const issueSync=await issueReporter.stop();issueReporter=null;if(issueSync.failed)console.error('ISSUE_REPORT_UPLOAD_PENDING');
  if(!await rpc('release_crawler_execution',{p_owner:owner,p_day:day,p_complete:completed,p_failed:!partial&&!completed}))throw new Error('release failed');
  process.exitCode=heartbeatFailed?78:code;
 }catch{
  stop();process.exitCode=1;
  try{await rpc('release_crawler_execution',{p_owner:owner,p_day:day,p_complete:false,p_failed:!partial});}catch{}
-}finally{clearInterval(timer);clearTimeout(killTimer);}
+}finally{clearInterval(timer);clearTimeout(killTimer);if(issueReporter)await issueReporter.stop();}
