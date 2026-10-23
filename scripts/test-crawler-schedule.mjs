@@ -10,7 +10,9 @@ assert.throws(()=>validateMaintenancePolicy({...schedule,jobs:schedule.jobs.filt
 const future={...schedule,referenceAudits:{...schedule.referenceAudits,'future-brand':'scripts/future-audit.mjs'},jobs:[...schedule.jobs,...schedule.maintenancePolicy.requiredCountries.map(country=>({brand:'future-brand',country,adapter:'scripts/future-market.mjs'}))]};
 validateMaintenancePolicy(future);
 assert.equal(schedulePlan(future).filter(job=>job.brand==='future-brand').length,10,'new registered brands join the same discovery/audit/KR/foreign plan');
-assert(fs.readFileSync(new URL('../.github/workflows/crawler.yml',import.meta.url),'utf8').includes("cron: '0 0 * * 1'"));
+const workflow=fs.readFileSync(new URL('../.github/workflows/crawler.yml',import.meta.url),'utf8');
+assert(!/^  schedule:/m.test(workflow),'automatic brand collection is disabled');
+assert(/^  workflow_dispatch:/m.test(workflow),'manual collection remains available');
 assert(scheduleCalendar(schedule).every(interval=>interval.Weekday===1));
 assert(isScheduledDay(schedule,new Date('2026-10-19T00:00:00Z')));
 assert(!isScheduledDay(schedule,new Date('2026-10-18T14:59:59Z')));
