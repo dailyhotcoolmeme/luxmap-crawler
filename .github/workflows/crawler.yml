@@ -1,9 +1,6 @@
 name: Luxmap crawler
 run-name: ${{ inputs.mode || 'full' }} Luxmap crawler
 on:
-  schedule:
-    # Monday 09:00 Asia/Seoul (UTC 00:00). Reuse the full registry, not smoke.
-    - cron: '0 0 * * 1'
   workflow_dispatch:
     inputs:
       mode:
